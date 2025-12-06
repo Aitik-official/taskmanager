@@ -104,8 +104,10 @@ export interface TaskFilter {
 export interface DashboardStats {
   totalTasks: number;
   completedTasks: number;
+  pendingTasks: number;
   overdueTasks: number;
   inProgressTasks: number;
   totalProjects: number;
   activeProjects: number;
+  activeEmployees: number;
 }

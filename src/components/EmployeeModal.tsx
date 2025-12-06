@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit, Trash2, Eye, EyeOff, CheckSquare, FolderOpen } from 'lucide-react';
+import { X, Save, Edit, Trash2, Eye, EyeOff, CheckSquare, FolderOpen, Plus } from 'lucide-react';
 import { Employee, Project, Task } from '../types';
 
 interface EmployeeModalProps {
@@ -42,6 +42,14 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [showAssignments, setShowAssignments] = useState(false);
+  const [showPositionDropdown, setShowPositionDropdown] = useState(false);
+  const [showAddPositionModal, setShowAddPositionModal] = useState(false);
+  const [newPosition, setNewPosition] = useState('');
+  const [positions, setPositions] = useState<string[]>([]);
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [showAddDepartmentModal, setShowAddDepartmentModal] = useState(false);
+  const [newDepartment, setNewDepartment] = useState('');
+  const [departments, setDepartments] = useState<string[]>([]);
 
   // Debug logging for props
   useEffect(() => {
@@ -52,27 +60,132 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
     });
   }, [projects, tasks, employee]);
 
-  const departments = [
-    'Engineering',
-    'Design',
-    'Marketing',
-    'Sales',
-    'Human Resources',
-    'Finance',
-    'Operations',
-    'Support'
-  ];
+  // Load positions from localStorage on mount
+  useEffect(() => {
+    const defaultPositions = [
+      'Software Engineer',
+      'Designer',
+      'Marketing Manager',
+      'Sales Representative',
+      'HR Specialist',
+      'Financial Analyst',
+      'Operations Manager',
+      'Support Specialist',
+      'Employee'
+    ];
+    
+    const savedPositions = localStorage.getItem('employeePositions');
+    if (savedPositions) {
+      setPositions(JSON.parse(savedPositions));
+    } else {
+      setPositions(defaultPositions);
+      localStorage.setItem('employeePositions', JSON.stringify(defaultPositions));
+    }
+  }, []);
 
-  const positions = [
-    'Software Engineer',
-    'Designer',
-    'Marketing Manager',
-    'Sales Representative',
-    'HR Specialist',
-    'Financial Analyst',
-    'Operations Manager',
-    'Support Specialist'
-  ];
+  // Load departments from localStorage on mount
+  useEffect(() => {
+    const defaultDepartments = [
+      'Engineering',
+      'Design',
+      'Marketing',
+      'Sales',
+      'Human Resources',
+      'Finance',
+      'Operations',
+      'Support'
+    ];
+    
+    const savedDepartments = localStorage.getItem('employeeDepartments');
+    if (savedDepartments) {
+      setDepartments(JSON.parse(savedDepartments));
+    } else {
+      setDepartments(defaultDepartments);
+      localStorage.setItem('employeeDepartments', JSON.stringify(defaultDepartments));
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showPositionDropdown && !target.closest('[data-position-dropdown]')) {
+        setShowPositionDropdown(false);
+      }
+      if (showDepartmentDropdown && !target.closest('[data-department-dropdown]')) {
+        setShowDepartmentDropdown(false);
+      }
+    };
+
+    if (showPositionDropdown || showDepartmentDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showPositionDropdown, showDepartmentDropdown]);
+
+  const handleAddPosition = () => {
+    if (newPosition.trim() && !positions.includes(newPosition.trim())) {
+      const updatedPositions = [...positions, newPosition.trim()];
+      setPositions(updatedPositions);
+      localStorage.setItem('employeePositions', JSON.stringify(updatedPositions));
+      setFormData(prev => ({ ...prev, position: newPosition.trim() }));
+      setNewPosition('');
+      setShowAddPositionModal(false);
+      setShowPositionDropdown(false);
+    } else if (positions.includes(newPosition.trim())) {
+      window.alert('This position already exists!');
+    } else {
+      window.alert('Please enter a valid position name!');
+    }
+  };
+
+  const handleDeletePosition = (positionToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent dropdown from closing
+    
+    if (window.confirm(`Are you sure you want to delete the position "${positionToDelete}"?`)) {
+      const updatedPositions = positions.filter(pos => pos !== positionToDelete);
+      setPositions(updatedPositions);
+      localStorage.setItem('employeePositions', JSON.stringify(updatedPositions));
+      
+      // If the deleted position was selected, clear the selection
+      if (formData.position === positionToDelete) {
+        setFormData(prev => ({ ...prev, position: '' }));
+      }
+    }
+  };
+
+  const handleAddDepartment = () => {
+    if (newDepartment.trim() && !departments.includes(newDepartment.trim())) {
+      const updatedDepartments = [...departments, newDepartment.trim()];
+      setDepartments(updatedDepartments);
+      localStorage.setItem('employeeDepartments', JSON.stringify(updatedDepartments));
+      setFormData(prev => ({ ...prev, department: newDepartment.trim() }));
+      setNewDepartment('');
+      setShowAddDepartmentModal(false);
+      setShowDepartmentDropdown(false);
+    } else if (departments.includes(newDepartment.trim())) {
+      window.alert('This department already exists!');
+    } else {
+      window.alert('Please enter a valid department name!');
+    }
+  };
+
+  const handleDeleteDepartment = (departmentToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent dropdown from closing
+    
+    if (window.confirm(`Are you sure you want to delete the department "${departmentToDelete}"?`)) {
+      const updatedDepartments = departments.filter(dept => dept !== departmentToDelete);
+      setDepartments(updatedDepartments);
+      localStorage.setItem('employeeDepartments', JSON.stringify(updatedDepartments));
+      
+      // If the deleted department was selected, clear the selection
+      if (formData.department === departmentToDelete) {
+        setFormData(prev => ({ ...prev, department: '' }));
+      }
+    }
+  };
 
   useEffect(() => {
     if (employee) {
@@ -587,7 +700,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
               </div>
 
               {/* Position */}
-              <div>
+              <div style={{ position: 'relative' }} data-position-dropdown>
                 <label style={{
                   display: 'block',
                   fontSize: '14px',
@@ -597,38 +710,166 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 }}>
                   Position *
                 </label>
-                <select
-                  value={formData.position}
-                  onChange={(e) => handleInputChange('position', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    backgroundColor: '#ffffff'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  <option value="">Select position</option>
-                  {positions.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
-                  ))}
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <div
+                    onClick={() => setShowPositionDropdown(!showPositionDropdown)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 40px 8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer',
+                      minHeight: '38px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: formData.position ? '#111827' : '#9ca3af'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onMouseOut={(e) => {
+                      if (!showPositionDropdown) {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }
+                    }}
+                  >
+                    {formData.position || 'Select position'}
+                  </div>
+                  <div style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: '#6b7280'
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  
+                  {showPositionDropdown && (
+                    <div 
+                      data-position-dropdown
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 1000,
+                        maxHeight: '240px',
+                        overflowY: 'auto'
+                      }}>
+                      {positions.map((pos) => (
+                        <div
+                          key={pos}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            color: '#111827',
+                            backgroundColor: formData.position === pos ? '#eff6ff' : 'transparent',
+                            borderBottom: '1px solid #f3f4f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px'
+                          }}
+                          onMouseOver={(e) => {
+                            if (formData.position !== pos) {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (formData.position !== pos) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          <div
+                            onClick={() => {
+                              handleInputChange('position', pos);
+                              setShowPositionDropdown(false);
+                            }}
+                            style={{
+                              flex: 1
+                            }}
+                          >
+                            {pos}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeletePosition(pos, e)}
+                            style={{
+                              padding: '4px',
+                              color: '#ef4444',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              opacity: 0.7
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                              e.currentTarget.style.opacity = '1';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.opacity = '0.7';
+                            }}
+                            title={`Delete ${pos}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAddPositionModal(true);
+                          setShowPositionDropdown(false);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#2563eb',
+                          fontWeight: '500',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          borderTop: '1px solid #e5e7eb',
+                          backgroundColor: '#f9fafb'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f9fafb';
+                        }}
+                      >
+                        <Plus size={16} />
+                        Add New Position
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Department */}
-              <div>
+              <div style={{ position: 'relative' }} data-department-dropdown>
                 <label style={{
                   display: 'block',
                   fontSize: '14px',
@@ -638,34 +879,162 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 }}>
                   Department *
                 </label>
-                <select
-                  value={formData.department}
-                  onChange={(e) => handleInputChange('department', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    backgroundColor: '#ffffff'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  <option value="">Select department</option>
-                  {departments.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <div
+                    onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 40px 8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer',
+                      minHeight: '38px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: formData.department ? '#111827' : '#9ca3af'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onMouseOut={(e) => {
+                      if (!showDepartmentDropdown) {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }
+                    }}
+                  >
+                    {formData.department || 'Select department'}
+                  </div>
+                  <div style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: '#6b7280'
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  
+                  {showDepartmentDropdown && (
+                    <div 
+                      data-department-dropdown
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 1000,
+                        maxHeight: '240px',
+                        overflowY: 'auto'
+                      }}>
+                      {departments.map((dept) => (
+                        <div
+                          key={dept}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            color: '#111827',
+                            backgroundColor: formData.department === dept ? '#eff6ff' : 'transparent',
+                            borderBottom: '1px solid #f3f4f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '8px'
+                          }}
+                          onMouseOver={(e) => {
+                            if (formData.department !== dept) {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (formData.department !== dept) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          <div
+                            onClick={() => {
+                              handleInputChange('department', dept);
+                              setShowDepartmentDropdown(false);
+                            }}
+                            style={{
+                              flex: 1
+                            }}
+                          >
+                            {dept}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteDepartment(dept, e)}
+                            style={{
+                              padding: '4px',
+                              color: '#ef4444',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              borderRadius: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              opacity: 0.7
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                              e.currentTarget.style.opacity = '1';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.opacity = '0.7';
+                            }}
+                            title={`Delete ${dept}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAddDepartmentModal(true);
+                          setShowDepartmentDropdown(false);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          color: '#2563eb',
+                          fontWeight: '500',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          borderTop: '1px solid #e5e7eb',
+                          backgroundColor: '#f9fafb'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#f9fafb';
+                        }}
+                      >
+                        <Plus size={16} />
+                        Add New Department
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Joining Date */}
@@ -1158,6 +1527,334 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
               </button>
             </div>
           </form>
+        )}
+
+        {/* Add New Position Modal */}
+        {showAddPositionModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 60
+          }} onClick={() => setShowAddPositionModal(false)}>
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              width: '90%',
+              maxWidth: '400px',
+              padding: '24px'
+            }} onClick={(e) => e.stopPropagation()}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '20px'
+              }}>
+                <h3 style={{
+                  fontSize: '20px',
+                  fontWeight: '600',
+                  color: '#111827',
+                  margin: 0
+                }}>
+                  Add New Position
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowAddPositionModal(false);
+                    setNewPosition('');
+                  }}
+                  style={{
+                    color: '#9ca3af',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.color = '#6b7280';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.color = '#9ca3af';
+                  }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Position Name *
+                </label>
+                <input
+                  type="text"
+                  value={newPosition}
+                  onChange={(e) => setNewPosition(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddPosition();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  placeholder="Enter position name"
+                  autoFocus
+                />
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddPositionModal(false);
+                    setNewPosition('');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    color: '#374151',
+                    backgroundColor: '#f3f4f6',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e5e7eb';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddPosition}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1d4ed8';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#2563eb';
+                  }}
+                >
+                  <Plus size={16} />
+                  Add Position
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add New Department Modal */}
+        {showAddDepartmentModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 60
+          }} onClick={() => setShowAddDepartmentModal(false)}>
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              width: '90%',
+              maxWidth: '400px',
+              padding: '24px'
+            }} onClick={(e) => e.stopPropagation()}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '20px'
+              }}>
+                <h3 style={{
+                  fontSize: '20px',
+                  fontWeight: '600',
+                  color: '#111827',
+                  margin: 0
+                }}>
+                  Add New Department
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowAddDepartmentModal(false);
+                    setNewDepartment('');
+                  }}
+                  style={{
+                    color: '#9ca3af',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.color = '#6b7280';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.color = '#9ca3af';
+                  }}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Department Name *
+                </label>
+                <input
+                  type="text"
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddDepartment();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  placeholder="Enter department name"
+                  autoFocus
+                />
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddDepartmentModal(false);
+                    setNewDepartment('');
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    color: '#374151',
+                    backgroundColor: '#f3f4f6',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e5e7eb';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddDepartment}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1d4ed8';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#2563eb';
+                  }}
+                >
+                  <Plus size={16} />
+                  Add Department
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
