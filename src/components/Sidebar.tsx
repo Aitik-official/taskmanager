@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, CheckSquare, FolderOpen, Users, LogOut } from 'lucide-react';
+import { Home, CheckSquare, FolderOpen, Users, LogOut, User } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile';
@@ -24,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'projects', label: 'Projects', icon: FolderOpen },
         { id: 'employees', label: 'Employees', icon: Users },
+        { id: 'profile', label: 'Profile', icon: User },
       ];
 
   return (

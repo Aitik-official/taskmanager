@@ -15,9 +15,13 @@ export const getEmployees = async (): Promise<Employee[]> => {
 };
 
 // Get employee by ID
-export const getEmployeeById = async (id: string): Promise<Employee> => {
+export const getEmployeeById = async (id: string, email?: string): Promise<Employee> => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/employees/${id}`);
+    // If email is provided, add it as a query parameter
+    const url = email 
+      ? `${API_BASE_URL}/employees/${id}?email=${encodeURIComponent(email)}`
+      : `${API_BASE_URL}/employees/${id}`;
+    const response = await axios.get(url);
     return response.data;
   } catch (error: any) {
     console.error('Error fetching employee:', error);
@@ -37,9 +41,13 @@ export const createEmployee = async (employee: Omit<Employee, 'id' | '_id'>): Pr
 };
 
 // Update employee
-export const updateEmployee = async (id: string, employee: Partial<Employee>): Promise<Employee> => {
+export const updateEmployee = async (id: string, employee: Partial<Employee>, email?: string): Promise<Employee> => {
   try {
-    const response = await axios.put(`${API_BASE_URL}/employees/${id}`, employee);
+    // If email is provided, add it as a query parameter
+    const url = email 
+      ? `${API_BASE_URL}/employees/${id}?email=${encodeURIComponent(email)}`
+      : `${API_BASE_URL}/employees/${id}`;
+    const response = await axios.put(url, employee);
     return response.data;
   } catch (error: any) {
     console.error('Error updating employee:', error);

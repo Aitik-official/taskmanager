@@ -388,13 +388,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#6b7280' }}>Assigned Employee:</span>
                     <span style={{ fontWeight: '500' }}>{project.assignedEmployeeName}</span>
-                  </div>
+                              </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#6b7280' }}>Start Date:</span>
                     <span style={{ fontWeight: '500' }}>{new Date(project.startDate).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </div>
+                              </div>
+                            </div>
+                          </div>
 
               <div style={{
                 backgroundColor: '#f9fafb',
@@ -741,7 +741,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 />
               </div>
 
-              <div>
+                          <div>
                 <label style={{
                   display: 'block',
                   fontSize: '14px',
@@ -749,11 +749,11 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                  Assigned Employee *
-                </label>
-                <select
-                  value={formData.assignedEmployeeId}
-                  onChange={(e) => handleInputChange('assignedEmployeeId', e.target.value)}
+                              Assigned Employee *
+                            </label>
+                            <select
+                              value={formData.assignedEmployeeId}
+                              onChange={(e) => handleInputChange('assignedEmployeeId', e.target.value)}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -772,23 +772,23 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                     e.currentTarget.style.borderColor = '#d1d5db';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
-                  required
-                >
-                  <option value="">Select Employee</option>
-                  {users.filter(u => {
-                    // Handle both User and Employee types
-                    if ('name' in u) {
-                      return u.role === 'Employee'; // User type
-                    } else {
-                      return u.role === 'Employee'; // Employee type
-                    }
-                  }).map(user => (
-                    <option key={user.id} value={user.id}>
-                      {'name' in user ? user.name : `${user.firstName} ${user.lastName}`} ({user.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                              required
+                            >
+                              <option value="">Select Employee</option>
+                              {users.filter(u => {
+                                // Handle both User and Employee types
+                                if ('name' in u) {
+                                  return u.role === 'Employee'; // User type
+                                } else {
+                                  return u.role === 'Employee'; // Employee type
+                                }
+                              }).map(user => (
+                                <option key={user.id} value={user.id}>
+                                  {'name' in user ? user.name : `${user.firstName} ${user.lastName}`} ({user.role})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
               <div>
                 <label style={{
@@ -936,7 +936,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
               />
             </div>
 
-            {/* Form Actions */}
+                                    {/* Form Actions */}
             <div style={{
               display: 'flex',
               justifyContent: 'flex-end',
@@ -944,10 +944,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
               paddingTop: '24px',
               borderTop: '1px solid #e5e7eb'
             }}>
-              {project && isEditMode && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditMode(false)}
+                          {project && isEditMode && (
+                            <button
+                              type="button"
+                              onClick={() => setIsEditMode(false)}
                   style={{
                     padding: '8px 16px',
                     color: '#374151',
@@ -965,12 +965,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   onMouseOut={(e) => {
                     e.currentTarget.style.backgroundColor = '#f3f4f6';
                   }}
-                >
-                  Cancel Edit
-                </button>
-              )}
-              <button
-                type="submit"
+                            >
+                              Cancel Edit
+                            </button>
+                          )}
+                          <button
+                            type="submit"
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#2563eb',
@@ -993,9 +993,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 }}
               >
                 <Save size={16} />
-                {project && isEditMode ? 'Update Project' : 'Create Project'}
-              </button>
-            </div>
+                            {project && isEditMode ? 'Update Project' : 'Create Project'}
+                          </button>
+                        </div>
           </form>
         )}
       </div>

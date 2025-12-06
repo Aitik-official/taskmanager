@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import dbConnect from '../../../../lib/mongodb'
 import Employee from '../../../../models/Employee'
+import mongoose from 'mongoose'
+
+// Helper function to check if a string is a valid MongoDB ObjectId
+function isValidObjectId(id: string): boolean {
+  return mongoose.Types.ObjectId.isValid(id) && (String(new mongoose.Types.ObjectId(id)) === id)
+}
 
 export async function GET(
   request: NextRequest,
@@ -10,8 +16,26 @@ export async function GET(
     await dbConnect()
     
     const { id } = params
+    const searchParams = request.nextUrl.searchParams
+    const email = searchParams.get('email')
     
-    const employee = await Employee.findById(id)
+    let employee = null
+    
+    // If ID is a valid ObjectId, try to find by ID
+    if (isValidObjectId(id)) {
+      employee = await Employee.findById(id)
+    }
+    
+    // If not found by ID and email is provided, try to find by email
+    if (!employee && email) {
+      employee = await Employee.findOne({ email })
+    }
+    
+    // If still not found and ID is not a valid ObjectId, try to find by username
+    if (!employee && !isValidObjectId(id)) {
+      // Try to find by username if ID looks like a username
+      employee = await Employee.findOne({ username: id })
+    }
     
     if (!employee) {
       return NextResponse.json(
@@ -47,12 +71,37 @@ export async function PUT(
     
     const { id } = params
     const updateData = await request.json()
+    const searchParams = request.nextUrl.searchParams
+    const email = searchParams.get('email')
     
-    const employee = await Employee.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    )
+    let employee = null
+    
+    // If ID is a valid ObjectId, try to update by ID
+    if (isValidObjectId(id)) {
+      employee = await Employee.findByIdAndUpdate(
+        id,
+        updateData,
+        { new: true, runValidators: true }
+      )
+    }
+    
+    // If not found by ID and email is provided, try to find and update by email
+    if (!employee && email) {
+      employee = await Employee.findOneAndUpdate(
+        { email },
+        updateData,
+        { new: true, runValidators: true }
+      )
+    }
+    
+    // If still not found and ID is not a valid ObjectId, try to find by username
+    if (!employee && !isValidObjectId(id)) {
+      employee = await Employee.findOneAndUpdate(
+        { username: id },
+        updateData,
+        { new: true, runValidators: true }
+      )
+    }
     
     if (!employee) {
       return NextResponse.json(

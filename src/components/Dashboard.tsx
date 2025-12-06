@@ -12,6 +12,7 @@ import ProjectList from './ProjectList';
 import TaskModal from './TaskModal';
 import EmployeeList from './EmployeeList';
 import EmployeeProfile from './EmployeeProfile';
+import DirectorProfile from './DirectorProfile';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { taskApi } from '../services/api';
@@ -2527,10 +2528,20 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Profile Tab - Only for Employees */}
-          {activeTab === 'profile' && isEmployee && (
-            <div className="space-y-6">
-              <EmployeeProfile />
+          {/* Profile Tab */}
+          {activeTab === 'profile' && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '32px',
+              width: '100%',
+              maxWidth: '100%'
+            }}>
+              {isEmployee ? (
+                <EmployeeProfile />
+              ) : (
+                <DirectorProfile />
+              )}
             </div>
           )}
         </main>

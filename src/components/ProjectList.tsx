@@ -239,8 +239,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
-                Assigned Employee
-              </th>
+                            Assigned Employee
+                          </th>
               <th style={{
                 padding: '12px 24px',
                 textAlign: 'left',
@@ -459,8 +459,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     fontWeight: '500'
                   }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => handleViewProject(project)}
+                       <button
+                         onClick={() => handleViewProject(project)}
                         style={{
                           color: '#2563eb',
                           backgroundColor: 'transparent',
@@ -478,13 +478,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           e.currentTarget.style.color = '#2563eb';
                           e.currentTarget.style.backgroundColor = 'transparent';
                         }}
-                        title="View Project"
-                      >
+                         title="View Project"
+                       >
                         <Eye size={16} />
-                      </button>
-                      {canEditProject && project.id && (
-                        <button
-                          onClick={() => handleEditProject(project)}
+                       </button>
+                                               {canEditProject && project.id && (
+                          <button
+                            onClick={() => handleEditProject(project)}
                           style={{
                             color: '#16a34a',
                             backgroundColor: 'transparent',
@@ -502,14 +502,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             e.currentTarget.style.color = '#16a34a';
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }}
-                          title="Edit Project"
-                        >
+                            title="Edit Project"
+                          >
                           <Edit size={16} />
-                        </button>
-                      )}
-                      {canDeleteProject && project.id && (
-                        <button
-                          onClick={() => handleDeleteProject(project.id!)}
+                          </button>
+                        )}
+                                               {canDeleteProject && project.id && (
+                          <button
+                            onClick={() => handleDeleteProject(project.id!)}
                           style={{
                             color: '#dc2626',
                             backgroundColor: 'transparent',
@@ -527,12 +527,12 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             e.currentTarget.style.color = '#dc2626';
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }}
-                          title="Delete Project"
-                        >
+                            title="Delete Project"
+                          >
                           <Trash2 size={16} />
-                        </button>
-                      )}
-                      {!canEditProject && !canDeleteProject && (
+                          </button>
+                        )}
+                       {!canEditProject && !canDeleteProject && (
                         <span style={{
                           fontSize: '12px',
                           color: '#9ca3af',
@@ -540,10 +540,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           backgroundColor: '#f3f4f6',
                           borderRadius: '4px'
                         }}>
-                          View Only
-                        </span>
-                      )}
-                    </div>
+                           View Only
+                         </span>
+                       )}
+                     </div>
                   </td>
                 </tr>
               ))

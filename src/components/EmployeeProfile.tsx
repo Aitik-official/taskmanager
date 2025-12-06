@@ -25,7 +25,8 @@ const EmployeeProfile: React.FC = () => {
       try {
         console.log('🔄 Loading employee profile for user ID:', user.id);
         console.log('🔄 User object:', user);
-        const employeeData = await getEmployeeById(user.id);
+        // Pass email as fallback for non-ObjectId IDs (like mock users)
+        const employeeData = await getEmployeeById(user.id, user.email);
         console.log('✅ Employee profile loaded:', employeeData);
         setEmployee(employeeData);
       } catch (err: any) {
