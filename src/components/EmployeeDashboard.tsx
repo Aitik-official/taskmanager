@@ -42,10 +42,12 @@ const EmployeeDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>({
     totalTasks: 0,
     completedTasks: 0,
+    pendingTasks: 0,
     overdueTasks: 0,
     inProgressTasks: 0,
     totalProjects: 0,
-    activeProjects: 0
+    activeProjects: 0,
+    activeEmployees: 0
   });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -133,18 +135,23 @@ const EmployeeDashboard: React.FC = () => {
     // Calculate dashboard stats
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'Completed').length;
+    const pendingTasks = tasks.filter(t => t.status === 'Pending').length;
     const overdueTasks = tasks.filter(t => t.status === 'Overdue').length;
     const inProgressTasks = tasks.filter(t => t.status === 'In Progress').length;
     const totalProjects = projects.length;
     const activeProjects = projects.filter(p => p.status === 'Active').length;
+    // Note: User interface doesn't have status, so activeEmployees is set to 0 for employee dashboard
+    const activeEmployees = 0;
 
     setStats({
       totalTasks,
       completedTasks,
+      pendingTasks,
       overdueTasks,
       inProgressTasks,
       totalProjects,
-      activeProjects
+      activeProjects,
+      activeEmployees
     });
   }, [tasks, projects]);
 
