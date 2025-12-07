@@ -10,6 +10,7 @@ import TaskList from './TaskList';
 import ProjectOverview from './ProjectOverview';
 import ProjectList from './ProjectList';
 import TaskModal from './TaskModal';
+import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
 import EmployeeProfile from './EmployeeProfile';
 import DirectorProfile from './DirectorProfile';
@@ -67,6 +68,8 @@ const Dashboard: React.FC = () => {
   });
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile'>('overview');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
@@ -507,31 +510,104 @@ const Dashboard: React.FC = () => {
     });
   }, [tasks, projects, employees]);
 
+  // Refresh task data when modal opens and poll for updates
+  useEffect(() => {
+    if (isTaskModalOpen && selectedTask) {
+      const taskId = selectedTask.id || selectedTask._id;
+      if (!taskId) return;
+
+      // Fetch latest task data immediately when modal opens
+      const refreshTask = async () => {
+        const latestTask = await fetchLatestTask(taskId);
+        if (latestTask) {
+          setSelectedTask(latestTask);
+        }
+      };
+
+      refreshTask();
+
+      // Set up polling to check for updates every 3 seconds while modal is open
+      const pollInterval = setInterval(() => {
+        refreshTask();
+      }, 3000); // Poll every 3 seconds
+
+      // Cleanup interval when modal closes
+      return () => {
+        clearInterval(pollInterval);
+      };
+    }
+  }, [isTaskModalOpen, selectedTask?.id, selectedTask?._id, user, isEmployee, isProjectHead]);
+
+  // Function to fetch latest task data
+  const fetchLatestTask = async (taskId: string): Promise<Task | null> => {
+    try {
+      // Fetch all tasks and find the one with matching ID
+      let fetchedTasks: Task[] = [];
+      
+      if (user) {
+        if (isEmployee) {
+          fetchedTasks = await taskApi.getTasksByUser(user.id, 'Employee');
+        } else if (isProjectHead) {
+          fetchedTasks = await taskApi.getTasksByUser(user.id, 'Project Head');
+        } else {
+          fetchedTasks = await taskApi.getAllTasks();
+        }
+      } else {
+        fetchedTasks = await taskApi.getAllTasks();
+      }
+      
+      // Find the task with matching ID
+      const latestTask = fetchedTasks.find(t => 
+        (t.id || t._id) === taskId || 
+        String(t.id || t._id) === String(taskId)
+      );
+      
+      return latestTask || null;
+    } catch (error: any) {
+      console.error('Error fetching latest task:', error);
+      return null;
+    }
+  };
+
   const handleTaskUpdate = async (updatedTask: Task) => {
     console.log('handleTaskUpdate called with:', updatedTask);
     console.log('Task comments:', updatedTask.comments);
     
     try {
+      const taskId = updatedTask.id || updatedTask._id;
+      
       // If this is a comment update, we don't need to call updateTask
       // since the comment was already added via the comment API
       if (updatedTask.comments && updatedTask.comments.length > 0) {
         console.log('Detected comment update, reloading tasks...');
         // Just reload tasks to get the latest data including comments
         await loadTasks();
+        
+        // Update selectedTask with latest data if modal is still open
+        if (isTaskModalOpen && taskId) {
+          const latestTask = await fetchLatestTask(taskId);
+          if (latestTask) {
+            setSelectedTask(latestTask);
+          }
+        }
       } else {
         console.log('Regular task update, calling updateTask API...');
         // For other task updates, call the update API
-        const taskId = updatedTask.id || updatedTask._id;
         if (!taskId) {
           console.error('No task ID available for update:', updatedTask);
           return;
         }
         await taskApi.updateTask(taskId, updatedTask);
         await loadTasks();
+        
+        // Update selectedTask with latest data if modal is still open
+        if (isTaskModalOpen) {
+          const latestTask = await fetchLatestTask(taskId);
+          if (latestTask) {
+            setSelectedTask(latestTask);
+          }
+        }
       }
-      
-    setSelectedTask(null);
-    setIsTaskModalOpen(false);
     } catch (error: any) {
       console.error('Error updating task:', error);
     }
@@ -1189,47 +1265,130 @@ const Dashboard: React.FC = () => {
                     }}>
                       Project Progress
                     </h3>
-                    <button style={{
-                      color: '#3b82f6',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}>
+                    <button 
+                      onClick={() => {
+                        setActiveTab('projects');
+                      }}
+                      style={{
+                        color: '#3b82f6',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
                       Edit
                     </button>
                   </div>
-                  <div style={{
-                    color: '#111827',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    marginBottom: '12px'
-                  }}>
-                    Active Project
-                  </div>
-                  <div style={{
-                    width: '100%',
-                    height: '8px',
-                    backgroundColor: '#e5e7eb',
-                    borderRadius: '4px',
-                    overflow: 'hidden',
-                    marginBottom: '8px'
-                  }}>
-                    <div style={{
-                      width: '3%',
-                      height: '100%',
-                      backgroundColor: '#10b981',
-                      transition: 'width 0.3s ease'
-                    }} />
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#6b7280'
-                  }}>
-                    3% completed
-                  </div>
+                  {(() => {
+                    // Find active projects
+                    const activeProjects = projects.filter(p => p.status === 'Active');
+                    const firstActiveProject = activeProjects[0];
+                    
+                    if (!firstActiveProject) {
+                      return (
+                        <div style={{
+                          padding: '20px',
+                          textAlign: 'center',
+                          color: '#6b7280',
+                          fontSize: '14px'
+                        }}>
+                          No active projects
+                        </div>
+                      );
+                    }
+                    
+                    // Use project's progress field, or calculate from tasks as fallback
+                    const projectTasks = tasks.filter(t => (t.projectId || '') === (firstActiveProject.id || firstActiveProject._id || ''));
+                    const completedTasks = projectTasks.filter(t => t.status === 'Completed').length;
+                    const totalTasks = projectTasks.length;
+                    // Use project.progress if available, otherwise calculate from tasks
+                    const progress = firstActiveProject.progress !== undefined && firstActiveProject.progress !== null 
+                      ? firstActiveProject.progress 
+                      : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+                    
+                    return (
+                      <div
+                        onClick={() => {
+                          setSelectedProject(firstActiveProject);
+                          setIsProjectModalOpen(true);
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '16px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.borderColor = '#3b82f6';
+                          e.currentTarget.style.backgroundColor = '#f8fafc';
+                          e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <div style={{
+                          color: '#111827',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          marginBottom: '8px'
+                        }}>
+                          {firstActiveProject.name}
+                        </div>
+                        <div style={{
+                          color: '#6b7280',
+                          fontSize: '14px',
+                          marginBottom: '12px'
+                        }}>
+                          {firstActiveProject.description || 'No description'}
+                        </div>
+                        <div style={{
+                          color: '#111827',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          marginBottom: '8px'
+                        }}>
+                          Progress
+                        </div>
+                        <div style={{
+                          width: '100%',
+                          height: '8px',
+                          backgroundColor: '#e5e7eb',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                          marginBottom: '8px'
+                        }}>
+                          <div style={{
+                            width: `${progress}%`,
+                            height: '100%',
+                            backgroundColor: '#10b981',
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          marginBottom: '8px'
+                        }}>
+                          {progress}% completed ({completedTasks}/{totalTasks} tasks)
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#3b82f6',
+                          fontStyle: 'italic',
+                          marginTop: '8px'
+                        }}>
+                          Click to view full details
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Recent Tasks Section */}
@@ -2036,14 +2195,20 @@ const Dashboard: React.FC = () => {
                                 onClick={async () => {
                                   if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
                                     try {
-                                      const taskId = task.id || task._id;
-                                      if (taskId) {
-                                        await taskApi.deleteTask(taskId);
-                                        await loadTasks();
+                                      const taskId = String(task.id || task._id || '').trim();
+                                      if (!taskId) {
+                                        alert('Error: Task ID is missing. Cannot delete task.');
+                                        return;
                                       }
+                                      console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
+                                      const response = await taskApi.deleteTask(taskId);
+                                      console.log('Delete response:', response);
+                                      await loadTasks();
                                     } catch (error: any) {
                                       console.error('Error deleting task:', error);
-                                      alert('Error deleting task. Please try again.');
+                                      console.error('Error response:', error?.response);
+                                      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                                      alert(`Error deleting task: ${errorMessage}`);
                                     }
                                   }
                                 }}
@@ -2552,14 +2717,51 @@ const Dashboard: React.FC = () => {
           task={selectedTask}
           projects={projects}
           users={employees}
-          onClose={() => {
+          onClose={async () => {
             setIsTaskModalOpen(false);
             setSelectedTask(null);
+            // Refresh tasks list when modal closes to show any updates
+            await loadTasks();
           }}
           onSave={selectedTask ? handleTaskUpdate : handleTaskCreate}
           isDirector={isDirector}
           isProjectHead={isProjectHead}
           isEmployee={isEmployee}
+        />
+      )}
+
+      {isProjectModalOpen && selectedProject && (
+        <ProjectModal
+          project={selectedProject}
+          isOpen={isProjectModalOpen}
+          onClose={() => {
+            setIsProjectModalOpen(false);
+            setSelectedProject(null);
+          }}
+          onSave={async (project: Project) => {
+            try {
+              const projectId = project.id || project._id || '';
+              if (projectId) {
+                await updateProject(projectId, project);
+                await loadProjects();
+              }
+            } catch (error: any) {
+              console.error('Error updating project:', error);
+              throw error;
+            }
+          }}
+          onDelete={async (projectId: string) => {
+            try {
+              await deleteProject(projectId);
+              await loadProjects();
+              setIsProjectModalOpen(false);
+              setSelectedProject(null);
+            } catch (error: any) {
+              console.error('Error deleting project:', error);
+              throw error;
+            }
+          }}
+          users={employees}
         />
       )}
     </div>
