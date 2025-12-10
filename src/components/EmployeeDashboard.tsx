@@ -776,17 +776,6 @@ const EmployeeDashboard: React.FC = () => {
                       color: '#111827',
                       margin: 0
                     }}>Project Progress</h3>
-                    <button style={{
-                      color: '#3b82f6',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}>
-                      Edit
-                    </button>
                   </div>
                   {(() => {
                     // Find active projects assigned to the employee
@@ -920,17 +909,6 @@ const EmployeeDashboard: React.FC = () => {
                       color: '#111827',
                       margin: 0
                     }}>Recent Tasks</h3>
-                    <button style={{
-                      color: '#3b82f6',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}>
-                      Edit
-                    </button>
                           </div>
                   {filteredTasks.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -1265,22 +1265,6 @@ const Dashboard: React.FC = () => {
                     }}>
                       Project Progress
                     </h3>
-                    <button 
-                      onClick={() => {
-                        setActiveTab('projects');
-                      }}
-                      style={{
-                        color: '#3b82f6',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      Edit
-                    </button>
                   </div>
                   {(() => {
                     // Find active projects
@@ -1412,17 +1396,6 @@ const Dashboard: React.FC = () => {
                     }}>
                       Recent Tasks
                     </h3>
-                    <button style={{
-                      color: '#3b82f6',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}>
-                      Edit
-                    </button>
                   </div>
                   
                   {/* Task Items */}
