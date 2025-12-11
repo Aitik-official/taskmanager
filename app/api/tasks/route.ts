@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
     const { id, _id, ...taskData } = body
     console.log('Cleaned task data:', JSON.stringify(taskData, null, 2))
     
-    // Validate required fields
-    const requiredFields = ['title', 'description', 'projectId', 'projectName', 'assignedToId', 'assignedToName', 'assignedById', 'assignedByName', 'estimatedHours', 'startDate']
+    // Validate required fields (project is optional)
+    const requiredFields = ['title', 'description', 'assignedToId', 'assignedToName', 'assignedById', 'assignedByName', 'estimatedHours', 'dueDate']
     const missingFields = requiredFields.filter(field => !taskData[field])
     
     if (missingFields.length > 0) {
