@@ -1682,7 +1682,11 @@ const Dashboard: React.FC = () => {
                       </div>
                       <div style={{
                         fontSize: '13px',
-                        color: task.status === 'Overdue' ? '#ef4444' : task.status === 'Completed' ? '#10b981' : '#6b7280',
+                        color: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date())
+                          ? '#ef4444'
+                          : task.status === 'Completed'
+                          ? '#10b981'
+                          : '#6b7280',
                         fontWeight: '500',
                         marginBottom: '12px'
                       }}>
