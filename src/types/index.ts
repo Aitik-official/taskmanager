@@ -51,25 +51,27 @@ export interface Employee {
 
 export interface Task {
   id?: string; // Optional for frontend compatibility
-  _id?: string; // MongoDB ID field
+  _id?: string; // MongoDB ID field (Auto-generated)
   title: string;
   description: string;
-  projectId: string;
-  projectName: string;
+  projectId?: string; // Optional - not required in new spec
+  projectName?: string; // Optional - not required in new spec
   assignedToId: string;
   assignedToName: string;
   assignedById: string;
   assignedByName: string;
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  status: 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
-  estimatedHours: number;
+  priority: 'Urgent' | 'Less Urgent' | 'Free Time';
+  status: 'Pending' | 'In Progress' | 'Completed';
+  estimatedHours?: number; // Optional - not required in new spec
   actualHours?: number;
-  startDate: string;
+  startDate?: string; // Keep for backward compatibility
+  dueDate: string;
   completedDate?: string;
   isLocked: boolean;
   comments: Comment[];
   rating?: number;
   ratingComment?: string;
+  directorRating?: boolean | number | 'Yes' | 'No'; // Boolean / Star / Yes-No, visible only to Director
   newDeadlineProposal?: string;
   reasonForExtension?: string;
   extensionRequestStatus?: 'Pending' | 'Approved' | 'Rejected';
@@ -110,4 +112,17 @@ export interface DashboardStats {
   totalProjects: number;
   activeProjects: number;
   activeEmployees: number;
+}
+
+export interface IndependentWork {
+  id?: string;
+  _id?: string; // MongoDB ID field
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  workDescription: string;
+  category: 'Design' | 'Site' | 'Office' | 'Other';
+  timeSpent: number; // in hours
+  createdAt?: string;
+  updatedAt?: string;
 }

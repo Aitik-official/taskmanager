@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, CheckSquare, FolderOpen, Users, LogOut, User } from 'lucide-react';
+import { Home, CheckSquare, FolderOpen, Users, LogOut, User, Briefcase } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile';
-  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile') => void;
+  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work';
+  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work') => void;
   isEmployee?: boolean;
 }
 
@@ -17,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'projects', label: 'Projects', icon: FolderOpen },
+        { id: 'independent-work', label: 'Independent Work', icon: Briefcase },
         { id: 'profile', label: 'Profile', icon: Users },
       ]
     : [
@@ -24,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'projects', label: 'Projects', icon: FolderOpen },
         { id: 'employees', label: 'Employees', icon: Users },
+        { id: 'independent-work', label: 'Independent Work', icon: Briefcase },
         { id: 'profile', label: 'Profile', icon: User },
       ];
 
@@ -74,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile')}
+                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work')}
                 style={{
                   width: '100%',
                   display: 'flex',

@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, Globe } from 'lucide-react';
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,13 +20,13 @@ const Login: React.FC = () => {
     setError('');
 
     try {
-      console.log('🔄 Attempting login with:', { email, password });
-      const success = await login(email, password);
+      console.log('🔄 Attempting login with:', { username, password });
+      const success = await login(username, password);
       if (success) {
         console.log('✅ Login successful, navigating to dashboard');
         router.push('/');
       } else {
-        setError('Invalid email or password');
+        setError('Invalid username or password');
       }
     } catch (err) {
       console.error('❌ Login error:', err);
@@ -158,12 +158,12 @@ const Login: React.FC = () => {
                 color: '#333333',
                 marginBottom: '8px'
               }}>
-                Username or Email
+                Username
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 style={{
                   width: '100%',

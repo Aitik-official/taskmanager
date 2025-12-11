@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Project, Task, DashboardStats, User, Employee } from '../types';
+import { Project, Task, DashboardStats, User, Employee, IndependentWork } from '../types';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import StatsCards from './StatsCards';
@@ -17,6 +17,7 @@ import DirectorProfile from './DirectorProfile';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { taskApi } from '../services/api';
+import { getAllIndependentWork, updateIndependentWork, deleteIndependentWork } from '../services/independentWorkService';
 import { Download, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // Helper function to download files without external dependencies
@@ -70,9 +71,32 @@ const Dashboard: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work'>('overview');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
+  const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
+  const [independentWorkFilter, setIndependentWorkFilter] = useState<'all' | 'Design' | 'Site' | 'Office' | 'Other'>('all');
+  
+  // Task filters
+  const [taskSearchTerm, setTaskSearchTerm] = useState('');
+  const [taskStaffFilter, setTaskStaffFilter] = useState<string>('all');
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time'>('all');
+  const [taskDateRangeStart, setTaskDateRangeStart] = useState('');
+  const [taskDateRangeEnd, setTaskDateRangeEnd] = useState('');
+  
+  // Project filters
+  const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [projectStaffFilter, setProjectStaffFilter] = useState<string>('all');
+  const [projectDateRangeStart, setProjectDateRangeStart] = useState('');
+  const [projectDateRangeEnd, setProjectDateRangeEnd] = useState('');
+  const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
+  const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
+  const [editForm, setEditForm] = useState({
+    date: '',
+    workDescription: '',
+    category: 'Office' as 'Design' | 'Site' | 'Office' | 'Other',
+    timeSpent: 0
+  });
 
   const loadTasks = useCallback(async () => {
     try {
@@ -455,12 +479,89 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const loadIndependentWork = useCallback(async () => {
+    try {
+      if (isDirector) {
+        const work = await getAllIndependentWork();
+        setIndependentWork(work);
+      }
+    } catch (error: any) {
+      console.error('Error loading independent work:', error);
+      setIndependentWork([]);
+    }
+  }, [isDirector]);
+
+  const handleViewEntry = (entry: IndependentWork) => {
+    setViewingEntry(entry);
+  };
+
+  const handleEditEntry = (entry: IndependentWork) => {
+    setEditingEntry(entry);
+    setEditForm({
+      date: entry.date,
+      workDescription: entry.workDescription,
+      category: entry.category,
+      timeSpent: entry.timeSpent
+    });
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) {
+      return;
+    }
+
+    try {
+      await deleteIndependentWork(entryId);
+      await loadIndependentWork();
+    } catch (error: any) {
+      console.error('Error deleting entry:', error);
+      alert('Error deleting entry. Please try again.');
+    }
+  };
+
+  const handleUpdateEntry = async () => {
+    if (!editingEntry) return;
+
+    try {
+      const entryId = editingEntry.id || editingEntry._id;
+      if (!entryId) return;
+
+      await updateIndependentWork(entryId, {
+        date: editForm.date,
+        workDescription: editForm.workDescription,
+        category: editForm.category,
+        timeSpent: editForm.timeSpent
+      });
+
+      await loadIndependentWork();
+      setEditingEntry(null);
+      setEditForm({
+        date: '',
+        workDescription: '',
+        category: 'Office',
+        timeSpent: 0
+      });
+    } catch (error: any) {
+      console.error('Error updating entry:', error);
+      alert('Error updating entry. Please try again.');
+    }
+  };
+
   useEffect(() => {
     // Load projects, tasks, and employees
     loadProjects();
     loadTasks();
     loadEmployees();
-  }, [user]);
+    if (isDirector) {
+      loadIndependentWork();
+    }
+  }, [user, isDirector]);
+
+  useEffect(() => {
+    if (activeTab === 'independent-work' && isDirector) {
+      loadIndependentWork();
+    }
+  }, [activeTab, isDirector, loadIndependentWork]);
 
   // Debug logging for employees
   useEffect(() => {
@@ -569,6 +670,70 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleTaskCompleted = async (task: Task) => {
+    try {
+      const taskId = task.id || task._id;
+      if (!taskId) {
+        console.error('No task ID available for completion:', task);
+        return;
+      }
+
+      // Confirm with user
+      if (!window.confirm(`Are you sure you want to mark "${task.title}" as completed?`)) {
+        return;
+      }
+
+      // Update task status to completed
+      const updatedTask = {
+        ...task,
+        status: 'Completed' as const,
+        completedDate: new Date().toISOString()
+      };
+
+      // Update the task in the backend
+      await taskApi.updateTask(taskId as string, updatedTask);
+      
+      // Reload tasks to reflect the change
+      await loadTasks();
+      
+    } catch (error: any) {
+      console.error('Error marking task as completed:', error);
+      alert('Error marking task as completed. Please try again.');
+    }
+  };
+
+  const handleProjectCompleted = async (project: Project) => {
+    try {
+      const projectId = project.id || project._id;
+      if (!projectId) {
+        console.error('No project ID available for completion:', project);
+        return;
+      }
+
+      // Confirm with user
+      if (!window.confirm(`Are you sure you want to mark "${project.name}" as completed?`)) {
+        return;
+      }
+
+      // Update project status to completed
+      const updatedProject = {
+        ...project,
+        status: 'Completed' as const,
+        progress: 100
+      };
+
+      // Update the project in the backend
+      await updateProject(projectId, updatedProject);
+      
+      // Reload projects to reflect the change
+      await loadProjects();
+      
+    } catch (error: any) {
+      console.error('Error marking project as completed:', error);
+      alert('Error marking project as completed. Please try again.');
+    }
+  };
+
   const handleTaskUpdate = async (updatedTask: Task) => {
     console.log('handleTaskUpdate called with:', updatedTask);
     console.log('Task comments:', updatedTask.comments);
@@ -672,44 +837,106 @@ const Dashboard: React.FC = () => {
           case 'pending':
             return task.status === 'Pending' || task.status === 'In Progress';
           case 'overdue':
-            return task.status === 'Overdue';
+            return task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date();
           default:
             return true;
         }
       });
     }
 
-    setFilteredTasks(filtered);
-  }, [tasks, user, isEmployee, isProjectHead, isDirector, projects, taskFilter]);
+    // Apply search filter (task name)
+    if (taskSearchTerm.trim()) {
+      filtered = filtered.filter(task => 
+        task.title.toLowerCase().includes(taskSearchTerm.toLowerCase()) ||
+        task.description.toLowerCase().includes(taskSearchTerm.toLowerCase())
+      );
+    }
 
-  const filteredProjects = projects.filter(project => {
-    let filtered = true;
+    // Apply staff name filter
+    if (taskStaffFilter !== 'all') {
+      filtered = filtered.filter(task => task.assignedToId === taskStaffFilter);
+    }
+
+    // Apply priority filter
+    if (taskPriorityFilter !== 'all') {
+      filtered = filtered.filter(task => task.priority === taskPriorityFilter);
+    }
+
+    // Apply date range filter
+    if (taskDateRangeStart) {
+      filtered = filtered.filter(task => {
+        if (!task.dueDate) return false;
+        return new Date(task.dueDate) >= new Date(taskDateRangeStart);
+      });
+    }
+    if (taskDateRangeEnd) {
+      filtered = filtered.filter(task => {
+        if (!task.dueDate) return false;
+        return new Date(task.dueDate) <= new Date(taskDateRangeEnd);
+      });
+    }
+
+    setFilteredTasks(filtered);
+  }, [tasks, user, isEmployee, isProjectHead, isDirector, projects, taskFilter, taskSearchTerm, taskStaffFilter, taskPriorityFilter, taskDateRangeStart, taskDateRangeEnd]);
+
+  const filteredProjects = useMemo(() => {
+    let filtered: Project[] = [];
 
     if (isEmployee) {
       // Employees see projects they're assigned to
-      filtered = project.assignedEmployeeId === user?.id;
+      filtered = projects.filter(project => project.assignedEmployeeId === user?.id);
+    } else {
+      // Directors and project heads see all projects
+      filtered = projects;
     }
 
     // Apply project filter
-    if (filtered && projectFilter !== 'all') {
+    if (projectFilter !== 'all') {
       switch (projectFilter) {
         case 'employee':
           // Show projects assigned to employees (not directors/project heads)
-          filtered = project.assignedEmployeeId !== user?.id;
+          filtered = filtered.filter(project => project.assignedEmployeeId !== user?.id);
           break;
         case 'completed':
-          filtered = project.status === 'Completed';
+          filtered = filtered.filter(project => project.status === 'Completed');
           break;
         case 'pending':
-          filtered = project.status === 'Active' || project.status === 'On Hold';
+          filtered = filtered.filter(project => project.status === 'Active' || project.status === 'On Hold');
           break;
         default:
-          filtered = true;
+          break;
       }
     }
 
+    // Apply search filter (project name)
+    if (projectSearchTerm.trim()) {
+      filtered = filtered.filter(project => 
+        project.name.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
+        project.description?.toLowerCase().includes(projectSearchTerm.toLowerCase())
+      );
+    }
+
+    // Apply staff name filter
+    if (projectStaffFilter !== 'all') {
+      filtered = filtered.filter(project => project.assignedEmployeeId === projectStaffFilter);
+    }
+
+    // Apply date range filter (start date)
+    if (projectDateRangeStart) {
+      filtered = filtered.filter(project => {
+        if (!project.startDate) return false;
+        return new Date(project.startDate) >= new Date(projectDateRangeStart);
+      });
+    }
+    if (projectDateRangeEnd) {
+      filtered = filtered.filter(project => {
+        if (!project.startDate) return false;
+        return new Date(project.startDate) <= new Date(projectDateRangeEnd);
+      });
+    }
+
     return filtered;
-  });
+  }, [projects, user, isEmployee, projectFilter, projectSearchTerm, projectStaffFilter, projectDateRangeStart, projectDateRangeEnd]);
 
   // Debug logging for projects
   console.log('Projects state:', projects);
@@ -1705,6 +1932,244 @@ const Dashboard: React.FC = () => {
                   </div>
                   </div>
               
+              {/* Search and Filter Section */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '16px'
+                }}>
+                  {/* Search by Task Name */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Search Task Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Search by task name..."
+                      value={taskSearchTerm}
+                      onChange={(e) => setTaskSearchTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+
+                  {/* Filter by Staff Name */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Filter by Staff Name
+                    </label>
+                    <select
+                      value={taskStaffFilter}
+                      onChange={(e) => setTaskStaffFilter(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    >
+                      <option value="all">All Staff</option>
+                      {employees.map(emp => (
+                        <option key={emp.id || emp._id} value={emp.id || emp._id}>
+                          {emp.firstName} {emp.lastName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter by Priority */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Filter by Priority
+                    </label>
+                    <select
+                      value={taskPriorityFilter}
+                      onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time')}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    >
+                      <option value="all">All Priorities</option>
+                      <option value="Urgent">Urgent</option>
+                      <option value="Less Urgent">Less Urgent</option>
+                      <option value="Free Time">Free Time</option>
+                    </select>
+                  </div>
+
+                  {/* Date Range Start */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Date Range - Start
+                    </label>
+                    <input
+                      type="date"
+                      value={taskDateRangeStart}
+                      onChange={(e) => setTaskDateRangeStart(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+
+                  {/* Date Range End */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Date Range - End
+                    </label>
+                    <input
+                      type="date"
+                      value={taskDateRangeEnd}
+                      onChange={(e) => setTaskDateRangeEnd(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Clear Filters Button */}
+                {(taskSearchTerm || taskStaffFilter !== 'all' || taskPriorityFilter !== 'all' || taskDateRangeStart || taskDateRangeEnd) && (
+                  <button
+                    onClick={() => {
+                      setTaskSearchTerm('');
+                      setTaskStaffFilter('all');
+                      setTaskPriorityFilter('all');
+                      setTaskDateRangeStart('');
+                      setTaskDateRangeEnd('');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+
               {/* Filter Tabs */}
               <div style={{
                 display: 'flex',
@@ -2119,14 +2584,16 @@ const Dashboard: React.FC = () => {
                                 borderRadius: '9999px',
                                 fontSize: '12px',
                                 fontWeight: '600',
-                                backgroundColor: task.priority === 'High' || task.priority === 'Critical' ? '#fecaca' :
-                                                task.priority === 'Medium' ? '#fef3c7' :
-                                                '#dcfce7',
-                                color: task.priority === 'High' || task.priority === 'Critical' ? '#dc2626' :
-                                       task.priority === 'Medium' ? '#92400e' :
-                                       '#166534'
+                                backgroundColor: task.priority === 'Urgent' ? '#fecaca' :
+                                                task.priority === 'Less Urgent' ? '#fef3c7' :
+                                                task.priority === 'Free Time' ? '#dcfce7' :
+                                                '#f3f4f6',
+                                color: task.priority === 'Urgent' ? '#dc2626' :
+                                       task.priority === 'Less Urgent' ? '#92400e' :
+                                       task.priority === 'Free Time' ? '#166534' :
+                                       '#374151'
                               }}>
-                              {task.priority || 'Medium'}
+                              {task.priority || 'Less Urgent'}
                             </span>
                           </td>
                             <td style={{ padding: '16px' }}>
@@ -2164,53 +2631,86 @@ const Dashboard: React.FC = () => {
                                 View
                               </button>
                                 {isDirector && (
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
-                                    try {
-                                      const taskId = String(task.id || task._id || '').trim();
-                                      if (!taskId) {
-                                        alert('Error: Task ID is missing. Cannot delete task.');
-                                        return;
-                                      }
-                                      console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
-                                      const response = await taskApi.deleteTask(taskId);
-                                      console.log('Delete response:', response);
-                                      await loadTasks();
-                                    } catch (error: any) {
-                                      console.error('Error deleting task:', error);
-                                      console.error('Error response:', error?.response);
-                                      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
-                                      alert(`Error deleting task: ${errorMessage}`);
-                                    }
-                                  }
-                                }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      padding: '6px 12px',
-                                      backgroundColor: '#fecaca',
-                                      border: 'none',
-                                      borderRadius: '6px',
-                                      color: '#dc2626',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fca5a5';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fecaca';
-                                    }}
-                                  >
-                                    <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Delete
-                              </button>
+                                  <>
+                                    {task.status !== 'Completed' && (
+                                      <button
+                                        onClick={() => handleTaskCompleted(task)}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          padding: '6px 12px',
+                                          backgroundColor: '#dcfce7',
+                                          border: 'none',
+                                          borderRadius: '6px',
+                                          color: '#15803d',
+                                          fontSize: '12px',
+                                          fontWeight: '500',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#dcfce7';
+                                        }}
+                                        title="Mark as Completed"
+                                      >
+                                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Complete
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={async () => {
+                                        if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
+                                          try {
+                                            const taskId = String(task.id || task._id || '').trim();
+                                            if (!taskId) {
+                                              alert('Error: Task ID is missing. Cannot delete task.');
+                                              return;
+                                            }
+                                            console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
+                                            const response = await taskApi.deleteTask(taskId);
+                                            console.log('Delete response:', response);
+                                            await loadTasks();
+                                          } catch (error: any) {
+                                            console.error('Error deleting task:', error);
+                                            console.error('Error response:', error?.response);
+                                            const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                                            alert(`Error deleting task: ${errorMessage}`);
+                                          }
+                                        }
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '6px 12px',
+                                        backgroundColor: '#fecaca',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        color: '#dc2626',
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fca5a5';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fecaca';
+                                      }}
+                                    >
+                                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                      Delete
+                                    </button>
+                                  </>
                                 )}
                             </div>
                           </td>
@@ -2336,6 +2836,202 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
               
+              {/* Search and Filter Section */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '16px'
+                }}>
+                  {/* Search by Project Name */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Search Project Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Search by project name..."
+                      value={projectSearchTerm}
+                      onChange={(e) => setProjectSearchTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+
+                  {/* Filter by Staff Name */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Filter by Staff Name
+                    </label>
+                    <select
+                      value={projectStaffFilter}
+                      onChange={(e) => setProjectStaffFilter(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    >
+                      <option value="all">All Staff</option>
+                      {employees.map(emp => (
+                        <option key={emp.id || emp._id} value={emp.id || emp._id}>
+                          {emp.firstName} {emp.lastName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Date Range Start */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Date Range - Start
+                    </label>
+                    <input
+                      type="date"
+                      value={projectDateRangeStart}
+                      onChange={(e) => setProjectDateRangeStart(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+
+                  {/* Date Range End */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Date Range - End
+                    </label>
+                    <input
+                      type="date"
+                      value={projectDateRangeEnd}
+                      onChange={(e) => setProjectDateRangeEnd(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Clear Filters Button */}
+                {(projectSearchTerm || projectStaffFilter !== 'all' || projectDateRangeStart || projectDateRangeEnd) && (
+                  <button
+                    onClick={() => {
+                      setProjectSearchTerm('');
+                      setProjectStaffFilter('all');
+                      setProjectDateRangeStart('');
+                      setProjectDateRangeEnd('');
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#374151',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+
               {/* Project Filter Tabs */}
               <div style={{
                 display: 'flex',
@@ -2463,6 +3159,7 @@ const Dashboard: React.FC = () => {
               <ProjectList
                 projects={filteredProjects}
                 users={employees}
+                onProjectComplete={isDirector ? handleProjectCompleted : undefined}
                 onCommentAdded={async (projectId: string, comment: any) => {
                   try {
                     console.log('Comment added to project:', projectId, comment);
@@ -2663,6 +3360,796 @@ const Dashboard: React.FC = () => {
                   }
                 }}
               />
+            </div>
+          )}
+
+          {/* Independent Work Tab - For Directors */}
+          {activeTab === 'independent-work' && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '32px',
+              width: '100%',
+              maxWidth: '100%'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%'
+              }}>
+                <div>
+                  <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>Independent Work</h1>
+                  <p style={{
+                    fontSize: '16px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    View all employee independent work entries
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '20px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <label style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151'
+                  }}>
+                    Filter by Category:
+                  </label>
+                  <select
+                    value={independentWorkFilter}
+                    onChange={(e) => setIndependentWorkFilter(e.target.value as 'all' | 'Design' | 'Site' | 'Office' | 'Other')}
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="Design">Design</option>
+                    <option value="Site">Site</option>
+                    <option value="Office">Office</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Independent Work Table */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb',
+                overflowX: 'auto'
+              }}>
+                <h2 style={{
+                  fontSize: '20px',
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginBottom: '24px'
+                }}>All Entries</h2>
+                {independentWork.filter(entry => independentWorkFilter === 'all' || entry.category === independentWorkFilter).length > 0 ? (
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
+                    minWidth: '900px'
+                  }}>
+                    <thead>
+                      <tr style={{
+                        background: 'linear-gradient(to right, #f9fafb, #f3f4f6)'
+                      }}>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Employee</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Date</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Category</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Work Description</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Time Spent</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {independentWork
+                        .filter(entry => independentWorkFilter === 'all' || entry.category === independentWorkFilter)
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((entry, index) => (
+                        <tr
+                          key={entry.id || entry._id}
+                          style={{
+                            borderBottom: '1px solid #e5e7eb',
+                            transition: 'background-color 0.2s ease',
+                            backgroundColor: '#ffffff'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                          }}
+                        >
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: '500'
+                          }}>
+                            {entry.employeeName}
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: '500'
+                          }}>
+                            {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td style={{
+                            padding: '16px'
+                          }}>
+                            <span style={{
+                              padding: '4px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              backgroundColor: entry.category === 'Design' ? '#ddd6fe' :
+                                            entry.category === 'Site' ? '#fef3c7' :
+                                            entry.category === 'Office' ? '#dbeafe' :
+                                            '#e5e7eb',
+                              color: entry.category === 'Design' ? '#7c3aed' :
+                                     entry.category === 'Site' ? '#92400e' :
+                                     entry.category === 'Office' ? '#1e40af' :
+                                     '#374151'
+                            }}>
+                              {entry.category}
+                            </span>
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#374151',
+                            maxWidth: '400px',
+                            wordWrap: 'break-word'
+                          }}>
+                            <div style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              {entry.workDescription}
+                            </div>
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: '500'
+                          }}>
+                            {entry.timeSpent} hours
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              gap: '8px',
+                              justifyContent: 'center'
+                            }}>
+                              <button
+                                onClick={() => handleViewEntry(entry)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#dbeafe',
+                                  color: '#1e40af',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#dbeafe';
+                                }}
+                                title="View Details"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleEditEntry(entry)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#fef3c7',
+                                  color: '#92400e',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fde68a';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fef3c7';
+                                }}
+                                title="Edit Entry"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEntry(entry.id || entry._id || '')}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#991b1b',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fecaca';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                title="Delete Entry"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p style={{
+                    color: '#6b7280',
+                    fontSize: '14px',
+                    textAlign: 'center',
+                    padding: '40px 0'
+                  }}>
+                    No independent work entries found.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* View Independent Work Entry Modal */}
+          {viewingEntry && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+            onClick={() => setViewingEntry(null)}
+            >
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '32px',
+                maxWidth: '600px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '24px'
+                }}>
+                  <h2 style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>View Entry Details</h2>
+                  <button
+                    onClick={() => setViewingEntry(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '24px',
+                      cursor: 'pointer',
+                      color: '#6b7280',
+                      padding: '4px'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '20px'
+                }}>
+                  <div>
+                    <label style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>Employee Name</label>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#111827',
+                      marginTop: '4px',
+                      margin: 0
+                    }}>
+                      {viewingEntry.employeeName}
+                    </p>
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>Date</label>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#111827',
+                      marginTop: '4px',
+                      margin: 0
+                    }}>
+                      {new Date(viewingEntry.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>Category</label>
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: '9999px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        backgroundColor: viewingEntry.category === 'Design' ? '#ddd6fe' :
+                                      viewingEntry.category === 'Site' ? '#fef3c7' :
+                                      viewingEntry.category === 'Office' ? '#dbeafe' :
+                                      '#e5e7eb',
+                        color: viewingEntry.category === 'Design' ? '#7c3aed' :
+                               viewingEntry.category === 'Site' ? '#92400e' :
+                               viewingEntry.category === 'Office' ? '#1e40af' :
+                               '#374151'
+                      }}>
+                        {viewingEntry.category}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>Time Spent</label>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#111827',
+                      marginTop: '4px',
+                      margin: 0
+                    }}>
+                      {viewingEntry.timeSpent} hours
+                    </p>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>Work Description</label>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#374151',
+                      marginTop: '4px',
+                      margin: 0,
+                      lineHeight: '1.6',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {viewingEntry.workDescription}
+                    </p>
+                  </div>
+                </div>
+                <div style={{
+                  marginTop: '24px',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px'
+                }}>
+                  <button
+                    onClick={() => setViewingEntry(null)}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#374151',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Independent Work Entry Modal */}
+          {editingEntry && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+            onClick={() => {
+              setEditingEntry(null);
+              setEditForm({
+                date: '',
+                workDescription: '',
+                category: 'Office',
+                timeSpent: 0
+              });
+            }}
+            >
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '32px',
+                maxWidth: '600px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '24px'
+                }}>
+                  <h2 style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>Edit Entry</h2>
+                  <button
+                    onClick={() => {
+                      setEditingEntry(null);
+                      setEditForm({
+                        date: '',
+                        workDescription: '',
+                        category: 'Office',
+                        timeSpent: 0
+                      });
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '24px',
+                      cursor: 'pointer',
+                      color: '#6b7280',
+                      padding: '4px'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  handleUpdateEntry();
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                    gap: '20px'
+                  }}>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
+                        Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={editForm.date}
+                        onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          outline: 'none',
+                          fontSize: '14px',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
+                        Category *
+                      </label>
+                      <select
+                        value={editForm.category}
+                        onChange={(e) => setEditForm({ ...editForm, category: e.target.value as 'Design' | 'Site' | 'Office' | 'Other' })}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          outline: 'none',
+                          fontSize: '14px',
+                          fontFamily: 'inherit',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="Design">Design</option>
+                        <option value="Site">Site</option>
+                        <option value="Office">Office</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
+                        Time Spent (hours) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={editForm.timeSpent}
+                        onChange={(e) => setEditForm({ ...editForm, timeSpent: parseFloat(e.target.value) || 0 })}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          outline: 'none',
+                          fontSize: '14px',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
+                        Work Description *
+                      </label>
+                      <textarea
+                        value={editForm.workDescription}
+                        onChange={(e) => setEditForm({ ...editForm, workDescription: e.target.value })}
+                        required
+                        rows={4}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          outline: 'none',
+                          fontSize: '14px',
+                          fontFamily: 'inherit',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{
+                    marginTop: '24px',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '12px'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingEntry(null);
+                        setEditForm({
+                          date: '',
+                          workDescription: '',
+                          category: 'Office',
+                          timeSpent: 0
+                        });
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#f3f4f6',
+                        color: '#374151',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#3b82f6',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      Update Entry
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 

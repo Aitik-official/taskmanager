@@ -31,13 +31,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [formData, setFormData] = useState<Partial<Task>>({
     title: '',
     description: '',
-    projectId: '',
     assignedToId: '',
-    priority: 'Medium',
+    priority: 'Less Urgent',
     status: 'Pending',
+    dueDate: '',
     estimatedHours: 0,
-    startDate: '',
-
+    directorRating: undefined,
     isLocked: false
   });
   
@@ -54,7 +53,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     if (task) {
       setFormData({
         ...task,
-        startDate: task.startDate.split('T')[0]
+        dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : '')
       });
     }
   }, [task]);
@@ -108,16 +107,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
       })(),
       assignedById: task?.assignedById || user?.id || '1',
       assignedByName: task?.assignedByName || user?.name || 'Admin',
-      priority: formData.priority || 'Medium',
+      priority: formData.priority || 'Less Urgent',
       status: formData.status || 'Pending',
       estimatedHours: formData.estimatedHours || 0,
       actualHours: task?.actualHours,
-      startDate: formData.startDate || '',
+      startDate: formData.dueDate || formData.startDate || '', // Keep for backward compatibility
+      dueDate: formData.dueDate || '',
       completedDate: task?.completedDate,
       isLocked: formData.isLocked || false,
       comments: task?.comments || [],
       rating: task?.rating,
       ratingComment: task?.ratingComment,
+      directorRating: formData.directorRating,
       newDeadlineProposal: task?.newDeadlineProposal,
       reasonForExtension: task?.reasonForExtension,
       extensionRequestStatus: task?.extensionRequestStatus || 'Pending'
@@ -679,10 +680,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     setIsEditMode(true);
                     setFormData({
                       ...task,
+                      dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
                       startDate: task.startDate ? task.startDate.split('T')[0] : ''
                     });
                     console.log('Form data set:', {
                       ...task,
+                      dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
                       startDate: task.startDate ? task.startDate.split('T')[0] : ''
                     });
                   }}
@@ -797,10 +800,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 color: '#374151',
                 marginBottom: '8px'
               }}>
-                Project *
+                Select Project
               </label>
               <select
-                value={formData.projectId}
+                value={formData.projectId || ''}
                 onChange={(e) => handleInputChange('projectId', e.target.value)}
                 disabled={false}
                 style={{
@@ -821,11 +824,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   e.currentTarget.style.borderColor = '#d1d5db';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
-                required
               >
-                <option value="">Select Project</option>
+                <option value="">No Project (Optional)</option>
                 {projects.map(project => (
-                  <option key={project.id} value={project.id}>
+                  <option key={project.id || project._id} value={project.id || project._id}>
                     {project.name}
                   </option>
                 ))}
@@ -840,7 +842,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 color: '#374151',
                 marginBottom: '8px'
               }}>
-                Assigned To *
+                Assigned To (Staff User) *
               </label>
               <select
                 value={formData.assignedToId}
@@ -887,7 +889,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </label>
               <select
                 value={formData.priority}
-                onChange={(e) => handleInputChange('priority', e.target.value)}
+                onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time')}
                 disabled={false}
                 style={{
                   width: '100%',
@@ -909,10 +911,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 }}
                 required
               >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-                <option value="Critical">Critical</option>
+                <option value="Urgent">Urgent</option>
+                <option value="Less Urgent">Less Urgent</option>
+                <option value="Free Time">Free Time</option>
               </select>
             </div>
 
@@ -953,8 +954,43 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 <option value="Pending">Pending</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Completed">Completed</option>
-                <option value="Overdue">Overdue</option>
               </select>
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Due Date *
+              </label>
+              <input
+                type="date"
+                value={formData.dueDate || (formData.startDate ? formData.startDate.split('T')[0] : '')}
+                onChange={(e) => handleInputChange('dueDate', e.target.value)}
+                disabled={false}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                required
+              />
             </div>
 
             <div>
@@ -969,8 +1005,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </label>
               <input
                 type="number"
-                value={formData.estimatedHours}
-                onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value))}
+                value={formData.estimatedHours || 0}
+                onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value) || 0)}
                 disabled={false}
                 style={{
                   width: '100%',
@@ -994,41 +1030,60 @@ const TaskModal: React.FC<TaskModalProps> = ({
               />
             </div>
 
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-                Start Date *
-              </label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) => handleInputChange('startDate', e.target.value)}
-                disabled={false}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
+            {isDirector && (
+              <div>
+                <label style={{
+                  display: 'block',
                   fontSize: '14px',
-                  fontFamily: 'inherit'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              />
-            </div>
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Director Rating
+                </label>
+                <select
+                  value={formData.directorRating === undefined ? '' : (typeof formData.directorRating === 'boolean' ? (formData.directorRating ? 'Yes' : 'No') : formData.directorRating.toString())}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    let ratingValue: boolean | number | 'Yes' | 'No' | undefined;
+                    if (value === 'Yes') ratingValue = 'Yes';
+                    else if (value === 'No') ratingValue = 'No';
+                    else if (value === 'true') ratingValue = true;
+                    else if (value === 'false') ratingValue = false;
+                    else if (value.match(/^\d+$/)) ratingValue = parseInt(value);
+                    else ratingValue = undefined;
+                    handleInputChange('directorRating', ratingValue);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <option value="">Select Rating</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                  <option value="1">⭐ (1 Star)</option>
+                  <option value="2">⭐⭐ (2 Stars)</option>
+                  <option value="3">⭐⭐⭐ (3 Stars)</option>
+                  <option value="4">⭐⭐⭐⭐ (4 Stars)</option>
+                  <option value="5">⭐⭐⭐⭐⭐ (5 Stars)</option>
+                </select>
+              </div>
+            )}
 
             {isDirector && (
               <div style={{
@@ -1639,10 +1694,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                  Project *
+                  Select Project
                 </label>
                 <select
-                  value={formData.projectId}
+                  value={formData.projectId || ''}
                   onChange={(e) => handleInputChange('projectId', e.target.value)}
                   style={{
                     width: '100%',
@@ -1662,11 +1717,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     e.currentTarget.style.borderColor = '#d1d5db';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
-                  required
                 >
-                  <option value="">Select Project</option>
+                  <option value="">No Project (Optional)</option>
                   {projects.map(project => (
-                    <option key={project.id} value={project.id}>
+                    <option key={project.id || project._id} value={project.id || project._id}>
                       {project.name}
                     </option>
                   ))}
@@ -1681,7 +1735,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                  Assigned To *
+                  Assigned To (Staff User) *
                 </label>
                 <select
                   value={formData.assignedToId}
@@ -1727,7 +1781,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 </label>
                 <select
                   value={formData.priority}
-                  onChange={(e) => handleInputChange('priority', e.target.value)}
+                  onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time')}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -1748,10 +1802,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   required
                 >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
+                  <option value="Urgent">Urgent</option>
+                  <option value="Less Urgent">Less Urgent</option>
+                  <option value="Free Time">Free Time</option>
                 </select>
               </div>
 
@@ -1791,8 +1844,42 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   <option value="Pending">Pending</option>
                   <option value="In Progress">In Progress</option>
                   <option value="Completed">Completed</option>
-                  <option value="Overdue">Overdue</option>
                 </select>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Due Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => handleInputChange('dueDate', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                />
               </div>
 
               <div>
@@ -1807,8 +1894,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 </label>
                 <input
                   type="number"
-                  value={formData.estimatedHours}
-                  onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value))}
+                  value={formData.estimatedHours || 0}
+                  onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value) || 0)}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -1831,40 +1918,60 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 />
               </div>
 
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Start Date *
-                </label>
-                <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => handleInputChange('startDate', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
+              {isDirector && (
+                <div>
+                  <label style={{
+                    display: 'block',
                     fontSize: '14px',
-                    fontFamily: 'inherit'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Director Rating
+                  </label>
+                  <select
+                    value={formData.directorRating === undefined ? '' : (typeof formData.directorRating === 'boolean' ? (formData.directorRating ? 'Yes' : 'No') : formData.directorRating.toString())}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      let ratingValue: boolean | number | 'Yes' | 'No' | undefined;
+                      if (value === 'Yes') ratingValue = 'Yes';
+                      else if (value === 'No') ratingValue = 'No';
+                      else if (value === 'true') ratingValue = true;
+                      else if (value === 'false') ratingValue = false;
+                      else if (value.match(/^\d+$/)) ratingValue = parseInt(value);
+                      else ratingValue = undefined;
+                      handleInputChange('directorRating', ratingValue);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <option value="">Select Rating</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                    <option value="1">⭐ (1 Star)</option>
+                    <option value="2">⭐⭐ (2 Stars)</option>
+                    <option value="3">⭐⭐⭐ (3 Stars)</option>
+                    <option value="4">⭐⭐⭐⭐ (4 Stars)</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5 Stars)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div>

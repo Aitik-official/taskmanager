@@ -6,7 +6,7 @@ import { employeeLogin } from '../services/employeeService';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isDirector: boolean;
   isProjectHead: boolean;
@@ -51,21 +51,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<boolean> => {
     try {
       console.log('🔄 AuthContext: Attempting login...');
       
       // First try employee login with backend API
       try {
         console.log('🔄 Trying employee login with backend...');
-        const employee = await employeeLogin(email, password);
+        const employee = await employeeLogin(username, password);
         console.log('✅ Employee login successful:', employee);
         
         // Convert employee to user format
         const userData: User = {
           id: employee.id || employee._id || '',
           name: `${employee.firstName} ${employee.lastName}`,
-          email: employee.email,
+          email: employee.email || employee.username,
           role: employee.role,
           avatar: '👤'
         };
@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('⚠️ Employee login failed, trying mock users...');
         
         // Fallback to mock authentication for demo users
-        const foundUser = mockUsers.find(u => u.email === email);
+        const foundUser = mockUsers.find(u => u.email === username || u.name === username);
         
         if (foundUser && password === 'password') { // Simple password for demo
           setUser(foundUser);

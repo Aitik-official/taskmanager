@@ -16,6 +16,8 @@ import EmployeeProfile from './EmployeeProfile';
 import { getProjects, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
 import { AlertTriangle } from 'lucide-react';
+import { IndependentWork } from '../types';
+import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork } from '../services/independentWorkService';
 
 // Get users from employees API
 const getUsersFromEmployees = async (): Promise<User[]> => {
@@ -54,11 +56,21 @@ const EmployeeDashboard: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work'>('overview');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
+  const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
+  const [independentWorkForm, setIndependentWorkForm] = useState({
+    date: '',
+    workDescription: '',
+    category: 'Office' as 'Design' | 'Site' | 'Office' | 'Other',
+    timeSpent: 0
+  });
+  const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const loadTasks = async () => {
     try {
@@ -111,6 +123,9 @@ const EmployeeDashboard: React.FC = () => {
     loadProjects();
     loadTasks();
     fetchUsers();
+    if (isEmployee && user) {
+      loadIndependentWork();
+    }
   }, [user]);
 
   // Refresh task data when modal opens and poll for updates
@@ -148,6 +163,125 @@ const EmployeeDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error fetching users:', error);
     }
+  };
+
+  const loadIndependentWork = async () => {
+    if (!user?.id) return;
+    try {
+      const work = await getIndependentWorkByEmployee(user.id);
+      setIndependentWork(work);
+    } catch (error: any) {
+      console.error('Error loading independent work:', error);
+      setIndependentWork([]);
+    }
+  };
+
+  const handleIndependentWorkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.id) return;
+
+    try {
+      if (editingEntry) {
+        // Update existing entry
+        const entryId = editingEntry.id || editingEntry._id;
+        if (!entryId) return;
+
+        await updateIndependentWork(entryId, {
+          date: independentWorkForm.date,
+          workDescription: independentWorkForm.workDescription,
+          category: independentWorkForm.category,
+          timeSpent: independentWorkForm.timeSpent
+        });
+
+        setNotificationMessage('Independent work entry updated successfully!');
+        setEditingEntry(null);
+        setIsEditing(false);
+      } else {
+        // Create new entry
+        const workEntry: Omit<IndependentWork, 'id' | '_id' | 'createdAt' | 'updatedAt'> = {
+          employeeId: user.id,
+          employeeName: user.name || `${user.email}`,
+          date: independentWorkForm.date,
+          workDescription: independentWorkForm.workDescription,
+          category: independentWorkForm.category,
+          timeSpent: independentWorkForm.timeSpent
+        };
+
+        await createIndependentWork(workEntry);
+        setNotificationMessage('Independent work entry added successfully!');
+      }
+      
+      // Reset form
+      setIndependentWorkForm({
+        date: '',
+        workDescription: '',
+        category: 'Office',
+        timeSpent: 0
+      });
+
+      // Reload independent work
+      await loadIndependentWork();
+
+      // Show success notification
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error saving independent work:', error);
+      alert(`Error ${editingEntry ? 'updating' : 'creating'} independent work entry. Please try again.`);
+    }
+  };
+
+  const handleEditEntry = (entry: IndependentWork) => {
+    setEditingEntry(entry);
+    setIsEditing(true);
+    setIndependentWorkForm({
+      date: entry.date,
+      workDescription: entry.workDescription,
+      category: entry.category,
+      timeSpent: entry.timeSpent
+    });
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleViewEntry = (entry: IndependentWork) => {
+    setViewingEntry(entry);
+  };
+
+  const handleDeleteEntry = async (entry: IndependentWork) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) {
+      return;
+    }
+
+    try {
+      const entryId = entry.id || entry._id;
+      if (!entryId) return;
+
+      await deleteIndependentWork(entryId);
+      await loadIndependentWork();
+
+      setNotificationMessage('Independent work entry deleted successfully!');
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error deleting independent work:', error);
+      alert('Error deleting independent work entry. Please try again.');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEntry(null);
+    setIsEditing(false);
+    setIndependentWorkForm({
+      date: '',
+      workDescription: '',
+      category: 'Office',
+      timeSpent: 0
+    });
   };
 
   // Refresh projects every 30 seconds to get latest comments
@@ -195,7 +329,7 @@ const EmployeeDashboard: React.FC = () => {
     const totalTasks = tasksForStats.length;
     const completedTasks = tasksForStats.filter(t => t.status === 'Completed').length;
     const pendingTasks = tasksForStats.filter(t => t.status === 'Pending').length;
-    const overdueTasks = tasksForStats.filter(t => t.status === 'Overdue').length;
+    const overdueTasks = tasksForStats.filter(t => t.status === 'Pending' && t.dueDate && new Date(t.dueDate) < new Date()).length;
     const inProgressTasks = tasksForStats.filter(t => t.status === 'In Progress').length;
     const totalProjects = projectsForStats.length;
     const activeProjects = projectsForStats.filter(p => p.status === 'Active').length;
@@ -330,7 +464,7 @@ const EmployeeDashboard: React.FC = () => {
           case 'pending':
             return task.status === 'Pending' || task.status === 'In Progress';
           case 'overdue':
-            return task.status === 'Overdue';
+            return task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date();
           default:
             return true;
         }
@@ -398,19 +532,22 @@ const EmployeeDashboard: React.FC = () => {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         marginLeft: '256px',
-        width: 'calc(100% - 256px)'
+        width: 'calc(100% - 256px)',
+        height: '100vh'
       }}>
         <Header user={user} />
         
         <main style={{
           flex: 1,
           overflowX: 'hidden',
-          overflowY: 'auto',
+          overflowY: 'visible',
           padding: '32px',
           backgroundColor: '#f8fafc',
-          minHeight: '100vh'
+          minHeight: 'auto',
+          width: '100%'
         }}>
           {/* Success Notification */}
           {showNotification && (
@@ -960,7 +1097,7 @@ const EmployeeDashboard: React.FC = () => {
                           }}>Assigned to: {task.assignedToName || 'Unknown'}</p>
                           <p style={{
                             fontSize: '14px',
-                            color: task.status === 'Overdue' ? '#ef4444' : task.status === 'Completed' ? '#10b981' : '#6b7280',
+                            color: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#ef4444' : task.status === 'Completed' ? '#10b981' : '#6b7280',
                             margin: 0,
                             marginBottom: '12px'
                           }}>
@@ -973,16 +1110,16 @@ const EmployeeDashboard: React.FC = () => {
                           }}>
                             <span style={{
                               padding: '4px 8px',
-                              backgroundColor: task.priority === 'High' ? '#fee2e2' : task.priority === 'Medium' ? '#fef3c7' : '#f0f9ff',
-                              color: task.priority === 'High' ? '#dc2626' : task.priority === 'Medium' ? '#d97706' : '#0369a1',
+                              backgroundColor: task.priority === 'Urgent' ? '#fee2e2' : task.priority === 'Less Urgent' ? '#fef3c7' : '#f0f9ff',
+                              color: task.priority === 'Urgent' ? '#dc2626' : task.priority === 'Less Urgent' ? '#d97706' : '#0369a1',
                               borderRadius: '4px',
                               fontSize: '12px',
                               fontWeight: '500'
                             }}>{task.priority} Priority</span>
                             <span style={{
                               padding: '4px 8px',
-                              backgroundColor: task.status === 'Completed' ? '#f0fdf4' : task.status === 'In Progress' ? '#fef3c7' : task.status === 'Overdue' ? '#fef2f2' : '#f3f4f6',
-                              color: task.status === 'Completed' ? '#16a34a' : task.status === 'In Progress' ? '#d97706' : task.status === 'Overdue' ? '#dc2626' : '#6b7280',
+                              backgroundColor: task.status === 'Completed' ? '#f0fdf4' : task.status === 'In Progress' ? '#fef3c7' : (task.status === 'Pending' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#fef2f2' : '#f3f4f6',
+                              color: task.status === 'Completed' ? '#16a34a' : task.status === 'In Progress' ? '#d97706' : (task.status === 'Pending' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#dc2626' : '#6b7280',
                               borderRadius: '4px',
                               fontSize: '12px',
                               fontWeight: '500'
@@ -1446,16 +1583,16 @@ const EmployeeDashboard: React.FC = () => {
                                 fontSize: '12px',
                                 fontWeight: '600',
                                 borderRadius: '6px',
-                                backgroundColor: task.priority === 'High' ? '#fee2e2' :
-                                            task.priority === 'Medium' ? '#fef3c7' :
-                                            task.priority === 'Low' ? '#dcfce7' :
+                                backgroundColor: task.priority === 'Urgent' ? '#fee2e2' :
+                                            task.priority === 'Less Urgent' ? '#fef3c7' :
+                                            task.priority === 'Free Time' ? '#dcfce7' :
                                             '#f3f4f6',
-                                color: task.priority === 'High' ? '#991b1b' :
-                                       task.priority === 'Medium' ? '#92400e' :
-                                       task.priority === 'Low' ? '#166534' :
+                                color: task.priority === 'Urgent' ? '#991b1b' :
+                                       task.priority === 'Less Urgent' ? '#92400e' :
+                                       task.priority === 'Free Time' ? '#166534' :
                                        '#374151'
                               }}>
-                              {task.priority || 'Medium'}
+                              {task.priority || 'Less Urgent'}
                             </span>
                               <button
                                 onClick={() => {
@@ -1904,6 +2041,689 @@ const EmployeeDashboard: React.FC = () => {
                   // Employees cannot delete employee data
                 }}
               />
+            </div>
+          )}
+
+          {/* Independent Work Tab - Only for Employees */}
+          {activeTab === 'independent-work' && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '32px',
+              width: '100%',
+              maxWidth: '100%',
+              minHeight: '100%'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%'
+              }}>
+                <div>
+                  <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>Independent Work</h1>
+                  <p style={{
+                    fontSize: '16px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Record your independent work activities
+                  </p>
+                </div>
+              </div>
+
+              {/* Add/Edit Independent Work Form */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '24px'
+                }}>
+                  <h2 style={{
+                    fontSize: '20px',
+                    fontWeight: '600',
+                    color: '#111827',
+                    margin: 0
+                  }}>{isEditing ? 'Edit Entry' : 'Add New Entry'}</h2>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#f3f4f6',
+                        color: '#374151',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#e5e7eb';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                <form onSubmit={handleIndependentWorkSubmit} style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                  gap: '20px'
+                }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={independentWorkForm.date}
+                      onChange={(e) => setIndependentWorkForm({ ...independentWorkForm, date: e.target.value })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Category *
+                    </label>
+                    <select
+                      value={independentWorkForm.category}
+                      onChange={(e) => setIndependentWorkForm({ ...independentWorkForm, category: e.target.value as 'Design' | 'Site' | 'Office' | 'Other' })}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <option value="Design">Design</option>
+                      <option value="Site">Site</option>
+                      <option value="Office">Office</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Time Spent (hours) *
+                    </label>
+                    <input
+                      type="number"
+                      value={independentWorkForm.timeSpent}
+                      onChange={(e) => setIndependentWorkForm({ ...independentWorkForm, timeSpent: parseFloat(e.target.value) || 0 })}
+                      required
+                      min="0"
+                      step="0.5"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Work Description *
+                    </label>
+                    <textarea
+                      value={independentWorkForm.workDescription}
+                      onChange={(e) => setIndependentWorkForm({ ...independentWorkForm, workDescription: e.target.value })}
+                      required
+                      rows={4}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '10px 24px',
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1d4ed8';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2563eb';
+                      }}
+                    >
+                      {isEditing ? 'Update Entry' : 'Add Entry'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Independent Work Table */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb',
+                overflowX: 'auto'
+              }}>
+                <h2 style={{
+                  fontSize: '20px',
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginBottom: '24px'
+                }}>My Entries</h2>
+                {independentWork.length > 0 ? (
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
+                    minWidth: '800px'
+                  }}>
+                    <thead>
+                      <tr style={{
+                        background: 'linear-gradient(to right, #f9fafb, #f3f4f6)'
+                      }}>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Date</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Category</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Work Description</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Time Spent</th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {independentWork.map((entry, index) => (
+                        <tr
+                          key={entry.id || entry._id}
+                          style={{
+                            borderBottom: '1px solid #e5e7eb',
+                            transition: 'background-color 0.2s ease',
+                            backgroundColor: '#ffffff'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                          }}
+                        >
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: '500'
+                          }}>
+                            {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td style={{
+                            padding: '16px'
+                          }}>
+                            <span style={{
+                              padding: '4px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              backgroundColor: entry.category === 'Design' ? '#ddd6fe' :
+                                            entry.category === 'Site' ? '#fef3c7' :
+                                            entry.category === 'Office' ? '#dbeafe' :
+                                            '#e5e7eb',
+                              color: entry.category === 'Design' ? '#7c3aed' :
+                                     entry.category === 'Site' ? '#92400e' :
+                                     entry.category === 'Office' ? '#1e40af' :
+                                     '#374151'
+                            }}>
+                              {entry.category}
+                            </span>
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#374151',
+                            maxWidth: '400px',
+                            wordWrap: 'break-word'
+                          }}>
+                            <div style={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical'
+                            }}>
+                              {entry.workDescription}
+                            </div>
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: '500'
+                          }}>
+                            {entry.timeSpent} hours
+                          </td>
+                          <td style={{
+                            padding: '16px',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              gap: '8px',
+                              justifyContent: 'center'
+                            }}>
+                              <button
+                                onClick={() => handleViewEntry(entry)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#dbeafe',
+                                  color: '#1e40af',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#dbeafe';
+                                }}
+                                title="View Details"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleEditEntry(entry)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#fef3c7',
+                                  color: '#92400e',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fde68a';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fef3c7';
+                                }}
+                                title="Edit Entry"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEntry(entry)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#dc2626',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fecaca';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                title="Delete Entry"
+                              >
+                                <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p style={{
+                    color: '#6b7280',
+                    fontSize: '14px',
+                    textAlign: 'center',
+                    padding: '40px 0'
+                  }}>
+                    No independent work entries yet. Add your first entry above.
+                  </p>
+                )}
+              </div>
+
+              {/* View Entry Modal */}
+              {viewingEntry && (
+                <div style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '16px',
+                  zIndex: 50
+                }}>
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    maxWidth: '600px',
+                    width: '100%',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '24px'
+                    }}>
+                      <h2 style={{
+                        fontSize: '20px',
+                        fontWeight: '600',
+                        color: '#111827',
+                        margin: 0
+                      }}>Entry Details</h2>
+                      <button
+                        onClick={() => setViewingEntry(null)}
+                        style={{
+                          color: '#9ca3af',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '24px',
+                          lineHeight: '1'
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>Date</label>
+                        <p style={{
+                          fontSize: '16px',
+                          color: '#111827',
+                          marginTop: '4px',
+                          margin: 0
+                        }}>
+                          {new Date(viewingEntry.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div>
+                        <label style={{
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>Category</label>
+                        <div style={{ marginTop: '4px' }}>
+                          <span style={{
+                            padding: '4px 12px',
+                            borderRadius: '9999px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            backgroundColor: viewingEntry.category === 'Design' ? '#ddd6fe' :
+                                          viewingEntry.category === 'Site' ? '#fef3c7' :
+                                          viewingEntry.category === 'Office' ? '#dbeafe' :
+                                          '#e5e7eb',
+                            color: viewingEntry.category === 'Design' ? '#7c3aed' :
+                                   viewingEntry.category === 'Site' ? '#92400e' :
+                                   viewingEntry.category === 'Office' ? '#1e40af' :
+                                   '#374151'
+                          }}>
+                            {viewingEntry.category}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>Time Spent</label>
+                        <p style={{
+                          fontSize: '16px',
+                          color: '#111827',
+                          marginTop: '4px',
+                          margin: 0
+                        }}>
+                          {viewingEntry.timeSpent} hours
+                        </p>
+                      </div>
+                      <div>
+                        <label style={{
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}>Work Description</label>
+                        <p style={{
+                          fontSize: '16px',
+                          color: '#374151',
+                          marginTop: '4px',
+                          margin: 0,
+                          lineHeight: '1.6',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {viewingEntry.workDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{
+                      marginTop: '24px',
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: '12px'
+                    }}>
+                      <button
+                        onClick={() => setViewingEntry(null)}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: '#f3f4f6',
+                          color: '#374151',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '500'
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

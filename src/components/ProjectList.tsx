@@ -11,6 +11,7 @@ interface ProjectListProps {
   users: (User | Employee)[];
   onProjectSave: (project: Project) => void;
   onProjectDelete: (projectId: string) => void;
+  onProjectComplete?: (project: Project) => void;
   onCommentAdded?: (projectId: string, comment: any) => void;
 }
 
@@ -19,6 +20,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
   users,
   onProjectSave,
   onProjectDelete,
+  onProjectComplete,
   onCommentAdded
 }) => {
   const { user } = useAuth();
@@ -507,7 +509,34 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           <Edit size={16} />
                           </button>
                         )}
-                                               {canDeleteProject && project.id && (
+                        {canDeleteProject && project.id && onProjectComplete && project.status !== 'Completed' && (
+                          <button
+                            onClick={() => onProjectComplete(project)}
+                            style={{
+                              color: '#15803d',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: '4px',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.color = '#166534';
+                              e.currentTarget.style.backgroundColor = '#dcfce7';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.color = '#15803d';
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Mark as Completed"
+                          >
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                        )}
+                        {canDeleteProject && project.id && (
                           <button
                             onClick={() => handleDeleteProject(project.id!)}
                           style={{

@@ -66,9 +66,10 @@ export const deleteEmployee = async (id: string): Promise<void> => {
 };
 
 // Employee login
-export const employeeLogin = async (email: string, password: string): Promise<Employee> => {
+// Employee login with username OR email
+export const employeeLogin = async (usernameOrEmail: string, password: string): Promise<Employee> => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/employees/login`, { email, password });
+    const response = await axios.post(`${API_BASE_URL}/employees/login`, { username: usernameOrEmail, email: usernameOrEmail, password });
     return response.data;
   } catch (error: any) {
     console.error('Error logging in employee:', error);
