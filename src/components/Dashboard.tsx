@@ -346,7 +346,11 @@ const Dashboard: React.FC = () => {
           'Completed Tasks Count': tasks.filter(t => t.projectId === (proj.id || proj._id) && t.status === 'Completed').length,
           'Pending Tasks Count': tasks.filter(t => t.projectId === (proj.id || proj._id) && t.status === 'Pending').length,
           'In Progress Tasks Count': tasks.filter(t => t.projectId === (proj.id || proj._id) && t.status === 'In Progress').length,
-          'Overdue Tasks Count': tasks.filter(t => t.projectId === (proj.id || proj._id) && t.status === 'Overdue').length,
+          'Overdue Tasks Count': tasks.filter(t => 
+            t.projectId === (proj.id || proj._id) && 
+            t.status !== 'Completed' && 
+            t.dueDate && new Date(t.dueDate) < new Date()
+          ).length,
           'Total Estimated Hours': tasks.filter(t => t.projectId === (proj.id || proj._id)).reduce((sum, t) => sum + (t.estimatedHours || 0), 0),
           'Total Actual Hours': tasks.filter(t => t.projectId === (proj.id || proj._id)).reduce((sum, t) => sum + (t.actualHours || 0), 0)
         })),
