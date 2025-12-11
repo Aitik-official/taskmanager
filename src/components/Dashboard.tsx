@@ -597,7 +597,7 @@ const Dashboard: React.FC = () => {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'Completed').length;
     const pendingTasks = tasks.filter(t => t.status === 'Pending').length;
-    const overdueTasks = tasks.filter(t => t.status === 'Overdue').length;
+    const overdueTasks = tasks.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
     const inProgressTasks = tasks.filter(t => t.status === 'In Progress').length;
     const totalProjects = projects.length;
     const activeProjects = projects.filter(p => p.status === 'Active').length;
