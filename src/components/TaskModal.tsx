@@ -324,14 +324,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   borderRadius: '9999px',
                   fontSize: '14px',
                   fontWeight: '500',
-                  backgroundColor: task.priority === 'Critical' ? '#fecaca' :
-                                  task.priority === 'High' ? '#fecaca' :
-                                  task.priority === 'Medium' ? '#fef3c7' :
-                                  '#dcfce7',
-                  color: task.priority === 'Critical' ? '#dc2626' :
-                         task.priority === 'High' ? '#dc2626' :
-                         task.priority === 'Medium' ? '#92400e' :
-                         '#166534'
+                  backgroundColor: task.priority === 'Urgent' ? '#fecaca' :
+                                  task.priority === 'Less Urgent' ? '#fef3c7' :
+                                  task.priority === 'Free Time' ? '#dcfce7' :
+                                  '#f3f4f6',
+                  color: task.priority === 'Urgent' ? '#dc2626' :
+                         task.priority === 'Less Urgent' ? '#92400e' :
+                         task.priority === 'Free Time' ? '#166534' :
+                         '#374151'
                 }}>
                   {task.priority} Priority
                 </span>
