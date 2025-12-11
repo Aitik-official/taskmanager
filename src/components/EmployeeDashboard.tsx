@@ -16,8 +16,8 @@ import EmployeeProfile from './EmployeeProfile';
 import { getProjects, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
 import { AlertTriangle } from 'lucide-react';
-import { IndependentWork } from '../types';
-import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork } from '../services/independentWorkService';
+import { IndependentWork, IndependentWorkAttachment } from '../types';
+import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork, addComment, getIndependentWorkById } from '../services/independentWorkService';
 
 // Get users from employees API
 const getUsersFromEmployees = async (): Promise<User[]> => {
@@ -69,6 +69,8 @@ const EmployeeDashboard: React.FC = () => {
     timeSpent: 0
   });
   const [independentWorkComment, setIndependentWorkComment] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<Array<{ file: File; preview: string }>>([]);
   const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
   const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -199,13 +201,28 @@ const EmployeeDashboard: React.FC = () => {
         setIsEditing(false);
       } else {
         // Create new entry
+        // Convert files to base64 attachments
+        const attachments: IndependentWorkAttachment[] = [];
+        for (const file of selectedFiles) {
+          const fileData = await convertFileToBase64(file);
+          attachments.push({
+            id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileData: fileData,
+            uploadedAt: new Date().toISOString()
+          });
+        }
+
         const workEntry: Omit<IndependentWork, 'id' | '_id' | 'createdAt' | 'updatedAt'> = {
           employeeId: user.id,
           employeeName: user.name || `${user.email}`,
           date: independentWorkForm.date,
           workDescription: independentWorkForm.workDescription,
           category: independentWorkForm.category,
-          timeSpent: independentWorkForm.timeSpent
+          timeSpent: independentWorkForm.timeSpent,
+          attachments: attachments
         };
 
         await createIndependentWork(workEntry);
@@ -219,6 +236,8 @@ const EmployeeDashboard: React.FC = () => {
         category: 'Office',
         timeSpent: 0
       });
+      setSelectedFiles([]);
+      setFilePreviews([]);
 
       // Reload independent work
       await loadIndependentWork();
@@ -247,8 +266,22 @@ const EmployeeDashboard: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleViewEntry = (entry: IndependentWork) => {
-    setViewingEntry(entry);
+  const handleViewEntry = async (entry: IndependentWork) => {
+    // When viewing an entry, fetch the latest version to ensure comments are up to date
+    const entryId = entry.id || entry._id;
+    if (entryId) {
+      try {
+        const latestEntry = await getIndependentWorkById(entryId);
+        console.log('Fetched latest entry with comments:', latestEntry.comments);
+        setViewingEntry(latestEntry);
+      } catch (error) {
+        // If fetch fails, use the entry from the list
+        console.error('Error fetching latest entry:', error);
+        setViewingEntry(entry);
+      }
+    } else {
+      setViewingEntry(entry);
+    }
   };
 
   const handleDeleteEntry = async (entry: IndependentWork) => {
@@ -277,31 +310,114 @@ const EmployeeDashboard: React.FC = () => {
   const handleAddIndependentWorkComment = async () => {
     if (!viewingEntry || !user?.id || !independentWorkComment.trim()) return;
 
-    try {
-      const entryId = viewingEntry.id || viewingEntry._id;
-      if (!entryId) return;
+    const commentContent = independentWorkComment.trim();
+    const entryId = viewingEntry.id || viewingEntry._id;
+    if (!entryId) return;
 
-      const newComment = {
-        id: Date.now().toString(),
+    // Clear the input immediately for better UX
+    setIndependentWorkComment('');
+
+    // Optimistically update UI for immediate feedback
+    const optimisticComment = {
+      id: Date.now().toString(),
+      userId: user.id,
+      userName: user.name || user.email || 'User',
+      content: commentContent,
+      timestamp: new Date().toISOString()
+    };
+
+    const optimisticEntry = {
+      ...viewingEntry,
+      comments: [...(viewingEntry.comments || []), optimisticComment]
+    };
+    setViewingEntry(optimisticEntry);
+
+    try {
+      // Add comment to database and get updated entry
+      const updated = await addComment(entryId, {
         userId: user.id,
         userName: user.name || user.email || 'User',
-        content: independentWorkComment.trim(),
-        timestamp: new Date().toISOString()
-      };
-
-      const updated = await updateIndependentWork(entryId, {
-        comments: [...(viewingEntry.comments || []), newComment]
+        content: commentContent
       });
 
-      // Immediately update modal with returned entry
-      setViewingEntry(updated);
-      // Refresh list
-      await loadIndependentWork();
-      setIndependentWorkComment('');
+      console.log('Comment added successfully. Updated entry:', updated);
+      console.log('Comments in updated entry:', updated?.comments);
+
+      // Update with the real data from server (ensures consistency)
+      if (updated) {
+        // Ensure comments array exists and is properly formatted
+        const updatedWithComments = {
+          ...updated,
+          comments: Array.isArray(updated.comments) ? updated.comments : []
+        };
+        console.log('Setting viewingEntry with comments:', updatedWithComments.comments);
+        console.log('Comments array length:', updatedWithComments.comments.length);
+        // Force state update with a new object reference
+        setViewingEntry({ ...updatedWithComments });
+      } else {
+        console.error('No updated entry received from server');
+      }
+
+      // Refresh the list in the background
+      loadIndependentWork().catch(err => {
+        console.error('Error refreshing independent work list:', err);
+      });
     } catch (error: any) {
       console.error('Error adding comment to independent work:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      // Revert optimistic update on error
+      setViewingEntry(viewingEntry);
+      setIndependentWorkComment(commentContent);
       alert('Error adding comment. Please try again.');
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      // Allow images and PDFs
+      const isValidType = file.type.startsWith('image/') || file.type === 'application/pdf';
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB max
+      
+      if (!isValidType) {
+        alert(`${file.name} is not a valid file type. Please upload images or PDF files only.`);
+        return false;
+      }
+      if (!isValidSize) {
+        alert(`${file.name} is too large. Maximum file size is 10MB.`);
+        return false;
+      }
+      return true;
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+    
+    // Create previews for images
+    validFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFilePreviews(prev => [...prev, { file, preview: reader.result as string }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreviews(prev => [...prev, { file, preview: '' }]);
+      }
+    });
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setFilePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
   };
 
   const handleCancelEdit = () => {
@@ -313,6 +429,8 @@ const EmployeeDashboard: React.FC = () => {
       category: 'Office',
       timeSpent: 0
     });
+    setSelectedFiles([]);
+    setFilePreviews([]);
   };
 
   // Refresh projects every 30 seconds to get latest comments
@@ -2308,6 +2426,119 @@ const EmployeeDashboard: React.FC = () => {
                     />
                   </div>
 
+                  {/* File Attachments */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Attachments (Images & PDFs, Max 10MB each) <span style={{ color: '#6b7280', fontWeight: '400' }}>(Optional)</span>
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      multiple
+                      onChange={handleFileChange}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                    {filePreviews.length > 0 && (
+                      <div style={{
+                        marginTop: '12px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '8px'
+                      }}>
+                        {filePreviews.map((item, index) => (
+                          <div key={index} style={{
+                            position: 'relative',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '8px',
+                            backgroundColor: '#f9fafb',
+                            maxWidth: '200px'
+                          }}>
+                            {item.file.type.startsWith('image/') && item.preview ? (
+                              <img
+                                src={item.preview}
+                                alt={item.file.name}
+                                style={{
+                                  width: '100%',
+                                  height: '100px',
+                                  objectFit: 'cover',
+                                  borderRadius: '4px'
+                                }}
+                              />
+                            ) : (
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '100%',
+                                height: '100px',
+                                backgroundColor: '#e5e7eb',
+                                borderRadius: '4px'
+                              }}>
+                                <span style={{ fontSize: '32px' }}>📄</span>
+                              </div>
+                            )}
+                            <p style={{
+                              margin: '4px 0 0 0',
+                              fontSize: '12px',
+                              color: '#374151',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {item.file.name}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(index)}
+                              style={{
+                                position: 'absolute',
+                                top: '4px',
+                                right: '4px',
+                                background: '#ef4444',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '24px',
+                                height: '24px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '14px'
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       type="submit"
@@ -2729,6 +2960,108 @@ const EmployeeDashboard: React.FC = () => {
                           {viewingEntry.workDescription}
                         </p>
                       </div>
+                      
+                      {/* Attachments Section */}
+                      {(viewingEntry.attachments && viewingEntry.attachments.length > 0) && (
+                        <div>
+                          <label style={{
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#6b7280',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            display: 'block',
+                            marginBottom: '8px'
+                          }}>Attachments</label>
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                          }}>
+                            {viewingEntry.attachments.map((attachment) => {
+                              const handleDownload = () => {
+                                const link = document.createElement('a');
+                                link.href = attachment.fileData;
+                                link.download = attachment.fileName;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              };
+
+                              return (
+                                <div key={attachment.id} style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '8px 12px',
+                                  backgroundColor: '#f9fafb',
+                                  borderRadius: '8px',
+                                  border: '1px solid #e5e7eb'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                                    {attachment.fileType.startsWith('image/') ? (
+                                      <img
+                                        src={attachment.fileData}
+                                        alt={attachment.fileName}
+                                        style={{
+                                          width: '40px',
+                                          height: '40px',
+                                          objectFit: 'cover',
+                                          borderRadius: '4px'
+                                        }}
+                                      />
+                                    ) : (
+                                      <span style={{ fontSize: '24px' }}>📄</span>
+                                    )}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{
+                                        margin: 0,
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        color: '#111827',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {attachment.fileName}
+                                      </p>
+                                      <p style={{
+                                        margin: '4px 0 0 0',
+                                        fontSize: '12px',
+                                        color: '#6b7280'
+                                      }}>
+                                        {(attachment.fileSize / 1024).toFixed(2)} KB
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={handleDownload}
+                                    style={{
+                                      padding: '6px 12px',
+                                      backgroundColor: '#2563eb',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: '500'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#1d4ed8';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#2563eb';
+                                    }}
+                                  >
+                                    Download
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <label style={{
                           fontSize: '12px',
@@ -2844,7 +3177,10 @@ const EmployeeDashboard: React.FC = () => {
                       gap: '12px'
                     }}>
                       <button
-                        onClick={() => setViewingEntry(null)}
+                        onClick={() => {
+                          setViewingEntry(null);
+                          setIndependentWorkComment('');
+                        }}
                         style={{
                           padding: '8px 16px',
                           backgroundColor: '#f3f4f6',

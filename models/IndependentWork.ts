@@ -14,6 +14,14 @@ export interface IIndependentWork extends Document {
     content: string
     timestamp: string
   }>
+  attachments: Array<{
+    id: string
+    fileName: string
+    fileType: string
+    fileSize: number
+    fileData: string // base64 encoded file data
+    uploadedAt: string
+  }>
   createdAt: Date
   updatedAt: Date
 }
@@ -35,6 +43,14 @@ const independentWorkSchema = new Schema<IIndependentWork>({
     userName: { type: String, required: true },
     content: { type: String, required: true },
     timestamp: { type: String, required: true }
+  }],
+  attachments: [{
+    id: { type: String, required: true },
+    fileName: { type: String, required: true },
+    fileType: { type: String, required: true },
+    fileSize: { type: Number, required: true },
+    fileData: { type: String, required: true },
+    uploadedAt: { type: String, required: true }
   }],
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

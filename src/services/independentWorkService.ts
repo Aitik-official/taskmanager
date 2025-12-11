@@ -57,3 +57,25 @@ export const deleteIndependentWork = async (id: string): Promise<void> => {
   }
 };
 
+// Get single independent work entry by ID
+export const getIndependentWorkById = async (id: string): Promise<IndependentWork> => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/independent-work/${id}`);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error fetching independent work by id:', error);
+    throw error;
+  }
+};
+
+// Add comment to independent work entry
+export const addComment = async (id: string, comment: { userId: string; userName: string; content: string }): Promise<IndependentWork> => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/independent-work/${id}/comments`, comment);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error adding comment to independent work:', error);
+    throw error;
+  }
+};
+

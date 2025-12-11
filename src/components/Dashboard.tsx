@@ -17,7 +17,7 @@ import DirectorProfile from './DirectorProfile';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { taskApi } from '../services/api';
-import { getAllIndependentWork, updateIndependentWork, deleteIndependentWork } from '../services/independentWorkService';
+import { getAllIndependentWork, updateIndependentWork, deleteIndependentWork, addComment } from '../services/independentWorkService';
 import { Download, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // Helper function to download files without external dependencies
@@ -97,6 +97,7 @@ const Dashboard: React.FC = () => {
     category: 'Office' as 'Design' | 'Site' | 'Office' | 'Other',
     timeSpent: 0
   });
+  const [independentWorkComment, setIndependentWorkComment] = useState('');
 
   const loadTasks = useCallback(async () => {
     try {
@@ -548,6 +549,52 @@ const Dashboard: React.FC = () => {
     } catch (error: any) {
       console.error('Error updating entry:', error);
       alert('Error updating entry. Please try again.');
+    }
+  };
+
+  const handleAddIndependentWorkComment = async () => {
+    if (!viewingEntry || !user?.id || !independentWorkComment.trim()) return;
+
+    try {
+      const entryId = viewingEntry.id || viewingEntry._id;
+      if (!entryId) return;
+
+      const newComment = {
+        id: Date.now().toString(),
+        userId: user.id,
+        userName: user.name || user.email || 'Director',
+        content: independentWorkComment.trim(),
+        timestamp: new Date().toISOString()
+      };
+
+      // Optimistically update UI
+      setViewingEntry({
+        ...viewingEntry,
+        comments: [...(viewingEntry.comments || []), newComment]
+      });
+
+      // Add comment to database and get updated entry
+      const updated = await addComment(entryId, {
+        userId: user.id,
+        userName: user.name || user.email || 'Director',
+        content: independentWorkComment.trim()
+      });
+
+      // Update with the real data from server (ensures consistency)
+      if (updated && updated.comments) {
+        setViewingEntry(updated);
+      }
+
+      // Clear the input
+      setIndependentWorkComment('');
+
+      // Refresh the list in the background (non-blocking)
+      loadIndependentWork().catch(err => {
+        console.error('Error refreshing independent work list:', err);
+      });
+    } catch (error: any) {
+      console.error('Error adding comment to independent work:', error);
+      alert('Error adding comment. Please try again.');
     }
   };
 
@@ -3908,6 +3955,245 @@ const Dashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Comments Section */}
+                <div style={{
+                  borderTop: '1px solid #e5e7eb',
+                  paddingTop: '24px',
+                  marginTop: '24px'
+                }}>
+                  <h3 style={{
+                    fontSize: '18px',
+                    fontWeight: '500',
+                    color: '#111827',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <svg style={{ width: '20px', height: '20px', marginRight: '8px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      Comments
+                    </div>
+                    <span style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      backgroundColor: '#f3f4f6',
+                      padding: '4px 8px',
+                      borderRadius: '9999px'
+                    }}>
+                      {(viewingEntry.comments || []).length} comment{(viewingEntry.comments || []).length !== 1 ? 's' : ''}
+                    </span>
+                  </h3>
+                  
+                  {/* Attachments Section */}
+                  {(viewingEntry.attachments && viewingEntry.attachments.length > 0) && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h4 style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#374151',
+                        marginBottom: '12px'
+                      }}>Attachments</h4>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}>
+                        {viewingEntry.attachments.map((attachment) => {
+                          const handleDownload = () => {
+                            const link = document.createElement('a');
+                            link.href = attachment.fileData;
+                            link.download = attachment.fileName;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          };
+
+                          return (
+                            <div key={attachment.id} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 12px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '8px',
+                              border: '1px solid #e5e7eb'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                                {attachment.fileType.startsWith('image/') ? (
+                                  <img
+                                    src={attachment.fileData}
+                                    alt={attachment.fileName}
+                                    style={{
+                                      width: '40px',
+                                      height: '40px',
+                                      objectFit: 'cover',
+                                      borderRadius: '4px'
+                                    }}
+                                  />
+                                ) : (
+                                  <span style={{ fontSize: '24px' }}>📄</span>
+                                )}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{
+                                    margin: 0,
+                                    fontSize: '14px',
+                                    fontWeight: '500',
+                                    color: '#111827',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {attachment.fileName}
+                                  </p>
+                                  <p style={{
+                                    margin: '4px 0 0 0',
+                                    fontSize: '12px',
+                                    color: '#6b7280'
+                                  }}>
+                                    {(attachment.fileSize / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={handleDownload}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#2563eb',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#1d4ed8';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#2563eb';
+                                }}
+                              >
+                                Download
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    marginBottom: '16px',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {(viewingEntry.comments || []).length > 0 ? (
+                      (viewingEntry.comments || []).map((comment) => (
+                        <div key={comment.id || comment._id} style={{
+                          backgroundColor: '#f9fafb',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '6px'
+                          }}>
+                            <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                              {comment.userName}
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                              {comment.timestamp ? new Date(comment.timestamp).toLocaleString() : ''}
+                            </span>
+                          </div>
+                          <p style={{
+                            fontSize: '14px',
+                            color: '#374151',
+                            margin: 0,
+                            whiteSpace: 'pre-wrap'
+                          }}>
+                            {comment.content}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p style={{ color: '#6b7280', fontSize: '14px', margin: 0, textAlign: 'center', padding: '16px 0' }}>
+                        No comments yet.
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <strong>Commenting as:</strong> {user?.name || user?.email || 'Director'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <textarea
+                        value={independentWorkComment}
+                        onChange={(e) => setIndependentWorkComment(e.target.value)}
+                        placeholder="Write your comment here..."
+                        rows={3}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          outline: 'none',
+                          resize: 'none',
+                          fontSize: '14px',
+                          fontFamily: 'inherit'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#3b82f6';
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddIndependentWorkComment}
+                        disabled={!independentWorkComment.trim()}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: !independentWorkComment.trim() ? '#9ca3af' : '#2563eb',
+                          color: '#ffffff',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: !independentWorkComment.trim() ? 'not-allowed' : 'pointer',
+                          transition: 'background-color 0.2s ease',
+                          alignSelf: 'flex-end',
+                          fontSize: '14px',
+                          fontWeight: '500'
+                        }}
+                        onMouseOver={(e) => {
+                          if (independentWorkComment.trim()) {
+                            e.currentTarget.style.backgroundColor = '#1d4ed8';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (independentWorkComment.trim()) {
+                            e.currentTarget.style.backgroundColor = '#2563eb';
+                          }
+                        }}
+                      >
+                        Add Comment
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div style={{
                   marginTop: '24px',
                   display: 'flex',
@@ -3915,7 +4201,10 @@ const Dashboard: React.FC = () => {
                   gap: '12px'
                 }}>
                   <button
-                    onClick={() => setViewingEntry(null)}
+                    onClick={() => {
+                      setViewingEntry(null);
+                      setIndependentWorkComment('');
+                    }}
                     style={{
                       padding: '8px 16px',
                       backgroundColor: '#f3f4f6',

@@ -123,6 +123,15 @@ export interface DashboardStats {
   activeEmployees: number;
 }
 
+export interface IndependentWorkAttachment {
+  id?: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileData: string; // base64 encoded file data
+  uploadedAt: string;
+}
+
 export interface IndependentWork {
   id?: string;
   _id?: string; // MongoDB ID field
@@ -133,6 +142,7 @@ export interface IndependentWork {
   category: 'Design' | 'Site' | 'Office' | 'Other';
   timeSpent: number; // in hours
   comments?: IndependentWorkComment[];
+  attachments?: IndependentWorkAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }

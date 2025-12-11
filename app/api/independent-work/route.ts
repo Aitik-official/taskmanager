@@ -18,6 +18,10 @@ export async function GET() {
         comments: (workObj.comments || []).map((comment: any) => ({
           ...comment,
           id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+        })),
+        attachments: (workObj.attachments || []).map((attachment: any) => ({
+          ...attachment,
+          id: attachment.id || attachment._id || `${workObj._id}-${attachment.uploadedAt}`
         }))
       }
     })
@@ -73,7 +77,8 @@ export async function POST(request: NextRequest) {
     
     const independentWork = new IndependentWork({
       ...workData,
-      comments: workData.comments || []
+      comments: workData.comments || [],
+      attachments: workData.attachments || []
     })
     const savedWork = await independentWork.save()
     
@@ -86,6 +91,10 @@ export async function POST(request: NextRequest) {
       comments: (workObj.comments || []).map((comment: any) => ({
         ...comment,
         id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+      })),
+      attachments: (workObj.attachments || []).map((attachment: any) => ({
+        ...attachment,
+        id: attachment.id || attachment._id || `${workObj._id}-${attachment.uploadedAt}`
       }))
     }
     

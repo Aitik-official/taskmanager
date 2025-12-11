@@ -23,6 +23,10 @@ export async function GET(
         comments: (workObj.comments || []).map((comment: any) => ({
           ...comment,
           id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+        })),
+        attachments: (workObj.attachments || []).map((attachment: any) => ({
+          ...attachment,
+          id: attachment.id || attachment._id || `${workObj._id}-${attachment.uploadedAt}`
         }))
       }
     })
