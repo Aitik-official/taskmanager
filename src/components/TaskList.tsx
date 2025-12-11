@@ -11,10 +11,9 @@ interface TaskListProps {
 const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskClick, showActions = true }) => {
   const getPriorityColor = (priority: Task['priority']) => {
     switch (priority) {
-      case 'Critical': return 'bg-red-100 text-red-800';
-      case 'High': return 'bg-orange-100 text-orange-800';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800';
-      case 'Low': return 'bg-green-100 text-green-800';
+      case 'Urgent': return 'bg-red-100 text-red-800';
+      case 'Less Urgent': return 'bg-amber-100 text-amber-800';
+      case 'Free Time': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -24,7 +23,6 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskClick, showActions = t
       case 'Completed': return 'bg-green-100 text-green-800';
       case 'In Progress': return 'bg-blue-100 text-blue-800';
       case 'Pending': return 'bg-yellow-100 text-yellow-800';
-      case 'Overdue': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
