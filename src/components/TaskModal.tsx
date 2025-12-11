@@ -578,7 +578,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             </div>
 
             {/* Extension Request Section */}
-            {task && task.status === 'Overdue' && !task.newDeadlineProposal && isEmployee && (
+            {task && (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date()) && !task.newDeadlineProposal && isEmployee && (
               <div className="border-t border-gray-200 pt-6">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
                   <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
