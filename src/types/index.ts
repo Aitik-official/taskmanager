@@ -79,6 +79,12 @@ export interface Task {
   extensionResponseDate?: string;
   extensionResponseBy?: string;
   extensionResponseComment?: string;
+  completionRequestStatus?: 'Pending' | 'Approved' | 'Rejected';
+  completionRequestDate?: string;
+  completionRequestedBy?: string;
+  completionResponseDate?: string;
+  completionResponseBy?: string;
+  completionResponseComment?: string;
 }
 
 export interface Comment {

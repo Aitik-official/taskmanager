@@ -35,6 +35,12 @@ export interface ITask extends Document {
   extensionResponseDate?: Date
   extensionResponseBy?: string
   extensionResponseComment?: string
+  completionRequestStatus?: 'Pending' | 'Approved' | 'Rejected'
+  completionRequestDate?: Date
+  completionRequestedBy?: string
+  completionResponseDate?: Date
+  completionResponseBy?: string
+  completionResponseComment?: string
   createdAt: Date
 }
 
@@ -85,6 +91,16 @@ const taskSchema = new Schema<ITask>({
   extensionResponseDate: { type: Date },
   extensionResponseBy: String,
   extensionResponseComment: String,
+  completionRequestStatus: { 
+    type: String, 
+    enum: ['Pending', 'Approved', 'Rejected'],
+    default: undefined
+  },
+  completionRequestDate: { type: Date },
+  completionRequestedBy: String,
+  completionResponseDate: { type: Date },
+  completionResponseBy: String,
+  completionResponseComment: String,
   createdAt: { type: Date, default: Date.now }
 })
 

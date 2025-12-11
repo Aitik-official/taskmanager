@@ -65,6 +65,33 @@ export const taskApi = {
     });
     return response.data;
   },
+
+  // Request task completion
+  requestTaskCompletion: async (taskId: string, requestedBy: string) => {
+    const response = await api.post(`/tasks/${taskId}/completion-request`, {
+      requestedBy
+    });
+    return response.data;
+  },
+
+  // Get all completion requests
+  getCompletionRequests: async (status?: 'all' | 'Pending' | 'Approved' | 'Rejected') => {
+    const url = status && status !== 'all' 
+      ? `/tasks/completion-requests?status=${status}`
+      : '/tasks/completion-requests?status=all';
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // Approve or reject completion request
+  handleCompletionApproval: async (taskId: string, action: 'approve' | 'reject', approvedBy: string, comment?: string) => {
+    const response = await api.post(`/tasks/${taskId}/completion-approval`, {
+      action,
+      approvedBy,
+      comment
+    });
+    return response.data;
+  },
 };
 
 export default api;

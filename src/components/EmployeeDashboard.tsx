@@ -56,7 +56,7 @@ const EmployeeDashboard: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals'>('overview');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
@@ -74,6 +74,8 @@ const EmployeeDashboard: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
   const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
 
   const loadTasks = async () => {
     try {
@@ -550,32 +552,28 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
-  // Function to mark task as completed
+  // Function to request task completion
   const handleTaskCompleted = async (task: Task) => {
+    // Show modal for completion request
+    setTaskToComplete(task);
+    setShowCompletionModal(true);
+  };
+
+  const confirmCompletionRequest = async () => {
+    if (!taskToComplete || !user?.id) return;
+
     try {
-      const taskId = task.id || task._id;
+      const taskId = taskToComplete.id || taskToComplete._id;
       if (!taskId) {
-        console.error('No task ID available for completion:', task);
+        console.error('No task ID available for completion:', taskToComplete);
         return;
       }
 
-      // Confirm with user
-      if (!window.confirm(`Are you sure you want to mark "${task.title}" as completed?`)) {
-        return;
-      }
-
-      // Update task status to completed
-      const updatedTask = {
-        ...task,
-        status: 'Completed',
-        completedDate: new Date().toISOString()
-      };
-
-      // Update the task in the backend
-      await taskApi.updateTask(taskId, updatedTask);
+      // Request completion approval
+      await taskApi.requestTaskCompletion(taskId, user.id);
       
       // Show success notification
-      setNotificationMessage('Task marked as completed successfully!');
+      setNotificationMessage('Completion request submitted. Waiting for director approval.');
       setShowNotification(true);
       
       // Hide notification after 3 seconds
@@ -583,12 +581,13 @@ const EmployeeDashboard: React.FC = () => {
         setShowNotification(false);
       }, 3000);
       
-      // Reload tasks to reflect the change
+      // Close modal and reload tasks
+      setShowCompletionModal(false);
+      setTaskToComplete(null);
       await loadTasks();
-      
     } catch (error: any) {
-      console.error('Error marking task as completed:', error);
-      alert('Error marking task as completed. Please try again.');
+      console.error('Error requesting task completion:', error);
+      alert('Error submitting completion request. Please try again.');
     }
   };
 
@@ -1775,7 +1774,7 @@ const EmployeeDashboard: React.FC = () => {
                                 </svg>
                                 View
                               </button>
-                              {task.status !== 'Completed' && (
+                              {task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
                                 <button
                                   onClick={() => handleTaskCompleted(task)}
                                   style={{
@@ -1797,13 +1796,30 @@ const EmployeeDashboard: React.FC = () => {
                                   onMouseOut={(e) => {
                                     e.currentTarget.style.backgroundColor = '#dcfce7';
                                   }}
-                                  title="Mark Task as Completed"
+                                  title="Request Completion Approval"
                                 >
                                   <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                   </svg>
                                   Complete
                                 </button>
+                              )}
+                              {task.completionRequestStatus === 'Pending' && (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '6px 12px',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  borderRadius: '6px',
+                                  color: '#f59e0b',
+                                  backgroundColor: '#fef3c7'
+                                }}>
+                                  <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Pending Approval
+                                </span>
                               )}
                               {task.status === 'Completed' && (
                                 <span style={{
@@ -3267,6 +3283,102 @@ const EmployeeDashboard: React.FC = () => {
           }}
           users={users}
         />
+      )}
+
+      {/* Completion Request Modal */}
+      {showCompletionModal && taskToComplete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}
+        onClick={() => {
+          setShowCompletionModal(false);
+          setTaskToComplete(null);
+        }}
+        >
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            padding: '32px',
+            maxWidth: '500px',
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: '#111827',
+              marginBottom: '16px'
+            }}>
+              Request Completion Approval
+            </h2>
+            <p style={{
+              fontSize: '16px',
+              color: '#374151',
+              marginBottom: '24px',
+              lineHeight: '1.6'
+            }}>
+              You are requesting approval to mark <strong>"{taskToComplete.title}"</strong> as completed. 
+              The director will review your request and approve or reject it.
+            </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px'
+            }}>
+              <button
+                onClick={() => {
+                  setShowCompletionModal(false);
+                  setTaskToComplete(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCompletionRequest}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#1d4ed8';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#2563eb';
+                }}
+              >
+                Submit Request
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

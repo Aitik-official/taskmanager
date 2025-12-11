@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, CheckSquare, FolderOpen, Users, LogOut, User, Briefcase } from 'lucide-react';
+import { Home, CheckSquare, FolderOpen, Users, LogOut, User, Briefcase, FileCheck } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work';
-  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work') => void;
+  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals';
+  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals') => void;
   isEmployee?: boolean;
 }
 
@@ -26,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
         { id: 'projects', label: 'Projects', icon: FolderOpen },
         { id: 'employees', label: 'Employees', icon: Users },
         { id: 'independent-work', label: 'Independent Work', icon: Briefcase },
+        { id: 'approvals', label: 'Approvals', icon: FileCheck },
         { id: 'profile', label: 'Profile', icon: User },
       ];
 
@@ -76,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work')}
+                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals')}
                 style={{
                   width: '100%',
                   display: 'flex',

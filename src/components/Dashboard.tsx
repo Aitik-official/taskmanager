@@ -71,11 +71,13 @@ const Dashboard: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals'>('overview');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
   const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
   const [independentWorkFilter, setIndependentWorkFilter] = useState<'all' | 'Design' | 'Site' | 'Office' | 'Other'>('all');
+  const [completionRequests, setCompletionRequests] = useState<Task[]>([]);
+  const [approvalStatusFilter, setApprovalStatusFilter] = useState<'all' | 'Pending' | 'Approved' | 'Rejected'>('all');
   
   // Task filters
   const [taskSearchTerm, setTaskSearchTerm] = useState('');
@@ -496,6 +498,18 @@ const Dashboard: React.FC = () => {
     }
   }, [isDirector]);
 
+  const loadCompletionRequests = useCallback(async () => {
+    try {
+      if (isDirector) {
+        const requests = await taskApi.getCompletionRequests(approvalStatusFilter);
+        setCompletionRequests(requests);
+      }
+    } catch (error: any) {
+      console.error('Error loading completion requests:', error);
+      setCompletionRequests([]);
+    }
+  }, [isDirector, approvalStatusFilter]);
+
   const handleViewEntry = (entry: IndependentWork) => {
     setViewingEntry(entry);
   };
@@ -605,14 +619,18 @@ const Dashboard: React.FC = () => {
     loadEmployees();
     if (isDirector) {
       loadIndependentWork();
+      loadCompletionRequests();
     }
-  }, [user, isDirector]);
+  }, [user, isDirector, loadIndependentWork, loadCompletionRequests]);
 
   useEffect(() => {
     if (activeTab === 'independent-work' && isDirector) {
       loadIndependentWork();
     }
-  }, [activeTab, isDirector, loadIndependentWork]);
+    if (activeTab === 'approvals' && isDirector) {
+      loadCompletionRequests();
+    }
+  }, [activeTab, isDirector, loadIndependentWork, loadCompletionRequests]);
 
   // Debug logging for employees
   useEffect(() => {
@@ -4465,6 +4483,474 @@ const Dashboard: React.FC = () => {
                   </div>
                 </form>
               </div>
+            </div>
+          )}
+
+          {/* Approvals Tab */}
+          {activeTab === 'approvals' && (
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '32px',
+              width: '100%',
+              maxWidth: '100%'
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%'
+              }}>
+                <div>
+                  <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>Task Completion Approvals</h1>
+                  <p style={{
+                    fontSize: '16px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Review and manage task completion requests from employees, including approval history
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter Section */}
+              <div style={{
+                display: 'flex',
+                gap: '16px',
+                alignItems: 'center',
+                backgroundColor: '#ffffff',
+                padding: '16px 24px',
+                borderRadius: '12px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb'
+              }}>
+                <label style={{
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151'
+                }}>
+                  Filter by Status:
+                </label>
+                <select
+                  value={approvalStatusFilter}
+                  onChange={(e) => {
+                    setApprovalStatusFilter(e.target.value as 'all' | 'Pending' | 'Approved' | 'Rejected');
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '14px',
+                    color: '#111827',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="all">All</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+
+              {completionRequests.length > 0 ? (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                  border: '1px solid #e5e7eb',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Task Title</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Employee</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Requested Date</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Priority</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Status</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Response Date</th>
+                          <th style={{
+                            padding: '16px',
+                            textAlign: 'center',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {completionRequests.map((task) => (
+                          <tr
+                            key={task.id || task._id}
+                            style={{
+                              borderBottom: '1px solid #e5e7eb',
+                              transition: 'background-color 0.2s ease',
+                              backgroundColor: '#ffffff'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                            }}
+                          >
+                            <td style={{
+                              padding: '16px',
+                              fontSize: '14px',
+                              color: '#111827',
+                              fontWeight: '500'
+                            }}>
+                              {task.title}
+                            </td>
+                            <td style={{
+                              padding: '16px',
+                              fontSize: '14px',
+                              color: '#374151'
+                            }}>
+                              {task.assignedToName}
+                            </td>
+                            <td style={{
+                              padding: '16px',
+                              fontSize: '14px',
+                              color: '#374151'
+                            }}>
+                              {task.completionRequestDate ? new Date(task.completionRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                            </td>
+                            <td style={{
+                              padding: '16px'
+                            }}>
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '9999px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: task.priority === 'Urgent' ? '#fee2e2' :
+                                              task.priority === 'Less Urgent' ? '#fef3c7' :
+                                              '#dbeafe',
+                                color: task.priority === 'Urgent' ? '#991b1b' :
+                                       task.priority === 'Less Urgent' ? '#92400e' :
+                                       '#1e40af'
+                              }}>
+                                {task.priority}
+                              </span>
+                            </td>
+                            <td style={{
+                              padding: '16px'
+                            }}>
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '9999px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: task.completionRequestStatus === 'Approved' ? '#dcfce7' :
+                                              task.completionRequestStatus === 'Rejected' ? '#fee2e2' :
+                                              '#fef3c7',
+                                color: task.completionRequestStatus === 'Approved' ? '#15803d' :
+                                       task.completionRequestStatus === 'Rejected' ? '#991b1b' :
+                                       '#92400e'
+                              }}>
+                                {task.completionRequestStatus || 'Pending'}
+                              </span>
+                            </td>
+                            <td style={{
+                              padding: '16px',
+                              fontSize: '14px',
+                              color: '#374151'
+                            }}>
+                              {task.completionResponseDate ? new Date(task.completionResponseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                            </td>
+                            <td style={{
+                              padding: '16px',
+                              textAlign: 'center'
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                gap: '8px',
+                                justifyContent: 'center',
+                                flexWrap: 'wrap'
+                              }}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setIsTaskModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: '#dbeafe',
+                                    color: '#1e40af',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#dbeafe';
+                                  }}
+                                  title="View Task Details"
+                                >
+                                  <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  View
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setIsTaskModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: '#fef3c7',
+                                    color: '#92400e',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#fde68a';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#fef3c7';
+                                  }}
+                                  title="Edit Task"
+                                >
+                                  <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit
+                                </button>
+                                {task.completionRequestStatus === 'Pending' && (
+                                  <>
+                                    <button
+                                      onClick={async () => {
+                                        if (!window.confirm(`Approve completion request for "${task.title}"?`)) return;
+                                        try {
+                                          const taskId = task.id || task._id;
+                                          if (!taskId || !user?.id) return;
+                                          await taskApi.handleCompletionApproval(taskId, 'approve', user.id);
+                                          await loadCompletionRequests();
+                                          await loadTasks();
+                                        } catch (error: any) {
+                                          console.error('Error approving completion:', error);
+                                          alert('Error approving completion request. Please try again.');
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '6px 12px',
+                                        backgroundColor: '#dcfce7',
+                                        color: '#15803d',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        transition: 'all 0.2s ease',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#dcfce7';
+                                      }}
+                                      title="Approve"
+                                    >
+                                      <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (!window.confirm(`Reject completion request for "${task.title}"?`)) return;
+                                        try {
+                                          const taskId = task.id || task._id;
+                                          if (!taskId || !user?.id) return;
+                                          await taskApi.handleCompletionApproval(taskId, 'reject', user.id);
+                                          await loadCompletionRequests();
+                                          await loadTasks();
+                                        } catch (error: any) {
+                                          console.error('Error rejecting completion:', error);
+                                          alert('Error rejecting completion request. Please try again.');
+                                        }
+                                      }}
+                                      style={{
+                                        padding: '6px 12px',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#991b1b',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        transition: 'all 0.2s ease',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fecaca';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                                      }}
+                                      title="Reject"
+                                    >
+                                      <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (!window.confirm(`Are you sure you want to delete the task "${task.title}"? This action cannot be undone.`)) return;
+                                    try {
+                                      const taskId = task.id || task._id;
+                                      if (!taskId) return;
+                                      await taskApi.deleteTask(taskId);
+                                      // Close modal if the deleted task is currently open
+                                      if (selectedTask && (selectedTask.id === taskId || selectedTask._id === taskId)) {
+                                        setIsTaskModalOpen(false);
+                                        setSelectedTask(null);
+                                      }
+                                      await loadCompletionRequests();
+                                      await loadTasks();
+                                    } catch (error: any) {
+                                      console.error('Error deleting task:', error);
+                                      alert('Error deleting task. Please try again.');
+                                    }
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: '#fee2e2',
+                                    color: '#991b1b',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    transition: 'all 0.2s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#fecaca';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#fee2e2';
+                                  }}
+                                  title="Delete Task"
+                                >
+                                  <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '12px',
+                  padding: '40px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <p style={{
+                    fontSize: '16px',
+                    color: '#6b7280',
+                    margin: 0
+                  }}>
+                    No completion requests found {approvalStatusFilter !== 'all' ? `with status "${approvalStatusFilter}"` : ''} at this time.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
