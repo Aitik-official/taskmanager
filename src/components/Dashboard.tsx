@@ -304,7 +304,7 @@ const Dashboard: React.FC = () => {
         { 'Completed Tasks': tasks.filter(t => t.status === 'Completed').length },
         { 'Pending Tasks': tasks.filter(t => t.status === 'Pending').length },
         { 'In Progress Tasks': tasks.filter(t => t.status === 'In Progress').length },
-        { 'Overdue Tasks': tasks.filter(t => t.status === 'Overdue').length }
+        { 'Overdue Tasks': tasks.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date()).length }
       ];
       
       // Prepare comprehensive data for export
