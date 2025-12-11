@@ -385,7 +385,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#6b7280' }}>Created:</span>
-                    <span style={{ fontWeight: '500' }}>{new Date(task.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                    <span style={{ fontWeight: '500' }}>
+                      {task.startDate
+                        ? new Date(task.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : 'No start date'}
+                    </span>
                   </div>
                 </div>
               </div>
