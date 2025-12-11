@@ -140,7 +140,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskClick, showActions = t
                     Update Progress
                   </button>
                 )}
-                {task.status === 'Overdue' && !task.newDeadlineProposal && (
+                {(task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date()) && !task.newDeadlineProposal && (
                   <button className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200">
                     Request Extension
                   </button>
