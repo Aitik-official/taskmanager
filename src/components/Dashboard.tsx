@@ -1698,8 +1698,14 @@ const Dashboard: React.FC = () => {
                         marginBottom: '12px'
                       }}>
                         <span style={{
-                          backgroundColor: task.priority === 'High' ? '#fef2f2' : task.priority === 'Medium' ? '#fef3c7' : '#f0f9ff',
-                          color: task.priority === 'High' ? '#dc2626' : task.priority === 'Medium' ? '#d97706' : '#0369a1',
+                          backgroundColor: task.priority === 'Urgent' ? '#fef2f2' :
+                                          task.priority === 'Less Urgent' ? '#fef3c7' :
+                                          task.priority === 'Free Time' ? '#dcfce7' :
+                                          '#f3f4f6',
+                          color: task.priority === 'Urgent' ? '#dc2626' :
+                                 task.priority === 'Less Urgent' ? '#d97706' :
+                                 task.priority === 'Free Time' ? '#166534' :
+                                 '#374151',
                           padding: '4px 8px',
                           borderRadius: '4px',
                           fontSize: '12px',
