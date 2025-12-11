@@ -289,16 +289,14 @@ const EmployeeDashboard: React.FC = () => {
         timestamp: new Date().toISOString()
       };
 
-      await updateIndependentWork(entryId, {
+      const updated = await updateIndependentWork(entryId, {
         comments: [...(viewingEntry.comments || []), newComment]
       });
 
+      // Immediately update modal with returned entry
+      setViewingEntry(updated);
+      // Refresh list
       await loadIndependentWork();
-      const refreshed = await getIndependentWorkByEmployee(user.id);
-      const latestEntry = refreshed.find(entry => (entry.id || entry._id) === entryId);
-      if (latestEntry) {
-        setViewingEntry(latestEntry);
-      }
       setIndependentWorkComment('');
     } catch (error: any) {
       console.error('Error adding comment to independent work:', error);
