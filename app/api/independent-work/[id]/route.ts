@@ -22,7 +22,11 @@ export async function GET(
     const normalizedWork = {
       ...workObj,
       id: workObj._id,
-      _id: workObj._id
+      _id: workObj._id,
+      comments: (workObj.comments || []).map((comment: any) => ({
+        ...comment,
+        id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+      }))
     }
     
     return NextResponse.json(normalizedWork)
@@ -65,7 +69,11 @@ export async function PUT(
     const normalizedWork = {
       ...workObj,
       id: workObj._id,
-      _id: workObj._id
+      _id: workObj._id,
+      comments: (workObj.comments || []).map((comment: any) => ({
+        ...comment,
+        id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+      }))
     }
     
     return NextResponse.json(normalizedWork)

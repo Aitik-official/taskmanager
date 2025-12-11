@@ -14,7 +14,11 @@ export async function GET() {
       return {
         ...workObj,
         id: workObj._id, // Add id field for frontend compatibility
-        _id: workObj._id
+        _id: workObj._id,
+        comments: (workObj.comments || []).map((comment: any) => ({
+          ...comment,
+          id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+        }))
       }
     })
     
@@ -67,7 +71,10 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const independentWork = new IndependentWork(workData)
+    const independentWork = new IndependentWork({
+      ...workData,
+      comments: workData.comments || []
+    })
     const savedWork = await independentWork.save()
     
     // Normalize the data structure
@@ -75,7 +82,11 @@ export async function POST(request: NextRequest) {
     const normalizedWork = {
       ...workObj,
       id: workObj._id,
-      _id: workObj._id
+      _id: workObj._id,
+      comments: (workObj.comments || []).map((comment: any) => ({
+        ...comment,
+        id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+      }))
     }
     
     console.log('✅ Independent work entry created successfully:', normalizedWork.id)

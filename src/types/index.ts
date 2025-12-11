@@ -92,6 +92,15 @@ export interface Comment {
   isVisibleToEmployee: boolean;
 }
 
+export interface IndependentWorkComment {
+  id?: string;
+  _id?: string;
+  userId: string;
+  userName: string;
+  content: string;
+  timestamp: string;
+}
+
 export interface TaskFilter {
   projectId?: string;
   employeeId?: string;
@@ -123,6 +132,7 @@ export interface IndependentWork {
   workDescription: string;
   category: 'Design' | 'Site' | 'Office' | 'Other';
   timeSpent: number; // in hours
+  comments?: IndependentWorkComment[];
   createdAt?: string;
   updatedAt?: string;
 }

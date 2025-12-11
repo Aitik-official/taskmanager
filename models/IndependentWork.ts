@@ -7,6 +7,13 @@ export interface IIndependentWork extends Document {
   workDescription: string
   category: 'Design' | 'Site' | 'Office' | 'Other'
   timeSpent: number // in hours
+  comments: Array<{
+    id: string
+    userId: string
+    userName: string
+    content: string
+    timestamp: string
+  }>
   createdAt: Date
   updatedAt: Date
 }
@@ -22,6 +29,13 @@ const independentWorkSchema = new Schema<IIndependentWork>({
     required: true 
   },
   timeSpent: { type: Number, required: true, min: 0 },
+  comments: [{
+    id: { type: String, required: true },
+    userId: { type: String, required: true },
+    userName: { type: String, required: true },
+    content: { type: String, required: true },
+    timestamp: { type: String, required: true }
+  }],
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })

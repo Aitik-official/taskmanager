@@ -68,6 +68,7 @@ const EmployeeDashboard: React.FC = () => {
     category: 'Office' as 'Design' | 'Site' | 'Office' | 'Other',
     timeSpent: 0
   });
+  const [independentWorkComment, setIndependentWorkComment] = useState('');
   const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
   const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -270,6 +271,38 @@ const EmployeeDashboard: React.FC = () => {
     } catch (error: any) {
       console.error('Error deleting independent work:', error);
       alert('Error deleting independent work entry. Please try again.');
+    }
+  };
+
+  const handleAddIndependentWorkComment = async () => {
+    if (!viewingEntry || !user?.id || !independentWorkComment.trim()) return;
+
+    try {
+      const entryId = viewingEntry.id || viewingEntry._id;
+      if (!entryId) return;
+
+      const newComment = {
+        id: Date.now().toString(),
+        userId: user.id,
+        userName: user.name || user.email || 'User',
+        content: independentWorkComment.trim(),
+        timestamp: new Date().toISOString()
+      };
+
+      await updateIndependentWork(entryId, {
+        comments: [...(viewingEntry.comments || []), newComment]
+      });
+
+      await loadIndependentWork();
+      const refreshed = await getIndependentWorkByEmployee(user.id);
+      const latestEntry = refreshed.find(entry => (entry.id || entry._id) === entryId);
+      if (latestEntry) {
+        setViewingEntry(latestEntry);
+      }
+      setIndependentWorkComment('');
+    } catch (error: any) {
+      console.error('Error adding comment to independent work:', error);
+      alert('Error adding comment. Please try again.');
     }
   };
 
@@ -2697,6 +2730,113 @@ const EmployeeDashboard: React.FC = () => {
                         }}>
                           {viewingEntry.workDescription}
                         </p>
+                      </div>
+                      <div>
+                        <label style={{
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#6b7280',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          display: 'block',
+                          marginBottom: '8px'
+                        }}>Comments</label>
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px'
+                        }}>
+                          {(viewingEntry.comments || []).length > 0 ? (
+                            (viewingEntry.comments || []).map((comment) => (
+                              <div key={comment.id || comment._id} style={{
+                                backgroundColor: '#f9fafb',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                border: '1px solid #e5e7eb'
+                              }}>
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginBottom: '6px'
+                                }}>
+                                  <span style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                                    {comment.userName}
+                                  </span>
+                                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                    {comment.timestamp ? new Date(comment.timestamp).toLocaleString() : ''}
+                                  </span>
+                                </div>
+                                <p style={{
+                                  fontSize: '14px',
+                                  color: '#374151',
+                                  margin: 0,
+                                  whiteSpace: 'pre-wrap'
+                                }}>
+                                  {comment.content}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>No comments yet.</p>
+                          )}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <textarea
+                              value={independentWorkComment}
+                              onChange={(e) => setIndependentWorkComment(e.target.value)}
+                              placeholder="Add a comment..."
+                              rows={3}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '8px',
+                                outline: 'none',
+                                fontSize: '14px',
+                                fontFamily: 'inherit',
+                                resize: 'vertical'
+                              }}
+                              onFocus={(e) => {
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                              }}
+                              onBlur={(e) => {
+                                e.currentTarget.style.borderColor = '#d1d5db';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={handleAddIndependentWorkComment}
+                                disabled={!independentWorkComment.trim()}
+                                style={{
+                                  padding: '8px 16px',
+                                  backgroundColor: independentWorkComment.trim() ? '#2563eb' : '#9ca3af',
+                                  color: '#ffffff',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  cursor: independentWorkComment.trim() ? 'pointer' : 'not-allowed',
+                                  fontSize: '14px',
+                                  fontWeight: '500',
+                                  transition: 'background-color 0.2s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                  if (independentWorkComment.trim()) {
+                                    e.currentTarget.style.backgroundColor = '#1d4ed8';
+                                  }
+                                }}
+                                onMouseOut={(e) => {
+                                  if (independentWorkComment.trim()) {
+                                    e.currentTarget.style.backgroundColor = '#2563eb';
+                                  }
+                                }}
+                              >
+                                Add Comment
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div style={{

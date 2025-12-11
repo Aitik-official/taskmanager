@@ -19,7 +19,11 @@ export async function GET(
       return {
         ...workObj,
         id: workObj._id, // Add id field for frontend compatibility
-        _id: workObj._id
+        _id: workObj._id,
+        comments: (workObj.comments || []).map((comment: any) => ({
+          ...comment,
+          id: comment.id || comment._id || `${workObj._id}-${comment.timestamp}`
+        }))
       }
     })
     
