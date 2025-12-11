@@ -1714,8 +1714,20 @@ const Dashboard: React.FC = () => {
                           {task.priority} Priority
                         </span>
                         <span style={{
-                          backgroundColor: task.status === 'Completed' ? '#f0fdf4' : task.status === 'In Progress' ? '#fef3c7' : task.status === 'Overdue' ? '#fef2f2' : '#f3f4f6',
-                          color: task.status === 'Completed' ? '#16a34a' : task.status === 'In Progress' ? '#d97706' : task.status === 'Overdue' ? '#dc2626' : '#6b7280',
+                          backgroundColor: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date())
+                            ? '#fef2f2'
+                            : task.status === 'Completed'
+                            ? '#f0fdf4'
+                            : task.status === 'In Progress'
+                            ? '#fef3c7'
+                            : '#f3f4f6',
+                          color: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date())
+                            ? '#dc2626'
+                            : task.status === 'Completed'
+                            ? '#16a34a'
+                            : task.status === 'In Progress'
+                            ? '#d97706'
+                            : '#6b7280',
                           padding: '4px 8px',
                           borderRadius: '4px',
                           fontSize: '12px',
