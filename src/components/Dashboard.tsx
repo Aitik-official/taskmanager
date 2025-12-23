@@ -74,6 +74,7 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals'>('overview');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
+  const [projectSourceFilter, setProjectSourceFilter] = useState<'all' | 'director' | 'employee'>('all');
   const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
   const [independentWorkFilter, setIndependentWorkFilter] = useState<'all' | 'Design' | 'Site' | 'Office' | 'Other'>('all');
   const [completionRequests, setCompletionRequests] = useState<Task[]>([]);
@@ -83,6 +84,7 @@ const Dashboard: React.FC = () => {
   const [taskSearchTerm, setTaskSearchTerm] = useState('');
   const [taskStaffFilter, setTaskStaffFilter] = useState<string>('all');
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time'>('all');
+  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'employee'>('all');
   const [taskDateRangeStart, setTaskDateRangeStart] = useState('');
   const [taskDateRangeEnd, setTaskDateRangeEnd] = useState('');
   
@@ -931,6 +933,20 @@ const Dashboard: React.FC = () => {
       filtered = filtered.filter(task => task.priority === taskPriorityFilter);
     }
 
+    // Apply task source filter (for directors only)
+    if (isDirector && taskSourceFilter !== 'all') {
+      filtered = filtered.filter(task => {
+        if (taskSourceFilter === 'director') {
+          // Tasks created by Director - exclude tasks created by employees from employee dashboard
+          return !task.isEmployeeCreated;
+        } else if (taskSourceFilter === 'employee') {
+          // Tasks created by Employee - only show tasks created by employees from employee dashboard
+          return task.isEmployeeCreated === true;
+        }
+        return true;
+      });
+    }
+
     // Apply date range filter
     if (taskDateRangeStart) {
       filtered = filtered.filter(task => {
@@ -946,7 +962,7 @@ const Dashboard: React.FC = () => {
     }
 
     setFilteredTasks(filtered);
-  }, [tasks, user, isEmployee, isProjectHead, isDirector, projects, taskFilter, taskSearchTerm, taskStaffFilter, taskPriorityFilter, taskDateRangeStart, taskDateRangeEnd]);
+  }, [tasks, user, isEmployee, isProjectHead, isDirector, projects, taskFilter, taskSearchTerm, taskStaffFilter, taskPriorityFilter, taskSourceFilter, taskDateRangeStart, taskDateRangeEnd, employees]);
 
   const filteredProjects = useMemo(() => {
     let filtered: Project[] = [];
@@ -990,6 +1006,20 @@ const Dashboard: React.FC = () => {
       filtered = filtered.filter(project => project.assignedEmployeeId === projectStaffFilter);
     }
 
+    // Apply project source filter (for directors only)
+    if (isDirector && projectSourceFilter !== 'all') {
+      filtered = filtered.filter(project => {
+        if (projectSourceFilter === 'director') {
+          // Projects created by Director - exclude projects created by employees from employee dashboard
+          return !project.isEmployeeCreated;
+        } else if (projectSourceFilter === 'employee') {
+          // Projects created by Employee - only show projects created by employees from employee dashboard
+          return project.isEmployeeCreated === true;
+        }
+        return true;
+      });
+    }
+
     // Apply date range filter (start date)
     if (projectDateRangeStart) {
       filtered = filtered.filter(project => {
@@ -1005,7 +1035,7 @@ const Dashboard: React.FC = () => {
     }
 
     return filtered;
-  }, [projects, user, isEmployee, projectFilter, projectSearchTerm, projectStaffFilter, projectDateRangeStart, projectDateRangeEnd]);
+  }, [projects, user, isEmployee, isDirector, projectFilter, projectSearchTerm, projectStaffFilter, projectSourceFilter, projectDateRangeStart, projectDateRangeEnd, employees]);
 
   // Debug logging for projects
   console.log('Projects state:', projects);
@@ -2229,12 +2259,13 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Clear Filters Button */}
-                {(taskSearchTerm || taskStaffFilter !== 'all' || taskPriorityFilter !== 'all' || taskDateRangeStart || taskDateRangeEnd) && (
+                {(taskSearchTerm || taskStaffFilter !== 'all' || taskPriorityFilter !== 'all' || taskSourceFilter !== 'all' || taskDateRangeStart || taskDateRangeEnd) && (
                   <button
                     onClick={() => {
                       setTaskSearchTerm('');
                       setTaskStaffFilter('all');
                       setTaskPriorityFilter('all');
+                      setTaskSourceFilter('all');
                       setTaskDateRangeStart('');
                       setTaskDateRangeEnd('');
                     }}
@@ -2384,6 +2415,114 @@ const Dashboard: React.FC = () => {
                   Overdue
                 </button>
               </div>
+
+              {/* Task Source Filter - Only for Directors */}
+              {isDirector && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#374151'
+                  }}>
+                    Tasks visible:
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      onClick={() => setTaskSourceFilter('all')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: taskSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
+                        color: taskSourceFilter === 'all' ? '#ffffff' : '#374151',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (taskSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          e.currentTarget.style.borderColor = '#9ca3af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (taskSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      All Tasks
+                    </button>
+                    <button
+                      onClick={() => setTaskSourceFilter('director')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: taskSourceFilter === 'director' ? '#2563eb' : '#ffffff',
+                        color: taskSourceFilter === 'director' ? '#ffffff' : '#1e40af',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (taskSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                          e.currentTarget.style.borderColor = '#1e40af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (taskSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Tasks created by Director
+                    </button>
+                    <button
+                      onClick={() => setTaskSourceFilter('employee')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: taskSourceFilter === 'employee' ? '#10b981' : '#ffffff',
+                        color: taskSourceFilter === 'employee' ? '#ffffff' : '#059669',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (taskSourceFilter !== 'employee') {
+                          e.currentTarget.style.backgroundColor = '#ecfdf5';
+                          e.currentTarget.style.borderColor = '#059669';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (taskSourceFilter !== 'employee') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Tasks created by Employee
+                    </button>
+                  </div>
+                </div>
+              )}
               
               {/* Tasks Table */}
               <div style={{
@@ -2547,13 +2686,14 @@ const Dashboard: React.FC = () => {
                       {filteredTasks.map((task) => (
                           <tr key={task.id || task._id} style={{
                             borderBottom: '1px solid #f3f4f6',
-                            transition: 'background-color 0.2s ease'
+                            transition: 'background-color 0.2s ease',
+                            backgroundColor: task.flagDirectorInputRequired ? '#dc2626' : 'transparent'
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                            e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
                           }}
                           onMouseOut={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#dc2626' : 'transparent';
                           }}>
                             <td style={{ padding: '16px' }}>
                               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
@@ -3092,11 +3232,12 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Clear Filters Button */}
-                {(projectSearchTerm || projectStaffFilter !== 'all' || projectDateRangeStart || projectDateRangeEnd) && (
+                {(projectSearchTerm || projectStaffFilter !== 'all' || projectSourceFilter !== 'all' || projectDateRangeStart || projectDateRangeEnd) && (
                   <button
                     onClick={() => {
                       setProjectSearchTerm('');
                       setProjectStaffFilter('all');
+                      setProjectSourceFilter('all');
                       setProjectDateRangeStart('');
                       setProjectDateRangeEnd('');
                     }}
@@ -3246,6 +3387,114 @@ const Dashboard: React.FC = () => {
                   Pending
                 </button>
               </div>
+
+              {/* Project Source Filter - Only for Directors */}
+              {isDirector && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#374151'
+                  }}>
+                    Projects visible:
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      onClick={() => setProjectSourceFilter('all')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
+                        color: projectSourceFilter === 'all' ? '#ffffff' : '#374151',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          e.currentTarget.style.borderColor = '#9ca3af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      All Projects
+                    </button>
+                    <button
+                      onClick={() => setProjectSourceFilter('director')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'director' ? '#2563eb' : '#ffffff',
+                        color: projectSourceFilter === 'director' ? '#ffffff' : '#1e40af',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                          e.currentTarget.style.borderColor = '#1e40af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Projects created by Director
+                    </button>
+                    <button
+                      onClick={() => setProjectSourceFilter('employee')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'employee' ? '#10b981' : '#ffffff',
+                        color: projectSourceFilter === 'employee' ? '#ffffff' : '#059669',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'employee') {
+                          e.currentTarget.style.backgroundColor = '#ecfdf5';
+                          e.currentTarget.style.borderColor = '#059669';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'employee') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Projects created by Employee
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <ProjectList
                 projects={filteredProjects}

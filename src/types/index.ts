@@ -19,6 +19,8 @@ export interface Project {
   comments?: ProjectComment[];
   createdAt?: string;
   updatedAt?: string;
+  isEmployeeCreated?: boolean; // Flag to identify projects created by employees from employee dashboard
+  flagDirectorInputRequired?: boolean; // Flag when staff needs clarification, approval, or input
 }
 
 export interface ProjectComment {
@@ -60,7 +62,7 @@ export interface Task {
   assignedToName: string;
   assignedById: string;
   assignedByName: string;
-  priority: 'Urgent' | 'Less Urgent' | 'Free Time';
+  priority: 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom';
   status: 'Pending' | 'In Progress' | 'Completed';
   estimatedHours?: number; // Optional - not required in new spec
   actualHours?: number;
@@ -85,6 +87,9 @@ export interface Task {
   completionResponseDate?: string;
   completionResponseBy?: string;
   completionResponseComment?: string;
+  isEmployeeCreated?: boolean; // Flag to identify tasks created by employees from employee dashboard
+  workDone?: number; // Percentage of work done (0-100)
+  flagDirectorInputRequired?: boolean; // Flag when staff needs clarification, approval, or input
 }
 
 export interface Comment {

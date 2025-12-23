@@ -10,6 +10,7 @@ interface TaskModalProps {
   task?: Task | null;
   projects: Project[];
   users: (User | Employee)[];
+  tasks?: Task[]; // List of existing tasks for employee to select from
   onClose: () => void;
   onSave: (task: Task) => void;
   isDirector: boolean;
@@ -21,6 +22,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   task,
   projects,
   users,
+  tasks = [],
   onClose,
   onSave,
   isDirector,
@@ -37,8 +39,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
     dueDate: '',
     estimatedHours: 0,
     directorRating: undefined,
-    isLocked: false
+    isLocked: false,
+    workDone: 0,
+    flagDirectorInputRequired: false
   });
+  const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
   
   const [newComment, setNewComment] = useState('');
   const [showExtensionForm, setShowExtensionForm] = useState(false);
@@ -55,13 +60,37 @@ const TaskModal: React.FC<TaskModalProps> = ({
         ...task,
         dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : '')
       });
+    } else if (isEmployee && user) {
+      // When creating a new task as an employee, pre-fill with employee's own ID
+      setFormData({
+        title: '',
+        description: '',
+        assignedToId: user.id || '',
+        assignedToName: user.name || user.email || '',
+        priority: 'Less Urgent',
+        status: 'Pending',
+        dueDate: '',
+        estimatedHours: 0,
+        directorRating: undefined,
+        isLocked: false,
+        workDone: 0,
+        flagDirectorInputRequired: false
+      });
     }
-  }, [task]);
+  }, [task, isEmployee, user]);
 
 
   const handleInputChange = (field: keyof Task, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
+      
+      // Prevent employees from changing assignedToId when creating a new task
+      if (field === 'assignedToId' && isEmployee && !task) {
+        // Force it to remain as the current employee's ID
+        updated.assignedToId = user?.id || prev.assignedToId;
+        updated.assignedToName = user?.name || user?.email || prev.assignedToName;
+        return updated;
+      }
       
       // Auto-update related fields when IDs change
       if (field === 'projectId') {
@@ -107,7 +136,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       })(),
       assignedById: task?.assignedById || user?.id || '1',
       assignedByName: task?.assignedByName || user?.name || 'Admin',
-      priority: formData.priority || 'Less Urgent',
+      priority: (formData.priority || 'Less Urgent') as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom',
       status: formData.status || 'Pending',
       estimatedHours: formData.estimatedHours || 0,
       actualHours: task?.actualHours,
@@ -121,7 +150,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
       directorRating: formData.directorRating,
       newDeadlineProposal: task?.newDeadlineProposal,
       reasonForExtension: task?.reasonForExtension,
-      extensionRequestStatus: task?.extensionRequestStatus || 'Pending'
+      extensionRequestStatus: task?.extensionRequestStatus || 'Pending',
+      workDone: formData.workDone || 0,
+      flagDirectorInputRequired: formData.flagDirectorInputRequired || false
     };
 
     onSave(taskData);
@@ -774,6 +805,76 @@ const TaskModal: React.FC<TaskModalProps> = ({
               }}>
                 Task Title *
               </label>
+              {isEmployee && tasks.length > 0 && (
+                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('select')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Select from Tasks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('manual')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Add New Title
+                  </button>
+                </div>
+              )}
+              {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
+                <select
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                >
+                  <option value="">Select a task</option>
+                  {tasks.map(t => (
+                    <option key={t.id || t._id} value={t.title}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
               <input
                 type="text"
                 value={formData.title}
@@ -798,6 +899,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 }}
                 required
               />
+              )}
             </div>
 
             <div>
@@ -808,7 +910,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 color: '#374151',
                 marginBottom: '8px'
               }}>
-                Select Project
+                {isEmployee ? 'Project Name' : 'Select Project'}
               </label>
               <select
                 value={formData.projectId || ''}
@@ -833,12 +935,19 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <option value="">No Project (Optional)</option>
-                {projects.map(project => (
+                <option value="">{isEmployee ? 'Select from assigned projects' : 'No Project (Optional)'}</option>
+                {isEmployee 
+                  ? projects.filter(p => p.assignedEmployeeId === user?.id).map(project => (
                   <option key={project.id || project._id} value={project.id || project._id}>
                     {project.name}
                   </option>
-                ))}
+                    ))
+                  : projects.map(project => (
+                      <option key={project.id || project._id} value={project.id || project._id}>
+                        {project.name}
+                      </option>
+                    ))
+                }
               </select>
             </div>
 
@@ -855,7 +964,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               <select
                 value={formData.assignedToId}
                 onChange={(e) => handleInputChange('assignedToId', e.target.value)}
-                disabled={false}
+                disabled={isEmployee && !task} // Disable for employees creating new tasks (they can only assign to themselves)
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -864,11 +973,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   outline: 'none',
                   fontSize: '14px',
                   fontFamily: 'inherit',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: isEmployee && !task ? '#f3f4f6' : '#ffffff',
+                  cursor: isEmployee && !task ? 'not-allowed' : 'pointer'
                 }}
                 onFocus={(e) => {
+                  if (!(isEmployee && !task)) {
                   e.currentTarget.style.borderColor = '#3b82f6';
                   e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = '#d1d5db';
@@ -877,12 +989,25 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 required
               >
                 <option value="">Select Employee</option>
-                {users.map(user => (
+                {(isEmployee && !task 
+                  ? users.filter(u => u.id === user?.id) // Only show current employee when creating task
+                  : users
+                ).map(user => (
                   <option key={user.id} value={user.id}>
                     {'name' in user ? user.name : `${user.firstName} ${user.lastName}`}
                   </option>
                 ))}
               </select>
+              {isEmployee && !task && (
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '4px',
+                  margin: 0
+                }}>
+                  Tasks you create will be assigned to yourself
+                </p>
+              )}
             </div>
 
             <div>
@@ -897,7 +1022,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </label>
               <select
                 value={formData.priority}
-                onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time')}
+                onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
                 disabled={false}
                 style={{
                   width: '100%',
@@ -922,6 +1047,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 <option value="Urgent">Urgent</option>
                 <option value="Less Urgent">Less Urgent</option>
                 <option value="Free Time">Free Time</option>
+                {isEmployee && <option value="Custom">Custom</option>}
               </select>
             </div>
 
@@ -1037,6 +1163,118 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 required
               />
             </div>
+
+            {isEmployee && (
+              <>
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Description / Remarks
+                  </label>
+                  <textarea
+                    value={formData.description || ''}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    placeholder="Daily comments on work done"
+                    rows={4}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Work Done (%)
+                  </label>
+                  <select
+                    value={formData.workDone || 0}
+                    onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                      <option key={percent} value={percent}>
+                        {percent}%
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.flagDirectorInputRequired || false}
+                      onChange={(e) => handleInputChange('flagDirectorInputRequired', e.target.checked)}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span>Flag (Director Input Required)</span>
+                  </label>
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginTop: '4px',
+                    margin: 0
+                  }}>
+                    Used when staff needs clarification, approval, or input
+                  </p>
+                </div>
+              </>
+            )}
 
             {isDirector && (
               <div>
@@ -1669,6 +1907,76 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 }}>
                   Task Title *
                 </label>
+                {isEmployee && tasks.length > 0 && (
+                  <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setTaskTitleMode('select')}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
+                        color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Select from Tasks
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTaskTitleMode('manual')}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
+                        color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Add New Title
+                    </button>
+                  </div>
+                )}
+                {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
+                  <select
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    required
+                  >
+                    <option value="">Select a task</option>
+                    {tasks.map(t => (
+                      <option key={t.id || t._id} value={t.title}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
                 <input
                   type="text"
                   value={formData.title}
@@ -1692,6 +2000,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   required
                 />
+                )}
               </div>
 
               <div>
@@ -1702,7 +2011,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                  Select Project
+                  {isEmployee ? 'Project Name' : 'Select Project'}
                 </label>
                 <select
                   value={formData.projectId || ''}
@@ -1726,12 +2035,19 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
-                  <option value="">No Project (Optional)</option>
-                  {projects.map(project => (
+                  <option value="">{isEmployee ? 'Select from assigned projects' : 'No Project (Optional)'}</option>
+                  {isEmployee 
+                    ? projects.filter(p => p.assignedEmployeeId === user?.id).map(project => (
                     <option key={project.id || project._id} value={project.id || project._id}>
                       {project.name}
                     </option>
-                  ))}
+                      ))
+                    : projects.map(project => (
+                        <option key={project.id || project._id} value={project.id || project._id}>
+                          {project.name}
+                        </option>
+                      ))
+                  }
                 </select>
               </div>
 
@@ -1769,12 +2085,25 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   required
                 >
                   <option value="">Select Employee</option>
-                  {users.map(user => (
+                {(isEmployee && !task 
+                  ? users.filter(u => u.id === user?.id) // Only show current employee when creating task
+                  : users
+                ).map(user => (
                     <option key={user.id} value={user.id}>
                       {'name' in user ? user.name : `${user.firstName} ${user.lastName}`}
                     </option>
                   ))}
                 </select>
+              {isEmployee && !task && (
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '4px',
+                  margin: 0
+                }}>
+                  Tasks you create will be assigned to yourself
+                </p>
+              )}
               </div>
 
               <div>
@@ -1789,7 +2118,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 </label>
                 <select
                   value={formData.priority}
-                  onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time')}
+                  onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -1813,6 +2142,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   <option value="Urgent">Urgent</option>
                   <option value="Less Urgent">Less Urgent</option>
                   <option value="Free Time">Free Time</option>
+                  {isEmployee && <option value="Custom">Custom</option>}
                 </select>
               </div>
 
@@ -1925,6 +2255,118 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   required
                 />
               </div>
+
+              {isEmployee && (
+                <>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Description / Remarks
+                    </label>
+                    <textarea
+                      value={formData.description || ''}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      placeholder="Daily comments on work done"
+                      rows={4}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Work Done (%)
+                    </label>
+                    <select
+                      value={formData.workDone || 0}
+                      onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                        <option key={percent} value={percent}>
+                          {percent}%
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      cursor: 'pointer'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.flagDirectorInputRequired || false}
+                        onChange={(e) => handleInputChange('flagDirectorInputRequired', e.target.checked)}
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <span>Flag (Director Input Required)</span>
+                    </label>
+                    <p style={{
+                      fontSize: '12px',
+                      color: '#6b7280',
+                      marginTop: '4px',
+                      margin: 0
+                    }}>
+                      Used when staff needs clarification, approval, or input
+                    </p>
+                  </div>
+                </>
+              )}
 
               {isDirector && (
                 <div>

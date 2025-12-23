@@ -9,7 +9,7 @@ export interface ITask extends Document {
   assignedToName: string
   assignedById: string
   assignedByName: string
-  priority: 'Urgent' | 'Less Urgent' | 'Free Time'
+  priority: 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom'
   status: 'Pending' | 'In Progress' | 'Completed'
   estimatedHours: number
   actualHours?: number
@@ -41,6 +41,9 @@ export interface ITask extends Document {
   completionResponseDate?: Date
   completionResponseBy?: string
   completionResponseComment?: string
+  isEmployeeCreated?: boolean // Flag to identify tasks created by employees from employee dashboard
+  workDone?: number // Percentage of work done (0-100)
+  flagDirectorInputRequired?: boolean // Flag when staff needs clarification, approval, or input
   createdAt: Date
 }
 
@@ -55,7 +58,7 @@ const taskSchema = new Schema<ITask>({
   assignedByName: { type: String, required: true },
   priority: { 
     type: String, 
-    enum: ['Urgent', 'Less Urgent', 'Free Time'], 
+    enum: ['Urgent', 'Less Urgent', 'Free Time', 'Custom'], 
     default: 'Less Urgent' 
   },
   status: { 
@@ -101,6 +104,9 @@ const taskSchema = new Schema<ITask>({
   completionResponseDate: { type: Date },
   completionResponseBy: String,
   completionResponseComment: String,
+  isEmployeeCreated: { type: Boolean, default: false }, // Flag to identify tasks created by employees from employee dashboard
+  workDone: { type: Number, min: 0, max: 100 }, // Percentage of work done (0-100)
+  flagDirectorInputRequired: { type: Boolean, default: false }, // Flag when staff needs clarification, approval, or input
   createdAt: { type: Date, default: Date.now }
 })
 

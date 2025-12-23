@@ -60,18 +60,25 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
         progress: project.progress || 0
       });
     } else {
+      // When creating a new project, check if user is an employee and pre-fill their ID
+      const isEmployee = user?.role === 'Employee';
+      const employeeId = isEmployee && user?.id ? user.id : '';
+      const employeeName = isEmployee && user 
+        ? (user.name || user.email || '') 
+        : '';
+      
       setFormData({
         name: '',
         description: '',
-        assignedEmployeeId: '',
-        assignedEmployeeName: '',
+        assignedEmployeeId: employeeId,
+        assignedEmployeeName: employeeName,
         status: 'Active',
         startDate: '',
         progress: 0
       });
     }
     setIsEditMode(false);
-  }, [project]);
+  }, [project, user]);
 
   const handleInputChange = (field: keyof Project, value: any) => {
     setFormData(prev => ({
@@ -754,6 +761,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                             <select
                               value={formData.assignedEmployeeId}
                               onChange={(e) => handleInputChange('assignedEmployeeId', e.target.value)}
+                              disabled={user?.role === 'Employee' && !project} // Disable for employees creating new projects
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -762,11 +770,14 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                     outline: 'none',
                     fontSize: '14px',
                     fontFamily: 'inherit',
-                    backgroundColor: '#ffffff'
+                    backgroundColor: user?.role === 'Employee' && !project ? '#f3f4f6' : '#ffffff',
+                    cursor: user?.role === 'Employee' && !project ? 'not-allowed' : 'pointer'
                   }}
                   onFocus={(e) => {
+                    if (!(user?.role === 'Employee' && !project)) {
                     e.currentTarget.style.borderColor = '#3b82f6';
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }
                   }}
                   onBlur={(e) => {
                     e.currentTarget.style.borderColor = '#d1d5db';
@@ -788,6 +799,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                                 </option>
                               ))}
                             </select>
+                            {user?.role === 'Employee' && !project && (
+                              <p style={{
+                                fontSize: '12px',
+                                color: '#6b7280',
+                                marginTop: '4px',
+                                margin: 0
+                              }}>
+                                Projects you create will be assigned to yourself
+                              </p>
+                            )}
                           </div>
 
               <div>

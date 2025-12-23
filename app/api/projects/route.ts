@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   try {
     await dbConnect()
     
-    const { name, description, assignedEmployeeId, assignedEmployeeName, status, startDate, progress } = await request.json()
+    const { name, description, assignedEmployeeId, assignedEmployeeName, status, startDate, progress, isEmployeeCreated } = await request.json()
     
     // Validate required fields
     if (!name || !description || !assignedEmployeeId || !assignedEmployeeName || !startDate) {
@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
       assignedEmployeeName,
       status: status || 'Active',
       startDate,
-      progress: progress || 0
+      progress: progress || 0,
+      isEmployeeCreated: isEmployeeCreated || false
     })
     
     const savedProject = await newProject.save()

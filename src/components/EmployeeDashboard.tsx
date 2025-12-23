@@ -13,7 +13,7 @@ import TaskModal from './TaskModal';
 import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
 import EmployeeProfile from './EmployeeProfile';
-import { getProjects, updateProject, deleteProject } from '../services/projectService';
+import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
 import { AlertTriangle } from 'lucide-react';
 import { IndependentWork, IndependentWorkAttachment } from '../types';
@@ -60,6 +60,9 @@ const EmployeeDashboard: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom'>('all');
+  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'self'>('all');
+  const [projectSourceFilter, setProjectSourceFilter] = useState<'all' | 'director' | 'self'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
   const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
   const [independentWorkForm, setIndependentWorkForm] = useState({
@@ -530,6 +533,45 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  const handleTaskCreate = async (newTask: Task) => {
+    try {
+      // Add current user info for new tasks created by employee
+      const taskWithUserInfo = {
+        ...newTask,
+        assignedById: user?.id || '',
+        assignedByName: user?.name || user?.email || 'Employee',
+        // Ensure task is assigned to the employee creating it
+        assignedToId: user?.id || newTask.assignedToId,
+        assignedToName: user?.name || user?.email || newTask.assignedToName,
+        extensionRequestStatus: 'Pending' as const,
+        isEmployeeCreated: true, // Flag to identify this task was created by employee from employee dashboard
+        createdAt: new Date().toISOString(),
+        comments: []
+      };
+      
+      // Remove id and _id for new tasks to let MongoDB auto-generate them
+      delete taskWithUserInfo.id;
+      delete taskWithUserInfo._id;
+      
+      console.log('Employee creating task with data:', JSON.stringify(taskWithUserInfo, null, 2));
+      
+      await taskApi.createTask(taskWithUserInfo);
+      await loadTasks(); // Reload tasks from database
+      
+      setNotificationMessage('Task created successfully!');
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+      
+      setIsTaskModalOpen(false);
+      setSelectedTask(null);
+    } catch (error: any) {
+      console.error('Error creating task:', error);
+      alert(`Error creating task: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
   const handleTaskUpdate = async (updatedTask: Task) => {
     try {
       const taskId = updatedTask.id || updatedTask._id;
@@ -549,6 +591,98 @@ const EmployeeDashboard: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error updating task:', error);
+    }
+  };
+
+  const handleTaskDelete = async (taskId: string) => {
+    try {
+      if (window.confirm('Are you sure you want to delete this task?')) {
+        await taskApi.deleteTask(taskId);
+        await loadTasks(); // Reload tasks from database
+        
+        setNotificationMessage('Task deleted successfully!');
+        setShowNotification(true);
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 3000);
+      }
+    } catch (error: any) {
+      console.error('Error deleting task:', error);
+      alert(`Error deleting task: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const handleProjectCreate = async (newProject: Project) => {
+    try {
+      // Ensure project is assigned to the employee creating it
+      const projectWithUserInfo = {
+        ...newProject,
+        assignedEmployeeId: user?.id || newProject.assignedEmployeeId,
+        assignedEmployeeName: user?.name || user?.email || newProject.assignedEmployeeName,
+        progress: newProject.progress || 0,
+        status: newProject.status || 'Active',
+        isEmployeeCreated: true // Flag to identify this project was created by employee from employee dashboard
+      };
+      
+      // Remove id and _id for new projects to let MongoDB auto-generate them
+      delete projectWithUserInfo.id;
+      delete projectWithUserInfo._id;
+      
+      console.log('Employee creating project with data:', JSON.stringify(projectWithUserInfo, null, 2));
+      
+      const createdProject = await createProject(projectWithUserInfo);
+      await loadProjects(); // Reload projects from database
+      
+      setNotificationMessage('Project created successfully!');
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+      
+      setIsProjectModalOpen(false);
+      setSelectedProject(null);
+    } catch (error: any) {
+      console.error('Error creating project:', error);
+      alert(`Error creating project: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const handleProjectUpdate = async (updatedProject: Project) => {
+    try {
+      const projectId = updatedProject.id || updatedProject._id;
+      if (!projectId) {
+        console.error('No project ID available for update:', updatedProject);
+        return;
+      }
+      await updateProject(String(projectId), updatedProject);
+      await loadProjects(); // Reload projects from database
+      
+      setNotificationMessage('Project updated successfully!');
+      setShowNotification(true);
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error updating project:', error);
+      alert(`Error updating project: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const handleProjectDelete = async (projectId: string) => {
+    try {
+      if (window.confirm('Are you sure you want to delete this project?')) {
+        await deleteProject(projectId);
+        await loadProjects(); // Reload projects from database
+        
+        setNotificationMessage('Project deleted successfully!');
+        setShowNotification(true);
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 3000);
+      }
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      alert(`Error deleting project: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -619,8 +753,34 @@ const EmployeeDashboard: React.FC = () => {
       });
     }
 
+    // Apply priority filter
+    if (taskPriorityFilter !== 'all') {
+      filtered = filtered.filter(task => {
+        if (taskPriorityFilter === 'Custom') {
+          // Custom priority: tasks that don't match standard priorities
+          return task.priority !== 'Urgent' && task.priority !== 'Less Urgent' && task.priority !== 'Free Time';
+        }
+        return task.priority === taskPriorityFilter;
+      });
+    }
+
+    // Apply task source filter (for employees only)
+    if (isEmployee && taskSourceFilter !== 'all') {
+      filtered = filtered.filter(task => {
+        if (taskSourceFilter === 'director') {
+          // Tasks assigned by Director - check if assignedById belongs to a director
+          const assignedByUser = users.find(u => u.id === task.assignedById);
+          return assignedByUser?.role === 'Director';
+        } else if (taskSourceFilter === 'self') {
+          // Tasks added by staff themselves - check if assignedById equals current employee's ID
+          return task.assignedById === user?.id;
+        }
+        return true;
+      });
+    }
+
     setFilteredTasks(filtered);
-  }, [tasks, user, isEmployee, taskFilter]);
+  }, [tasks, user, isEmployee, taskFilter, taskPriorityFilter, taskSourceFilter, users]);
 
   const filteredProjects = projects.filter(project => {
     let filtered = true;
@@ -645,6 +805,23 @@ const EmployeeDashboard: React.FC = () => {
           break;
         default:
           filtered = true;
+      }
+    }
+
+    // Apply project source filter (for employees only)
+    if (isEmployee && filtered && projectSourceFilter !== 'all') {
+      // Check if project was self-created by comparing assignedEmployeeName with current user's name/email
+      const isSelfCreated = project.assignedEmployeeId === user?.id && 
+                            (project.assignedEmployeeName === user?.name || 
+                             project.assignedEmployeeName === user?.email ||
+                             project.assignedEmployeeName === `${user?.name || ''}`.trim());
+      
+      if (projectSourceFilter === 'director') {
+        // Projects assigned by Director - exclude self-created projects
+        if (isSelfCreated) return false;
+      } else if (projectSourceFilter === 'self') {
+        // Projects added by staff themselves - only show self-created projects
+        if (!isSelfCreated) return false;
       }
     }
 
@@ -1330,6 +1507,41 @@ const EmployeeDashboard: React.FC = () => {
                   alignItems: 'center',
                   gap: '20px'
                 }}>
+                  {/* Create Task Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedTask(null);
+                      setIsTaskModalOpen(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 20px',
+                      backgroundColor: '#3b82f6',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2563eb';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                    }}
+                  >
+                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create Task
+                  </button>
                   {/* Search Bar */}
                   <div style={{ position: 'relative', minWidth: '280px' }}>
                     <div style={{
@@ -1378,153 +1590,271 @@ const EmployeeDashboard: React.FC = () => {
                       }}
                       onChange={(e) => {
                         const searchTerm = e.target.value.toLowerCase();
-                        if (searchTerm === '') {
-                          // Reset to original filtered tasks
-                          const filtered = tasks.filter(task => {
-                            if (isEmployee) {
-                              return task.assignedToId === user?.id;
-                            }
-                            return true;
-                          });
-                          setFilteredTasks(filtered);
-                        } else {
+                        let filtered = tasks.filter(task => {
+                          if (isEmployee) {
+                            if (task.assignedToId !== user?.id) return false;
+                          }
+                          
                           // Apply search filter
-                          const filtered = tasks.filter(task => 
-                            (task.title && task.title.toLowerCase().includes(searchTerm)) ||
-                            (task.description && task.description.toLowerCase().includes(searchTerm)) ||
-                            (task.projectName && task.projectName.toLowerCase().includes(searchTerm)) ||
-                            (task.assignedByName && task.assignedByName.toLowerCase().includes(searchTerm))
-                          );
-                          setFilteredTasks(filtered);
-                        }
+                          if (searchTerm !== '') {
+                            const matchesSearch = 
+                              (task.title && task.title.toLowerCase().includes(searchTerm)) ||
+                              (task.description && task.description.toLowerCase().includes(searchTerm)) ||
+                              (task.projectName && task.projectName.toLowerCase().includes(searchTerm)) ||
+                              (task.assignedByName && task.assignedByName.toLowerCase().includes(searchTerm));
+                            if (!matchesSearch) return false;
+                          }
+                          
+                          // Apply status filter
+                          if (taskFilter !== 'all') {
+                            switch (taskFilter) {
+                              case 'completed':
+                                if (task.status !== 'Completed') return false;
+                                break;
+                              case 'pending':
+                                if (task.status !== 'Pending' && task.status !== 'In Progress') return false;
+                                break;
+                              case 'overdue':
+                                if (task.status === 'Completed' || !task.dueDate || new Date(task.dueDate) >= new Date()) return false;
+                                break;
+                            }
+                          }
+                          
+                          // Apply priority filter
+                          if (taskPriorityFilter !== 'all') {
+                            if (taskPriorityFilter === 'Custom') {
+                              if (task.priority === 'Urgent' || task.priority === 'Less Urgent' || task.priority === 'Free Time') return false;
+                            } else {
+                              if (task.priority !== taskPriorityFilter) return false;
+                            }
+                          }
+                          
+                          // Apply task source filter (for employees only)
+                          if (isEmployee && taskSourceFilter !== 'all') {
+                            if (taskSourceFilter === 'director') {
+                              // Tasks assigned by Director
+                              const assignedByUser = users.find(u => u.id === task.assignedById);
+                              if (assignedByUser?.role !== 'Director') return false;
+                            } else if (taskSourceFilter === 'self') {
+                              // Tasks added by staff themselves
+                              if (task.assignedById !== user?.id) return false;
+                            }
+                          }
+                          
+                          return true;
+                        });
+                        setFilteredTasks(filtered);
                       }}
                     />
                   </div>
                 </div>
               </div>
               
-              {/* Task Filter Tabs */}
+              {/* Filters Row */}
               <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '4px',
-                backgroundColor: '#f3f4f6',
-                borderRadius: '8px',
-                width: 'fit-content'
+                alignItems: 'flex-end',
+                gap: '24px',
+                flexWrap: 'wrap'
               }}>
-                <button
-                  onClick={() => setTaskFilter('all')}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: taskFilter === 'all' ? '#374151' : 'transparent',
-                    color: taskFilter === 'all' ? '#ffffff' : '#6b7280',
-                    borderRadius: '6px',
+                {/* Task Status Filter Dropdown */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <label style={{
                     fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    border: 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    if (taskFilter !== 'all') {
-                      e.currentTarget.style.backgroundColor = '#e5e7eb';
-                      e.currentTarget.style.color = '#374151';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (taskFilter !== 'all') {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#6b7280';
-                    }
-                  }}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setTaskFilter('completed')}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: taskFilter === 'completed' ? '#374151' : 'transparent',
-                    color: taskFilter === 'completed' ? '#ffffff' : '#6b7280',
-                    borderRadius: '6px',
+                    fontWeight: '600',
+                    color: '#374151'
+                  }}>
+                    Task Status:
+                  </label>
+                  <select
+                    value={taskFilter}
+                    onChange={(e) => setTaskFilter(e.target.value as 'all' | 'completed' | 'pending' | 'overdue')}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      backgroundColor: '#ffffff',
+                      color: '#374151',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      width: '200px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <option value="all">All</option>
+                    <option value="completed">Completed</option>
+                    <option value="pending">Pending</option>
+                    <option value="overdue">Overdue</option>
+                  </select>
+                </div>
+
+                {/* Priority Filter Dropdown */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <label style={{
                     fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    border: 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    if (taskFilter !== 'completed') {
-                      e.currentTarget.style.backgroundColor = '#e5e7eb';
-                      e.currentTarget.style.color = '#374151';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (taskFilter !== 'completed') {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#6b7280';
-                    }
-                  }}
-                >
-                  Completed
-                </button>
-                <button
-                  onClick={() => setTaskFilter('pending')}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: taskFilter === 'pending' ? '#374151' : 'transparent',
-                    color: taskFilter === 'pending' ? '#ffffff' : '#6b7280',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    border: 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    if (taskFilter !== 'pending') {
-                      e.currentTarget.style.backgroundColor = '#e5e7eb';
-                      e.currentTarget.style.color = '#374151';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (taskFilter !== 'pending') {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#6b7280';
-                    }
-                  }}
-                >
-                  Pending
-                </button>
-                <button
-                  onClick={() => setTaskFilter('overdue')}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: taskFilter === 'overdue' ? '#374151' : 'transparent',
-                    color: taskFilter === 'overdue' ? '#ffffff' : '#6b7280',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    border: 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    if (taskFilter !== 'overdue') {
-                      e.currentTarget.style.backgroundColor = '#e5e7eb';
-                      e.currentTarget.style.color = '#374151';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (taskFilter !== 'overdue') {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#6b7280';
-                    }
-                  }}
-                >
-                  Overdue
-                </button>
+                    fontWeight: '600',
+                    color: '#374151'
+                  }}>
+                    Categorized by Priority:
+                  </label>
+                  <select
+                    value={taskPriorityFilter}
+                    onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      backgroundColor: '#ffffff',
+                      color: '#374151',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      width: '200px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <option value="all">All Priorities</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Less Urgent">Less Urgent</option>
+                    <option value="Free Time">Free Time</option>
+                    <option value="Custom">Custom</option>
+                  </select>
+                </div>
+
+                {/* Task Source Filter - Only for Employees */}
+                {isEmployee && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151'
+                    }}>
+                      Tasks visible:
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <button
+                        onClick={() => setTaskSourceFilter('all')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: taskSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
+                          color: taskSourceFilter === 'all' ? '#ffffff' : '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          if (taskSourceFilter !== 'all') {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            e.currentTarget.style.borderColor = '#9ca3af';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (taskSourceFilter !== 'all') {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                          }
+                        }}
+                      >
+                        All Tasks
+                      </button>
+                      <button
+                        onClick={() => setTaskSourceFilter('director')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: taskSourceFilter === 'director' ? '#2563eb' : '#ffffff',
+                          color: taskSourceFilter === 'director' ? '#ffffff' : '#1e40af',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          if (taskSourceFilter !== 'director') {
+                            e.currentTarget.style.backgroundColor = '#eff6ff';
+                            e.currentTarget.style.borderColor = '#1e40af';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (taskSourceFilter !== 'director') {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                          }
+                        }}
+                      >
+                        Assigned by Director
+                      </button>
+                      <button
+                        onClick={() => setTaskSourceFilter('self')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: taskSourceFilter === 'self' ? '#10b981' : '#ffffff',
+                          color: taskSourceFilter === 'self' ? '#ffffff' : '#059669',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          if (taskSourceFilter !== 'self') {
+                            e.currentTarget.style.backgroundColor = '#ecfdf5';
+                            e.currentTarget.style.borderColor = '#059669';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (taskSourceFilter !== 'self') {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                          }
+                        }}
+                      >
+                        Tasks added by staff themselves
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Tasks Table View */}
@@ -1614,13 +1944,14 @@ const EmployeeDashboard: React.FC = () => {
                       {filteredTasks.map((task) => (
                         <tr key={task.id || task._id} style={{
                           borderBottom: '1px solid #e5e7eb',
-                          transition: 'background-color 0.2s ease'
+                          transition: 'background-color 0.2s ease',
+                          backgroundColor: task.flagDirectorInputRequired ? '#dc2626' : '#ffffff'
                         }}
                         onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f9fafb';
+                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
                         }}
                         onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
                         }}>
                           <td style={{
                             padding: '16px 24px',
@@ -1725,6 +2056,41 @@ const EmployeeDashboard: React.FC = () => {
                               alignItems: 'center',
                               gap: '8px'
                             }}>
+                              <button
+                                onClick={async () => {
+                                  const taskId = task.id || task._id;
+                                  if (!taskId) return;
+                                  
+                                  const updatedTask = {
+                                    ...task,
+                                    flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                  };
+                                  await handleTaskUpdate(updatedTask);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '6px 12px',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                                  color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s ease'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                }}
+                                title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                              >
+                                Red Flag
+                              </button>
                               <span style={{
                                 display: 'inline-flex',
                                 padding: '6px 12px',
@@ -1742,102 +2108,206 @@ const EmployeeDashboard: React.FC = () => {
                               }}>
                               {task.priority || 'Less Urgent'}
                             </span>
-                              <button
-                                onClick={() => {
-                                  setSelectedTask(task);
-                                  setIsTaskModalOpen(true);
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '6px 12px',
-                                  border: 'none',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  borderRadius: '6px',
-                                  color: '#1d4ed8',
-                                  backgroundColor: '#dbeafe',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.backgroundColor = '#dbeafe';
-                                }}
-                                title="View Task Details"
-                              >
-                                <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                View
-                              </button>
-                              {task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
-                                <button
-                                  onClick={() => handleTaskCompleted(task)}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '6px 12px',
-                                    border: 'none',
-                                    fontSize: '12px',
-                                    fontWeight: '500',
-                                    borderRadius: '6px',
-                                    color: '#15803d',
-                                    backgroundColor: '#dcfce7',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                  }}
-                                  onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                  }}
-                                  onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#dcfce7';
-                                  }}
-                                  title="Request Completion Approval"
-                                >
-                                  <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  Complete
-                                </button>
-                              )}
-                              {task.completionRequestStatus === 'Pending' && (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '6px 12px',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  borderRadius: '6px',
-                                  color: '#f59e0b',
-                                  backgroundColor: '#fef3c7'
-                                }}>
-                                  <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  Pending Approval
-                                </span>
-                              )}
-                              {task.status === 'Completed' && (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '6px 12px',
-                                  border: 'none',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  borderRadius: '6px',
-                                  color: '#15803d',
-                                  backgroundColor: '#dcfce7'
-                                }}>
-                                  <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  Completed
-                                </span>
+                              {/* Show Edit, View, Delete buttons only for employee-created tasks */}
+                              {task.isEmployeeCreated ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTask(task);
+                                      setIsTaskModalOpen(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#1d4ed8',
+                                      backgroundColor: '#dbeafe',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dbeafe';
+                                    }}
+                                    title="View Task Details"
+                                  >
+                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTask(task);
+                                      setIsTaskModalOpen(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#16a34a',
+                                      backgroundColor: '#dcfce7',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dcfce7';
+                                    }}
+                                    title="Edit Task"
+                                  >
+                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const taskId = task.id || task._id;
+                                      if (taskId) {
+                                        handleTaskDelete(String(taskId));
+                                      }
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#dc2626',
+                                      backgroundColor: '#fee2e2',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#fecaca';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#fee2e2';
+                                    }}
+                                    title="Delete Task"
+                                  >
+                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTask(task);
+                                      setIsTaskModalOpen(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#1d4ed8',
+                                      backgroundColor: '#dbeafe',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dbeafe';
+                                    }}
+                                    title="View Task Details"
+                                  >
+                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View
+                                  </button>
+                                  {task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
+                                    <button
+                                      onClick={() => handleTaskCompleted(task)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        border: 'none',
+                                        fontSize: '12px',
+                                        fontWeight: '500',
+                                        borderRadius: '6px',
+                                        color: '#15803d',
+                                        backgroundColor: '#dcfce7',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#dcfce7';
+                                      }}
+                                      title="Request Completion Approval"
+                                    >
+                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Complete
+                                    </button>
+                                  )}
+                                  {task.completionRequestStatus === 'Pending' && (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#f59e0b',
+                                      backgroundColor: '#fef3c7'
+                                    }}>
+                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      Pending Approval
+                                    </span>
+                                  )}
+                                  {task.status === 'Completed' && (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      border: 'none',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      borderRadius: '6px',
+                                      color: '#15803d',
+                                      backgroundColor: '#dcfce7'
+                                    }}>
+                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Completed
+                                    </span>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>
@@ -1909,7 +2379,7 @@ const EmployeeDashboard: React.FC = () => {
                     marginTop: '8px',
                     margin: 0
                   }}>
-                    View only access - You can see projects but cannot create, edit, or delete them
+                    Manage your project assignments and create new projects
                   </p>
                 </div>
                 <div style={{
@@ -1917,6 +2387,41 @@ const EmployeeDashboard: React.FC = () => {
                   alignItems: 'center',
                   gap: '16px'
                 }}>
+                  {/* Create Project Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedProject(null);
+                      setIsProjectModalOpen(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 20px',
+                      backgroundColor: '#3b82f6',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2563eb';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                    }}
+                  >
+                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create Project
+                  </button>
                   <button
                     onClick={async () => {
                       try {
@@ -2129,6 +2634,114 @@ const EmployeeDashboard: React.FC = () => {
                   Pending
                 </button>
               </div>
+
+              {/* Project Source Filter - Only for Employees */}
+              {isEmployee && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#374151'
+                  }}>
+                    Projects visible:
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      onClick={() => setProjectSourceFilter('all')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
+                        color: projectSourceFilter === 'all' ? '#ffffff' : '#374151',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          e.currentTarget.style.borderColor = '#9ca3af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'all') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      All Projects
+                    </button>
+                    <button
+                      onClick={() => setProjectSourceFilter('director')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'director' ? '#2563eb' : '#ffffff',
+                        color: projectSourceFilter === 'director' ? '#ffffff' : '#1e40af',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#eff6ff';
+                          e.currentTarget.style.borderColor = '#1e40af';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'director') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Assigned by Director
+                    </button>
+                    <button
+                      onClick={() => setProjectSourceFilter('self')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: projectSourceFilter === 'self' ? '#10b981' : '#ffffff',
+                        color: projectSourceFilter === 'self' ? '#ffffff' : '#059669',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (projectSourceFilter !== 'self') {
+                          e.currentTarget.style.backgroundColor = '#ecfdf5';
+                          e.currentTarget.style.borderColor = '#059669';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (projectSourceFilter !== 'self') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Projects added by staff themselves
+                    </button>
+                  </div>
+                </div>
+              )}
               
               <ProjectList
                 projects={filteredProjects}
@@ -2154,13 +2767,8 @@ const EmployeeDashboard: React.FC = () => {
                     console.error('Error handling comment addition:', error);
                   }
                 }}
-                onProjectSave={() => {
-                  // Employees cannot save projects - this function won't be called due to permissions
-                }}
-                onProjectDelete={(projectId) => {
-                  // Employees cannot delete projects - this function won't be called due to permissions
-                  console.log('Employee attempted to delete project:', projectId);
-                }}
+                onProjectSave={handleProjectUpdate}
+                onProjectDelete={handleProjectDelete}
               />
             </div>
           )}
@@ -3237,20 +3845,21 @@ const EmployeeDashboard: React.FC = () => {
           task={selectedTask}
           projects={projects}
           users={users}
+          tasks={tasks}
           onClose={async () => {
             setIsTaskModalOpen(false);
             setSelectedTask(null);
             // Refresh tasks list when modal closes to show any updates
             await loadTasks();
           }}
-          onSave={selectedTask ? handleTaskUpdate : handleTaskUpdate}
+          onSave={selectedTask ? handleTaskUpdate : handleTaskCreate}
           isDirector={isDirector}
           isProjectHead={isProjectHead}
           isEmployee={isEmployee}
         />
       )}
 
-      {isProjectModalOpen && selectedProject && (
+      {isProjectModalOpen && (
         <ProjectModal
           project={selectedProject}
           isOpen={isProjectModalOpen}
@@ -3262,15 +3871,19 @@ const EmployeeDashboard: React.FC = () => {
             try {
               const projectId = project.id || project._id || '';
               if (projectId) {
+                // Update existing project
                 await updateProject(projectId, project);
                 await loadProjects();
+              } else {
+                // Create new project
+                await handleProjectCreate(project);
               }
             } catch (error: any) {
-              console.error('Error updating project:', error);
+              console.error('Error saving project:', error);
               throw error;
             }
           }}
-          onDelete={async (projectId: string) => {
+          onDelete={selectedProject ? async (projectId: string) => {
             try {
               await deleteProject(projectId);
               await loadProjects();
@@ -3280,7 +3893,7 @@ const EmployeeDashboard: React.FC = () => {
               console.error('Error deleting project:', error);
               throw error;
             }
-          }}
+          } : undefined}
           users={users}
         />
       )}

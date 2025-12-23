@@ -66,8 +66,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
   };
 
   const canCreateProject = user?.role === 'Director';
-  const canEditProject = user?.role === 'Director';
-  const canDeleteProject = user?.role === 'Director';
+  // Allow employees to edit/delete projects they created themselves
+  const canEditProject = user?.role === 'Director' || (user?.role === 'Employee' && projects.some(p => p.isEmployeeCreated));
+  const canDeleteProject = user?.role === 'Director' || (user?.role === 'Employee' && projects.some(p => p.isEmployeeCreated));
 
   const getStatusColor = (status: Project['status']) => {
     switch (status) {
@@ -344,13 +345,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
               projects.map((project) => (
                 <tr key={project.id} style={{
                   borderBottom: '1px solid #e5e7eb',
-                  transition: 'background-color 0.2s ease'
+                  transition: 'background-color 0.2s ease',
+                  backgroundColor: project.flagDirectorInputRequired ? '#dc2626' : '#ffffff'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                  e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ffffff';
+                  e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
                 }}>
                   <td style={{
                     padding: '16px 24px',
@@ -460,7 +462,42 @@ const ProjectList: React.FC<ProjectListProps> = ({
                     fontSize: '14px',
                     fontWeight: '500'
                   }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={async () => {
+                          const projectId = project.id || project._id;
+                          if (!projectId) return;
+                          
+                          const updatedProject = {
+                            ...project,
+                            flagDirectorInputRequired: !project.flagDirectorInputRequired
+                          };
+                          await onProjectSave(updatedProject);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '6px 12px',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          backgroundColor: project.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                          color: project.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                        }}
+                        title={project.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                      >
+                        Red Flag
+                      </button>
                        <button
                          onClick={() => handleViewProject(project)}
                         style={{
@@ -484,7 +521,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                        >
                         <Eye size={16} />
                        </button>
-                                               {canEditProject && project.id && (
+                                               {/* Show Edit button for Directors or for employee-created projects */}
+                        {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
                           <button
                             onClick={() => handleEditProject(project)}
                           style={{
@@ -509,7 +547,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           <Edit size={16} />
                           </button>
                         )}
-                        {canDeleteProject && project.id && onProjectComplete && project.status !== 'Completed' && (
+                        {/* Show Complete button for Directors only */}
+                        {user?.role === 'Director' && project.id && onProjectComplete && project.status !== 'Completed' && (
                           <button
                             onClick={() => onProjectComplete(project)}
                             style={{
@@ -536,7 +575,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             </svg>
                           </button>
                         )}
-                        {canDeleteProject && project.id && (
+                        {/* Show Delete button for Directors or for employee-created projects */}
+                        {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
                           <button
                             onClick={() => handleDeleteProject(project.id!)}
                           style={{
@@ -561,7 +601,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           <Trash2 size={16} />
                           </button>
                         )}
-                       {!canEditProject && !canDeleteProject && (
+                       {/* Show View Only for projects not created by employee and user is not Director */}
+                       {user?.role === 'Employee' && !project.isEmployeeCreated && (
                         <span style={{
                           fontSize: '12px',
                           color: '#9ca3af',

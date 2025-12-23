@@ -17,6 +17,8 @@ export interface IProject extends Document {
     timestamp: Date
     isVisibleToEmployee: boolean
   }>
+  isEmployeeCreated?: boolean // Flag to identify projects created by employees from employee dashboard
+  flagDirectorInputRequired?: boolean // Flag when staff needs clarification, approval, or input
   createdAt: Date
   updatedAt: Date
 }
@@ -42,6 +44,8 @@ const projectSchema = new Schema<IProject>({
     timestamp: { type: Date, default: Date.now },
     isVisibleToEmployee: { type: Boolean, default: true }
   }],
+  isEmployeeCreated: { type: Boolean, default: false }, // Flag to identify projects created by employees from employee dashboard
+  flagDirectorInputRequired: { type: Boolean, default: false }, // Flag when staff needs clarification, approval, or input
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })
