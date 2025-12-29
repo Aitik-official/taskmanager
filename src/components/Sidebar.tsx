@@ -16,7 +16,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
     ? [
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'profile', label: 'Profile', icon: Users },
       ]
     : [
         { id: 'overview', label: 'Dashboard', icon: Home },

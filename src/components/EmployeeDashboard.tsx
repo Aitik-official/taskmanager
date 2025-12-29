@@ -12,7 +12,6 @@ import ProjectList from './ProjectList';
 import TaskModal from './TaskModal';
 import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
-import EmployeeProfile from './EmployeeProfile';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
 import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock } from 'lucide-react';
@@ -2493,18 +2492,6 @@ const EmployeeDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Profile Tab - Only for Employees */}
-          {activeTab === 'profile' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '32px',
-              width: '100%',
-              maxWidth: '100%'
-            }}>
-              <EmployeeProfile />
-            </div>
-          )}
         </main>
       </div>
 
