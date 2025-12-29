@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Edit, Eye, Trash2, Plus, Download } from 'lucide-react';
+import { Edit, Eye, Trash2, Plus, Download, Users, Mail, Phone, Briefcase, Building2 } from 'lucide-react';
 import { Employee, Project, Task } from '../types';
 import EmployeeModal from './EmployeeModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -129,26 +129,43 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header with Actions */}
+      {/* Header with Actions - Modern Design */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        paddingBottom: '20px',
+        borderBottom: '2px solid #f3f4f6'
       }}>
         <div>
-          <h1 style={{
-            fontSize: '24px',
-            fontWeight: 'bold',
-            color: '#111827',
-            margin: 0
-          }}>
-            Employees
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 6px -1px rgba(79, 172, 254, 0.3)'
+            }}>
+              <Users size={20} color="#ffffff" />
+            </div>
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: '#111827',
+              margin: 0,
+              letterSpacing: '-0.5px'
+            }}>
+              Employees
+            </h1>
+          </div>
           <p style={{
             fontSize: '14px',
             color: '#6b7280',
-            marginTop: '4px',
-            margin: 0
+            margin: 0,
+            paddingLeft: '52px'
           }}>
             {canCreateEmployee ? 'Full access - Create, Edit, Delete employees' : 
              'View only - No editing permissions'}
@@ -158,24 +175,29 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
           <button
             onClick={exportEmployees}
             style={{
-              padding: '8px 16px',
-              backgroundColor: '#4b5563',
-              color: '#ffffff',
-              borderRadius: '8px',
-              border: 'none',
+              padding: '10px 20px',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              borderRadius: '10px',
+              border: '2px solid #e5e7eb',
               cursor: 'pointer',
-              transition: 'background-color 0.2s ease',
+              transition: 'all 0.3s ease',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '600',
+              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#374151';
+              e.currentTarget.style.borderColor = '#3b82f6';
+              e.currentTarget.style.color = '#3b82f6';
+              e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = '#4b5563';
+              e.currentTarget.style.borderColor = '#e5e7eb';
+              e.currentTarget.style.color = '#374151';
+              e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
             }}
           >
             <Download size={16} />
@@ -185,39 +207,43 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
             <button
               onClick={handleCreateEmployee}
               style={{
-                padding: '8px 16px',
-                backgroundColor: '#2563eb',
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: '#ffffff',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: 'none',
                 cursor: 'pointer',
-                transition: 'background-color 0.2s ease',
+                transition: 'all 0.3s ease',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '600',
+                boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.3)'
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = '#1d4ed8';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(102, 126, 234, 0.4)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = '#2563eb';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.3)';
               }}
             >
-              <Plus size={16} />
+              <Plus size={18} />
               New Employee
             </button>
           )}
         </div>
       </div>
 
-      {/* Employees Table */}
+      {/* Employees Table - Modern Design */}
       <div style={{
         backgroundColor: '#ffffff',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        borderRadius: '8px',
-        overflow: 'hidden'
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        border: '1px solid #e5e7eb'
       }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{
@@ -225,89 +251,85 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
             borderCollapse: 'separate',
             borderSpacing: 0
           }}>
-            <thead style={{ backgroundColor: '#f9fafb' }}>
+            <thead style={{ 
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              borderBottom: '2px solid #e5e7eb'
+            }}>
               <tr>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Name
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Position
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Department
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Email
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Phone
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Status
                 </th>
                 <th style={{
-                  padding: '12px 24px',
+                  padding: '16px 24px',
                   textAlign: 'left',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid #e5e7eb'
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
                 }}>
                   Actions
                 </th>
@@ -317,135 +339,219 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
               {employees.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{
-                    padding: '16px 24px',
+                    padding: '48px 24px',
                     textAlign: 'center',
                     color: '#6b7280'
                   }}>
-                    No employees found
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '8px'
+                      }}>
+                        <Users size={32} color="#9ca3af" />
+                      </div>
+                      <div style={{
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: '#374151'
+                      }}>
+                        No employees found
+                      </div>
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#6b7280'
+                      }}>
+                        {canCreateEmployee ? 'Create your first employee to get started' : 'No employees available'}
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                employees.map((employee) => (
+                employees.map((employee, index) => (
                   <tr key={employee.id} style={{
-                    borderBottom: '1px solid #e5e7eb',
-                    transition: 'background-color 0.2s ease'
+                    borderBottom: index < employees.length - 1 ? '1px solid #f3f4f6' : 'none',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                    e.currentTarget.style.transform = 'scale(1.002)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#ffffff';
+                    e.currentTarget.style.backgroundColor = 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}>
                     <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap'
                     }}>
-                      <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          color: '#111827'
+                          width: '44px',
+                          height: '44px',
+                          background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)',
+                          flexShrink: 0
                         }}>
-                          {employee.firstName} {employee.lastName}
+                          <Users size={20} color="#16a34a" />
                         </div>
-                        <div style={{
+                        <div>
+                          <div style={{
+                            fontSize: '15px',
+                            fontWeight: '700',
+                            color: '#111827',
+                            letterSpacing: '-0.3px',
+                            marginBottom: '4px'
+                          }}>
+                            {employee.firstName} {employee.lastName}
+                          </div>
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#6b7280',
+                            fontWeight: '500'
+                          }}>
+                            @{employee.username}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{
+                      padding: '20px 24px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Briefcase size={16} color="#6b7280" style={{ flexShrink: 0 }} />
+                        <span style={{
                           fontSize: '14px',
-                          color: '#6b7280'
+                          color: '#111827',
+                          fontWeight: '600'
                         }}>
-                          @{employee.username}
-                        </div>
+                          {employee.position}
+                        </span>
                       </div>
                     </td>
                     <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap'
                     }}>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#111827'
-                      }}>
-                        {employee.position}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Building2 size={16} color="#6b7280" style={{ flexShrink: 0 }} />
+                        <span style={{
+                          fontSize: '14px',
+                          color: '#111827',
+                          fontWeight: '600'
+                        }}>
+                          {employee.department}
+                        </span>
                       </div>
                     </td>
                     <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap'
                     }}>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#111827'
-                      }}>
-                        {employee.department}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Mail size={16} color="#6b7280" style={{ flexShrink: 0 }} />
+                        <span style={{
+                          fontSize: '14px',
+                          color: '#111827',
+                          fontWeight: '500'
+                        }}>
+                          {employee.email}
+                        </span>
                       </div>
                     </td>
                     <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap'
                     }}>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#111827'
-                      }}>
-                        {employee.email}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Phone size={16} color="#6b7280" style={{ flexShrink: 0 }} />
+                        <span style={{
+                          fontSize: '14px',
+                          color: '#111827',
+                          fontWeight: '500'
+                        }}>
+                          {employee.phone}
+                        </span>
                       </div>
                     </td>
                     <td style={{
-                      padding: '16px 24px',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#111827'
-                      }}>
-                        {employee.phone}
-                      </div>
-                    </td>
-                    <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap'
                     }}>
                       <span style={{
-                        padding: '4px 8px',
+                        padding: '8px 16px',
                         display: 'inline-flex',
+                        alignItems: 'center',
                         fontSize: '12px',
-                        lineHeight: '1.25',
-                        fontWeight: '600',
-                        borderRadius: '9999px',
-                        backgroundColor: employee.status === 'Active' ? '#dcfce7' :
-                                        employee.status === 'Inactive' ? '#fecaca' :
+                        fontWeight: '700',
+                        letterSpacing: '0.3px',
+                        textTransform: 'uppercase',
+                        borderRadius: '10px',
+                        backgroundColor: employee.status === 'Active' ? '#d1fae5' :
+                                        employee.status === 'Inactive' ? '#fee2e2' :
                                         employee.status === 'On Leave' ? '#fef3c7' : '#f3f4f6',
-                        color: employee.status === 'Active' ? '#166534' :
-                               employee.status === 'Inactive' ? '#dc2626' :
-                               employee.status === 'On Leave' ? '#92400e' : '#374151'
+                        color: employee.status === 'Active' ? '#065f46' :
+                               employee.status === 'Inactive' ? '#991b1b' :
+                               employee.status === 'On Leave' ? '#92400e' : '#374151',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                       }}>
                         {employee.status}
                       </span>
                     </td>
                     <td style={{
-                      padding: '16px 24px',
+                      padding: '20px 24px',
                       whiteSpace: 'nowrap',
                       fontSize: '14px',
                       fontWeight: '500'
                     }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
                         <button
                           onClick={() => handleViewEmployee(employee)}
                           style={{
                             color: '#2563eb',
-                            backgroundColor: 'transparent',
+                            backgroundColor: '#dbeafe',
                             border: 'none',
                             cursor: 'pointer',
-                            padding: '4px',
-                            borderRadius: '4px',
-                            transition: 'all 0.2s ease'
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
                           }}
                           onMouseOver={(e) => {
                             e.currentTarget.style.color = '#1d4ed8';
-                            e.currentTarget.style.backgroundColor = '#dbeafe';
+                            e.currentTarget.style.backgroundColor = '#bfdbfe';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
                           }}
                           onMouseOut={(e) => {
                             e.currentTarget.style.color = '#2563eb';
-                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.backgroundColor = '#dbeafe';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
                           }}
                           title="View Employee"
                         >
@@ -456,20 +562,30 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                             onClick={() => handleEditEmployee(employee)}
                             style={{
                               color: '#16a34a',
-                              backgroundColor: 'transparent',
+                              backgroundColor: '#dcfce7',
                               border: 'none',
                               cursor: 'pointer',
-                              padding: '4px',
-                              borderRadius: '4px',
-                              transition: 'all 0.2s ease'
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              boxShadow: '0 1px 2px rgba(22, 163, 74, 0.2)'
                             }}
                             onMouseOver={(e) => {
                               e.currentTarget.style.color = '#15803d';
-                              e.currentTarget.style.backgroundColor = '#dcfce7';
+                              e.currentTarget.style.backgroundColor = '#bbf7d0';
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 4px 6px rgba(22, 163, 74, 0.3)';
                             }}
                             onMouseOut={(e) => {
                               e.currentTarget.style.color = '#16a34a';
-                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.backgroundColor = '#dcfce7';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 1px 2px rgba(22, 163, 74, 0.2)';
                             }}
                             title="Edit Employee"
                           >
@@ -481,20 +597,30 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                             onClick={() => handleDeleteEmployee(employee.id!)}
                             style={{
                               color: '#dc2626',
-                              backgroundColor: 'transparent',
+                              backgroundColor: '#fee2e2',
                               border: 'none',
                               cursor: 'pointer',
-                              padding: '4px',
-                              borderRadius: '4px',
-                              transition: 'all 0.2s ease'
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              transition: 'all 0.2s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
                             }}
                             onMouseOver={(e) => {
                               e.currentTarget.style.color = '#b91c1c';
                               e.currentTarget.style.backgroundColor = '#fecaca';
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
                             }}
                             onMouseOut={(e) => {
                               e.currentTarget.style.color = '#dc2626';
-                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
                             }}
                             title="Delete Employee"
                           >

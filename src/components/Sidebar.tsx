@@ -16,16 +16,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
     ? [
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'projects', label: 'Projects', icon: FolderOpen },
-        { id: 'independent-work', label: 'Independent Work', icon: Briefcase },
         { id: 'profile', label: 'Profile', icon: Users },
       ]
     : [
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'projects', label: 'Projects', icon: FolderOpen },
         { id: 'employees', label: 'Employees', icon: Users },
-        { id: 'independent-work', label: 'Independent Work', icon: Briefcase },
         { id: 'approvals', label: 'Approvals', icon: FileCheck },
         { id: 'profile', label: 'Profile', icon: User },
       ];

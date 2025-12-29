@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
     const { id, _id, ...taskData } = body
     console.log('Cleaned task data:', JSON.stringify(taskData, null, 2))
     
-    // Validate required fields (project is optional)
-    const requiredFields = ['title', 'description', 'assignedToId', 'assignedToName', 'assignedById', 'assignedByName', 'estimatedHours', 'dueDate']
+    // Validate required fields (assignedToId, assignedToName, and estimatedHours are optional)
+    const requiredFields = ['title', 'description', 'assignedById', 'assignedByName', 'dueDate']
     const missingFields = requiredFields.filter(field => !taskData[field])
     
     if (missingFields.length > 0) {
@@ -51,6 +51,17 @@ export async function POST(request: NextRequest) {
         { message: `Missing required fields: ${missingFields.join(', ')}` },
         { status: 400 }
       )
+    }
+    
+    // Set default values for optional fields - remove empty strings so Mongoose defaults apply
+    if (!taskData.assignedToId || taskData.assignedToId === '') {
+      delete taskData.assignedToId; // Let Mongoose apply default
+    }
+    if (!taskData.assignedToName || taskData.assignedToName === '') {
+      delete taskData.assignedToName; // Let Mongoose apply default
+    }
+    if (taskData.estimatedHours === undefined || taskData.estimatedHours === null) {
+      delete taskData.estimatedHours; // Let Mongoose apply default
     }
     
     const task = new Task(taskData)

@@ -5,13 +5,13 @@ export interface ITask extends Document {
   description: string
   projectId?: string
   projectName?: string
-  assignedToId: string
-  assignedToName: string
+  assignedToId?: string
+  assignedToName?: string
   assignedById: string
   assignedByName: string
   priority: 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom'
   status: 'Pending' | 'In Progress' | 'Completed'
-  estimatedHours: number
+  estimatedHours?: number
   actualHours?: number
   startDate?: string
   dueDate: string
@@ -52,8 +52,8 @@ const taskSchema = new Schema<ITask>({
   description: { type: String, required: true },
   projectId: { type: String },
   projectName: { type: String },
-  assignedToId: { type: String, required: true },
-  assignedToName: { type: String, required: true },
+  assignedToId: { type: String, default: '' },
+  assignedToName: { type: String, default: '' },
   assignedById: { type: String, required: true },
   assignedByName: { type: String, required: true },
   priority: { 
@@ -66,7 +66,7 @@ const taskSchema = new Schema<ITask>({
     enum: ['Pending', 'In Progress', 'Completed'], 
     default: 'Pending' 
   },
-  estimatedHours: { type: Number, required: true },
+  estimatedHours: { type: Number, default: 0 },
   actualHours: { type: Number },
   startDate: { type: String },
   dueDate: { type: String, required: true },
@@ -109,5 +109,10 @@ const taskSchema = new Schema<ITask>({
   flagDirectorInputRequired: { type: Boolean, default: false }, // Flag when staff needs clarification, approval, or input
   createdAt: { type: Date, default: Date.now }
 })
+
+// Clear cached model in development to ensure schema changes take effect
+if (process.env.NODE_ENV === 'development' && mongoose.models.Task) {
+  delete mongoose.models.Task
+}
 
 export default mongoose.models.Task || mongoose.model<ITask>('Task', taskSchema)
