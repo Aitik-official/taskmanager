@@ -1780,41 +1780,90 @@ const EmployeeDashboard: React.FC = () => {
                                     borderTopRightRadius: index === 0 ? '12px' : '0',
                                     borderBottomRightRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
                                   }}>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedTask(task);
-                                        setIsTaskModalOpen(true);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#dbeafe',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#1e40af',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#dbeafe';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                      }}
-                                    >
-                                      <Eye size={14} />
-                                      View
-                                    </button>
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      flexWrap: 'wrap'
+                                    }}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedTask(task);
+                                          setIsTaskModalOpen(true);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: '#dbeafe',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: '#1e40af',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#dbeafe';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                        }}
+                                      >
+                                        <Eye size={14} />
+                                        View
+                                      </button>
+                                      {/* Red Flag Button */}
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const taskId = task.id || task._id;
+                                          if (!taskId) return;
+                                          
+                                          const updatedTask = {
+                                            ...task,
+                                            flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                          };
+                                          await handleTaskUpdate(updatedTask);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
+                                        }}
+                                        title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                                      >
+                                        🚩 Red Flag
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2244,41 +2293,90 @@ const EmployeeDashboard: React.FC = () => {
                                   borderTopRightRadius: index === 0 ? '12px' : '0',
                                   borderBottomRightRadius: index === employeeTasks.length - 1 ? '12px' : '0'
                                 }}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedTask(task);
-                                      setIsTaskModalOpen(true);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '8px 14px',
-                                      backgroundColor: '#dbeafe',
-                                      border: 'none',
-                                      borderRadius: '8px',
-                                      color: '#1e40af',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease',
-                                      boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dbeafe';
-                                      e.currentTarget.style.transform = 'translateY(0)';
-                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                    }}
-                                  >
-                                    <Eye size={14} />
-                                    View
-                                  </button>
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    flexWrap: 'wrap'
+                                  }}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTask(task);
+                                        setIsTaskModalOpen(true);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        backgroundColor: '#dbeafe',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#1e40af',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#dbeafe';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                      }}
+                                    >
+                                      <Eye size={14} />
+                                      View
+                                    </button>
+                                    {/* Red Flag Button */}
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        const taskId = task.id || task._id;
+                                        if (!taskId) return;
+                                        
+                                        const updatedTask = {
+                                          ...task,
+                                          flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                        };
+                                        await handleTaskUpdate(updatedTask);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
+                                      }}
+                                      title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                                    >
+                                      🚩 Red Flag
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -3111,6 +3209,48 @@ const EmployeeDashboard: React.FC = () => {
                                 >
                                   <Eye size={14} />
                                   View
+                                </button>
+                                {/* Red Flag Button - Available for all tasks */}
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const taskId = task.id || task._id;
+                                    if (!taskId) return;
+                                    
+                                    const updatedTask = {
+                                      ...task,
+                                      flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                    };
+                                    await handleTaskUpdate(updatedTask);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 14px',
+                                    backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
+                                  }}
+                                  title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                                >
+                                  🚩 Red Flag
                                 </button>
                                 {/* Show Edit, Delete buttons only for employee-created tasks */}
                                 {task.isEmployeeCreated && (

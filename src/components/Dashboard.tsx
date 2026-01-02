@@ -83,7 +83,7 @@ const Dashboard: React.FC = () => {
   // Task filters
   const [taskSearchTerm, setTaskSearchTerm] = useState('');
   const [taskStaffFilter, setTaskStaffFilter] = useState<string>('all');
-  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time'>('all');
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Red Flag'>('all');
   const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'employee'>('all');
   const [taskDateRangeStart, setTaskDateRangeStart] = useState('');
   const [taskDateRangeEnd, setTaskDateRangeEnd] = useState('');
@@ -982,7 +982,11 @@ const Dashboard: React.FC = () => {
 
     // Apply priority filter
     if (taskPriorityFilter !== 'all') {
-      filtered = filtered.filter(task => task.priority === taskPriorityFilter);
+      if (taskPriorityFilter === 'Red Flag') {
+        filtered = filtered.filter(task => task.flagDirectorInputRequired === true);
+      } else {
+        filtered = filtered.filter(task => task.priority === taskPriorityFilter);
+      }
     }
 
     // Apply task source filter (for directors only)
@@ -3346,7 +3350,7 @@ const Dashboard: React.FC = () => {
                     </label>
                     <select
                       value={taskPriorityFilter}
-                      onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time')}
+                      onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Red Flag')}
                       style={{
                         width: '100%',
                         padding: '12px 16px',
@@ -3391,6 +3395,7 @@ const Dashboard: React.FC = () => {
                       <option value="Urgent">Urgent</option>
                       <option value="Less Urgent">Less Urgent</option>
                       <option value="Free Time">Free Time</option>
+                      <option value="Red Flag">🚩 Red Flag</option>
                     </select>
                   </div>
 
