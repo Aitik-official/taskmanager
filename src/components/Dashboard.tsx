@@ -89,7 +89,7 @@ const Dashboard: React.FC = () => {
   const [taskDateRangeEnd, setTaskDateRangeEnd] = useState('');
   const [taskCurrentPage, setTaskCurrentPage] = useState(1);
   const tasksPerPage = 5;
-  
+ 
   // Employee priority task counts
   const [employeePriorityStats, setEmployeePriorityStats] = useState({
     urgentTasks: 0,
@@ -105,6 +105,12 @@ const Dashboard: React.FC = () => {
     freeTimeTasks: 0,
     totalCompletedTasks: 0
   });
+  
+  // Track selected priority card in director dashboard
+  const [selectedPriorityCard, setSelectedPriorityCard] = useState<'urgent' | 'lessUrgent' | 'freeTime' | 'completed' | null>(null);
+  
+  // Track selected Active Employees card
+  const [showActiveEmployees, setShowActiveEmployees] = useState(false);
  
   // Project filters
   const [projectSearchTerm, setProjectSearchTerm] = useState('');
@@ -793,7 +799,8 @@ const Dashboard: React.FC = () => {
       const updatedTask = {
         ...task,
         status: 'Completed' as const,
-        completedDate: new Date().toISOString()
+        completedDate: new Date().toISOString(),
+        workDone: 100
       };
 
       // Update the task in the backend
@@ -928,7 +935,12 @@ const Dashboard: React.FC = () => {
 
     if (isEmployee) {
       // For employees, show only their assigned tasks
-      filtered = tasks.filter(task => task.assignedToId === user?.id);
+      const userId = user?.id || '';
+      filtered = tasks.filter(task => {
+        const taskAssignedId = task.assignedToId || '';
+        return taskAssignedId === userId || 
+               String(taskAssignedId) === String(userId);
+      });
     } else if (isProjectHead) {
       // For project heads, show tasks from their projects
       const userProjects = projects.filter(project => project.assignedEmployeeId === user?.id);
@@ -1312,38 +1324,38 @@ const Dashboard: React.FC = () => {
                 {isEmployee ? (
                   <>
                     {/* Urgent Tasks Card - Employee Only */}
-                    <div style={{
+                <div style={{
                       background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
                       boxShadow: '0 10px 25px -5px rgba(255, 107, 107, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
                       e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(255, 107, 107, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
                     }}
                     onClick={() => {
                       setActiveTab('tasks');
                       setTaskPriorityFilter('Urgent');
-                    }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
                       <div style={{ position: 'relative', zIndex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                           <h3 style={{
@@ -1413,78 +1425,78 @@ const Dashboard: React.FC = () => {
                       setActiveTab('tasks');
                       setTaskPriorityFilter('Less Urgent');
                     }}>
-                      <div style={{
-                        position: 'absolute',
+                  <div style={{
+                    position: 'absolute',
                         top: '-20px',
                         right: '-20px',
                         width: '100px',
                         height: '100px',
                         background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
                             Less Urgent Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
                             <Clock size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {employeePriorityStats.lessUrgentTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <Clock size={12} />
-                          <span>Medium priority tasks</span>
-                        </div>
                       </div>
                     </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
+                          {employeePriorityStats.lessUrgentTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                          <Clock size={12} />
+                          <span>Medium priority tasks</span>
+                    </div>
+                  </div>
+                </div>
 
                     {/* Free Time Tasks Card - Employee Only */}
-                    <div style={{
+                <div style={{
                       background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
                       boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
                       e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
                     }}
                     onClick={() => {
@@ -1568,60 +1580,60 @@ const Dashboard: React.FC = () => {
                     onClick={() => {
                       setActiveTab('tasks');
                       setTaskFilter('completed');
-                    }}>
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
+                        Completed Tasks
+                      </h3>
                       <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
-                            Completed Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
-                            <CheckCircle2 size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {employeePriorityStats.totalCompletedTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <CheckCircle2 size={12} />
-                          <span>Tasks finished</span>
-                        </div>
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
+                        <CheckCircle2 size={20} />
                       </div>
                     </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
+                          {employeePriorityStats.totalCompletedTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <CheckCircle2 size={12} />
+                      <span>Tasks finished</span>
+                    </div>
+                  </div>
+                </div>
                   </>
                 ) : (
                   <>
@@ -1646,8 +1658,7 @@ const Dashboard: React.FC = () => {
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
                     }}
                     onClick={() => {
-                      setActiveTab('tasks');
-                      setTaskPriorityFilter('Urgent');
+                      setSelectedPriorityCard(selectedPriorityCard === 'urgent' ? null : 'urgent');
                     }}>
                       <div style={{
                         position: 'absolute',
@@ -1704,158 +1715,156 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     {/* Less Urgent Tasks Card - Director */}
-                    <div style={{
-                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
-                    }}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
+                }}
                     onClick={() => {
-                      setActiveTab('tasks');
-                      setTaskPriorityFilter('Less Urgent');
+                      setSelectedPriorityCard(selectedPriorityCard === 'lessUrgent' ? null : 'lessUrgent');
                     }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
                             Less Urgent Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
-                            <Clock size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {directorPriorityStats.lessUrgentTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <Clock size={12} />
-                          <span>Medium priority tasks</span>
-                        </div>
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
+                        <Clock size={20} />
                       </div>
                     </div>
-
-                    {/* Free Time Tasks Card - Director */}
                     <div style={{
-                      background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
-                    }}
-                    onClick={() => {
-                      setActiveTab('tasks');
-                      setTaskPriorityFilter('Free Time');
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
                     }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
-                            Free Time Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
-                            <CheckCircle size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {directorPriorityStats.freeTimeTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
+                          {directorPriorityStats.lessUrgentTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
                           gap: '4px'
-                        }}>
+                    }}>
+                      <Clock size={12} />
+                          <span>Medium priority tasks</span>
+                    </div>
+                  </div>
+                </div>
+                
+                    {/* Free Time Tasks Card - Director */}
+                <div style={{
+                      background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
+                      boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
+                }}
+                    onClick={() => {
+                      setSelectedPriorityCard(selectedPriorityCard === 'freeTime' ? null : 'freeTime');
+                    }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
+                            Free Time Tasks
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
+                            <CheckCircle size={20} />
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
+                          {directorPriorityStats.freeTimeTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                          gap: '4px'
+                    }}>
                           <CheckCircle size={12} />
                           <span>Low priority tasks</span>
-                        </div>
+                    </div>
                       </div>
                     </div>
 
@@ -1864,24 +1873,23 @@ const Dashboard: React.FC = () => {
                       background: 'linear-gradient(135deg, #06ffa5 0%, #00d4aa 100%)',
                       borderRadius: '16px',
                       padding: '24px',
-                      color: '#ffffff',
+                        color: '#ffffff',
                       position: 'relative',
                       overflow: 'hidden',
                       boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
                       transition: 'all 0.3s ease',
                       cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
+                      }}
+                      onMouseOver={(e) => {
                       e.currentTarget.style.transform = 'translateY(-4px)';
                       e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
+                      }}
+                      onMouseOut={(e) => {
                       e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
                     }}
                     onClick={() => {
-                      setActiveTab('tasks');
-                      setTaskFilter('completed');
+                      setSelectedPriorityCard(selectedPriorityCard === 'completed' ? null : 'completed');
                     }}>
                       <div style={{
                         position: 'absolute',
@@ -1914,8 +1922,8 @@ const Dashboard: React.FC = () => {
                             backdropFilter: 'blur(10px)'
                           }}>
                             <CheckCircle2 size={20} />
-                          </div>
-                        </div>
+                  </div>
+                </div>
                         <div style={{
                           fontSize: '36px',
                           fontWeight: '700',
@@ -1959,7 +1967,9 @@ const Dashboard: React.FC = () => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(79, 172, 254, 0.3)';
                 }}
-                onClick={() => setActiveTab('employees')}>
+                onClick={() => {
+                  setShowActiveEmployees(!showActiveEmployees);
+                }}>
                   <div style={{
                     position: 'absolute',
                     top: '-20px',
@@ -2015,7 +2025,7 @@ const Dashboard: React.FC = () => {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveTab('employees');
+                        setShowActiveEmployees(!showActiveEmployees);
                       }}
                       style={{
                         background: 'rgba(255, 255, 255, 0.25)',
@@ -2044,417 +2054,824 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               
-              {/* Bottom Sections - Modern Layout */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '24px'
-              }}>
-                {/* Project Progress Section */}
+              {/* Priority Tasks Table - Director Only */}
+              {isDirector && selectedPriorityCard && (() => {
+                // Filter tasks based on selected card
+                let filteredPriorityTasks: Task[] = [];
+                let cardTitle = '';
+                
+                switch (selectedPriorityCard) {
+                  case 'urgent':
+                    filteredPriorityTasks = tasks.filter(t => t.priority === 'Urgent');
+                    cardTitle = 'Urgent Tasks';
+                    break;
+                  case 'lessUrgent':
+                    filteredPriorityTasks = tasks.filter(t => t.priority === 'Less Urgent');
+                    cardTitle = 'Less Urgent Tasks';
+                    break;
+                  case 'freeTime':
+                    filteredPriorityTasks = tasks.filter(t => t.priority === 'Free Time');
+                    cardTitle = 'Free Time Tasks';
+                    break;
+                  case 'completed':
+                    filteredPriorityTasks = tasks.filter(t => t.status === 'Completed');
+                    cardTitle = 'Completed Tasks';
+                    break;
+                }
+                
+                const priorityColors: Record<string, { bg: string; text: string }> = {
+                  'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                  'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                  'Free Time': { bg: '#d1fae5', text: '#059669' },
+                  'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                };
+                const statusColors: Record<string, { bg: string; text: string }> = {
+                  'Pending': { bg: '#fef3c7', text: '#d97706' },
+                  'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                  'Completed': { bg: '#d1fae5', text: '#059669' }
+                };
+                
+                return (
                 <div style={{
                   backgroundColor: '#ffffff',
                   border: '1px solid #e5e7eb',
                   borderRadius: '16px',
                   padding: '24px',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                    marginTop: '24px'
                 }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    marginBottom: '20px',
+                      marginBottom: '24px',
                     paddingBottom: '16px',
                     borderBottom: '2px solid #f3f4f6'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <FolderKanban size={20} color="#ffffff" />
-                      </div>
                       <h3 style={{
-                        fontSize: '18px',
+                        fontSize: '20px',
                         fontWeight: '700',
                         color: '#111827',
                         margin: 0,
                         letterSpacing: '-0.5px'
                       }}>
-                        Project Progress
+                        {cardTitle}
                       </h3>
-                    </div>
-                  </div>
-                  {(() => {
-                    // Find active projects
-                    const activeProjects = projects.filter(p => p.status === 'Active');
-                    const firstActiveProject = activeProjects[0];
-                    
-                    if (!firstActiveProject) {
-                      return (
-                        <div style={{
-                          padding: '20px',
-                          textAlign: 'center',
-                          color: '#6b7280',
-                          fontSize: '14px'
-                        }}>
-                          No active projects
-                        </div>
-                      );
-                    }
-                    
-                    // Use project's progress field, or calculate from tasks as fallback
-                    const projectTasks = tasks.filter(t => (t.projectId || '') === (firstActiveProject.id || firstActiveProject._id || ''));
-                    const completedTasks = projectTasks.filter(t => t.status === 'Completed').length;
-                    const totalTasks = projectTasks.length;
-                    // Use project.progress if available, otherwise calculate from tasks
-                    const progress = firstActiveProject.progress !== undefined && firstActiveProject.progress !== null 
-                      ? firstActiveProject.progress 
-                      : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
-                    
-                    return (
-                      <div
-                        onClick={() => {
-                          setSelectedProject(firstActiveProject);
-                          setIsProjectModalOpen(true);
-                        }}
+                      <button
+                        onClick={() => setSelectedPriorityCard(null)}
                         style={{
+                          background: 'transparent',
+                          border: 'none',
                           cursor: 'pointer',
-                          padding: '20px',
-                          background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                          border: '2px solid #e5e7eb',
-                          borderRadius: '12px',
-                          transition: 'all 0.3s ease'
+                          padding: '8px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s ease'
                         }}
                         onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = '#667eea';
-                          e.currentTarget.style.backgroundColor = '#f8fafc';
-                          e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(102, 126, 234, 0.2)';
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <X size={20} color="#6b7280" />
+                      </button>
+                    </div>
+                    
+                    {filteredPriorityTasks.length > 0 ? (
+                        <div style={{
+                        overflowX: 'auto'
+                      }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'separate',
+                          borderSpacing: '0 12px'
+                        }}>
+                          <thead>
+                            <tr>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                          color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Priority</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Status</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Project Name</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                          color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Task Title</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Description / Remarks</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Work Done (%)</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Flag (Director Input Required)</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Date</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredPriorityTasks.map((task) => {
+                              const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+                              const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+                    
+                    return (
+                                <tr
+                                  key={task.id || task._id}
+                        style={{
+                                    backgroundColor: '#ffffff',
+                          borderRadius: '12px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+                        }}
+                        onMouseOver={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
                           e.currentTarget.style.transform = 'translateY(-2px)';
                         }}
                         onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = '#e5e7eb';
-                          e.currentTarget.style.backgroundColor = 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)';
-                          e.currentTarget.style.boxShadow = 'none';
+                                    e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1)';
                           e.currentTarget.style.transform = 'translateY(0)';
                         }}
                       >
-                        <div style={{
-                          color: '#111827',
-                          fontSize: '18px',
-                          fontWeight: '700',
-                          marginBottom: '8px',
-                          letterSpacing: '-0.5px'
+                                  {/* Priority */}
+                                  <td style={{
+                                    padding: '16px',
+                                    borderTopLeftRadius: '12px',
+                                    borderBottomLeftRadius: '12px'
                         }}>
-                          {firstActiveProject.name}
-                        </div>
+                          <span style={{
+                                      backgroundColor: priorityColor.bg,
+                                      color: priorityColor.text,
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '11px',
+                            fontWeight: '600',
+                                      letterSpacing: '0.3px',
+                                      textTransform: 'uppercase',
+                                      display: 'inline-block'
+                          }}>
+                                      {task.priority || 'Less Urgent'}
+                          </span>
+                                  </td>
+                                  {/* Status */}
+                                  <td style={{ padding: '16px' }}>
+                          <span style={{
+                                      backgroundColor: statusColor.bg,
+                                      color: statusColor.text,
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '11px',
+                                      fontWeight: '600',
+                                      letterSpacing: '0.3px',
+                                      textTransform: 'uppercase',
+                                      display: 'inline-block'
+                          }}>
+                                      {task.status || 'Pending'}
+                          </span>
+                                  </td>
+                                  {/* Project Name */}
+                                  <td style={{ padding: '16px' }}>
                         <div style={{
-                          color: '#6b7280',
+                                      fontSize: '13px',
+                                      color: '#111827',
+                                      fontWeight: '500'
+                        }}>
+                                      {task.projectName || 'N/A'}
+                        </div>
+                                  </td>
+                                  {/* Task Title */}
+                                  <td style={{ padding: '16px' }}>
+                        <div style={{
                           fontSize: '14px',
-                          marginBottom: '16px',
-                          lineHeight: '1.5'
+                                      fontWeight: '600',
+                                      color: '#111827'
                         }}>
-                          {firstActiveProject.description || 'No description'}
+                                      {task.title}
                         </div>
+                                  </td>
+                                  {/* Description / Remarks */}
+                                  <td style={{ padding: '16px' }}>
+                                    {task.description ? (
                         <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                                        fontSize: '12px',
+                                        color: '#6b7280',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        maxWidth: '300px'
+                                      }}>
+                                        {task.description}
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>No description</span>
+                                    )}
+                                  </td>
+                                  {/* Work Done (%) */}
+                                  <td style={{ padding: '16px' }}>
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      backgroundColor: '#e0e7ff',
+                                      color: '#4f46e5'
+                                    }}>
+                                      {task.workDone || 0}%
+                                    </span>
+                                  </td>
+                                  {/* Flag (Director Input Required) */}
+                                  <td style={{ padding: '16px' }}>
+                                    {task.flagDirectorInputRequired ? (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#dc2626'
+                                      }}>
+                                        Yes
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#f3f4f6',
+                                        color: '#6b7280'
+                                      }}>
+                                        No
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Date */}
+                                  <td style={{ padding: '16px' }}>
+                        <div style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '6px'
+                                    }}>
+                                      {/* Created Date */}
+                                      <div style={{
+                                        fontSize: '12px',
+                                        color: '#6b7280',
+                                        fontWeight: '500'
+                                      }}>
+                                        <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                        {task.startDate 
+                                          ? new Date(task.startDate).toLocaleDateString() 
+                                          : 'N/A'}
+                                      </div>
+                                      {/* Reminder Date */}
+                                      {task.reminderDate && (
+                                        <div style={{
+                                          fontSize: '12px',
+                                          color: '#dc2626',
+                                          fontWeight: '500',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}>
+                                          <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                          {new Date(task.reminderDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  {/* Actions */}
+                                  <td style={{
+                                    padding: '16px',
+                                    borderTopRightRadius: '12px',
+                                    borderBottomRightRadius: '12px'
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedTask(task);
+                                          setIsTaskModalOpen(true);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: '#dbeafe',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: '#1e40af',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#dbeafe';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                        }}
+                                      >
+                                        <Eye size={14} />
+                                        View
+                                      </button>
+                                      {isDirector && (
+                                        <>
+                                          {task.status !== 'Completed' && (
+                                            <button
+                                              onClick={() => handleTaskCompleted(task)}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '8px 14px',
+                                                backgroundColor: '#dcfce7',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: '#15803d',
+                                                fontSize: '12px',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: '0 1px 2px rgba(22, 163, 74, 0.2)'
+                                              }}
+                                              onMouseOver={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(22, 163, 74, 0.3)';
+                                              }}
+                                              onMouseOut={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#dcfce7';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(22, 163, 74, 0.2)';
+                                              }}
+                                              title="Mark as Completed"
+                                            >
+                                              <CheckCircle size={14} />
+                                              Complete
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={async () => {
+                                              if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
+                                                try {
+                                                  const taskId = String(task.id || task._id || '').trim();
+                                                  if (!taskId) {
+                                                    alert('Error: Task ID is missing. Cannot delete task.');
+                                                    return;
+                                                  }
+                                                  console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
+                                                  const response = await taskApi.deleteTask(taskId);
+                                                  console.log('Delete response:', response);
+                                                  await loadTasks();
+                                                } catch (error: any) {
+                                                  console.error('Error deleting task:', error);
+                                                  console.error('Error response:', error?.response);
+                                                  const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                                                  alert(`Error deleting task: ${errorMessage}`);
+                                                }
+                                              }
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              padding: '8px 14px',
+                                              backgroundColor: '#fee2e2',
+                                              border: 'none',
+                                              borderRadius: '8px',
+                                              color: '#dc2626',
+                                              fontSize: '12px',
+                                              fontWeight: '600',
+                                              cursor: 'pointer',
+                                              transition: 'all 0.2s ease',
+                                              boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
+                                            }}
+                                            onMouseOver={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#fecaca';
+                                              e.currentTarget.style.transform = 'translateY(-1px)';
+                                              e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                                              e.currentTarget.style.transform = 'translateY(0)';
+                                              e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
+                                            }}
+                                          >
+                                            <Trash2 size={14} />
+                                            Delete
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        color: '#6b7280'
+                      }}>
+                        <div style={{
+                          fontSize: '16px',
+                          fontWeight: '600',
                           marginBottom: '8px'
                         }}>
-                          <span style={{
-                            color: '#111827',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            letterSpacing: '0.3px'
-                          }}>
-                            Progress
-                          </span>
-                          <span style={{
-                            color: '#667eea',
-                            fontSize: '13px',
-                            fontWeight: '700'
-                          }}>
-                            {progress}%
-                          </span>
+                          No {cardTitle.toLowerCase()} found
                         </div>
                         <div style={{
-                          width: '100%',
-                          height: '10px',
-                          background: 'linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 100%)',
-                          borderRadius: '10px',
-                          overflow: 'hidden',
-                          marginBottom: '12px',
-                          boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.06)'
+                          fontSize: '14px',
+                          color: '#9ca3af'
                         }}>
-                          <div style={{
-                            width: `${progress}%`,
-                            height: '100%',
-                            background: 'linear-gradient(90deg, #11998e 0%, #38ef7d 100%)',
-                            borderRadius: '10px',
-                            transition: 'width 0.5s ease',
-                            boxShadow: '0 2px 4px rgba(17, 153, 142, 0.3)'
-                          }} />
+                          There are no tasks matching this category at the moment.
                         </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: '12px'
-                        }}>
-                          <span style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            fontWeight: '500'
-                          }}>
-                            {completedTasks} of {totalTasks} tasks completed
-                          </span>
-                        </div>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          color: '#667eea',
-                          fontWeight: '600',
-                          marginTop: '12px',
-                          paddingTop: '12px',
-                          borderTop: '1px solid #e5e7eb'
-                        }}>
-                          <span>View full details</span>
-                          <ArrowRight size={14} />
-                        </div>
+                      </div>
+                    )}
                       </div>
                     );
                   })()}
-                </div>
 
-                {/* Recent Tasks Section */}
+              {/* Active Employees Table */}
+              {showActiveEmployees && (
                 <div style={{
                   backgroundColor: '#ffffff',
                   border: '1px solid #e5e7eb',
                   borderRadius: '16px',
                   padding: '24px',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                  transition: 'all 0.3s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                  marginTop: '24px'
                 }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    marginBottom: '20px',
+                    marginBottom: '24px',
                     paddingBottom: '16px',
                     borderBottom: '2px solid #f3f4f6'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <CheckCircle2 size={20} color="#ffffff" />
-                      </div>
                       <h3 style={{
-                        fontSize: '18px',
+                      fontSize: '20px',
                         fontWeight: '700',
                         color: '#111827',
                         margin: 0,
                         letterSpacing: '-0.5px'
                       }}>
-                        Recent Tasks
+                      Active Employees
                       </h3>
-                    </div>
+                    <button
+                      onClick={() => setShowActiveEmployees(false)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '8px',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <X size={20} color="#6b7280" />
+                    </button>
                   </div>
                   
-                  {/* Task Items - Modern Design */}
-                  {filteredTasks.slice(0, 3).map((task, index) => {
-                    const priorityColors: Record<string, { bg: string; text: string }> = {
-                      'Urgent': { bg: '#fee2e2', text: '#dc2626' },
-                      'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
-                      'Free Time': { bg: '#d1fae5', text: '#059669' },
-                      'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                  {(() => {
+                    const activeEmployeesList = employees.filter(emp => emp.status === 'Active');
+                    
+                    return activeEmployeesList.length > 0 ? (
+                      <div style={{
+                        overflowX: 'auto'
+                      }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'separate',
+                          borderSpacing: '0 12px'
+                        }}>
+                          <thead>
+                            <tr>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Name</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Email</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Position</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Department</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Role</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Joining Date</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                              }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeEmployeesList.map((employee) => {
+                              const roleColors: Record<string, { bg: string; text: string }> = {
+                                'Director': { bg: '#fee2e2', text: '#dc2626' },
+                                'Project Head': { bg: '#dbeafe', text: '#2563eb' },
+                                'Employee': { bg: '#d1fae5', text: '#059669' }
                     };
-                    const statusColors: Record<string, { bg: string; text: string }> = {
-                      'Pending': { bg: '#fef3c7', text: '#d97706' },
-                      'In Progress': { bg: '#dbeafe', text: '#2563eb' },
-                      'Completed': { bg: '#d1fae5', text: '#059669' }
-                    };
-                    const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
-                    const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+                              const roleColor = roleColors[employee.role || 'Employee'] || roleColors['Employee'];
                     
                     return (
-                      <div 
-                        key={task.id || task._id}
+                                <tr
+                                  key={employee.id || employee._id}
                         style={{
-                          border: '2px solid #e5e7eb',
+                                    backgroundColor: '#ffffff',
                           borderRadius: '12px',
-                          padding: '18px',
-                          marginBottom: index < 2 ? '16px' : '0',
                           cursor: 'pointer',
-                          transition: 'all 0.3s ease',
-                          background: 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)'
-                        }}
-                        onClick={() => {
-                          setSelectedTask(task);
-                          setIsTaskModalOpen(true);
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
                         }}
                         onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = '#667eea';
-                          e.currentTarget.style.backgroundColor = '#f8fafc';
+                                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
                           e.currentTarget.style.transform = 'translateY(-2px)';
-                          e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(102, 126, 234, 0.2)';
                         }}
                         onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = '#e5e7eb';
-                          e.currentTarget.style.backgroundColor = 'linear-gradient(135deg, #ffffff 0%, #f9fafb 100%)';
+                                    e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1)';
                           e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
+                                  <td style={{
+                                    padding: '16px',
+                                    borderTopLeftRadius: '12px',
+                                    borderBottomLeftRadius: '12px'
+                                  }}>
                         <div style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          marginBottom: '12px'
+                                      fontSize: '14px',
+                                      fontWeight: '600',
+                                      color: '#111827'
                         }}>
+                                      {employee.firstName} {employee.lastName}
+                                    </div>
+                                    {employee.phone && (
                           <div style={{
-                            fontSize: '15px',
-                            fontWeight: '700',
+                                        fontSize: '12px',
+                                        color: '#6b7280',
+                                        marginTop: '4px'
+                                      }}>
+                                        {employee.phone}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: '16px' }}>
+                                    <div style={{
+                                      fontSize: '13px',
                             color: '#111827',
-                            letterSpacing: '-0.3px',
-                            flex: 1
+                                      fontWeight: '500'
                           }}>
-                            {task.title}
+                                      {employee.email}
                           </div>
-                        </div>
+                                  </td>
+                                  <td style={{ padding: '16px' }}>
                         <div style={{
                           fontSize: '13px',
-                          color: '#6b7280',
-                          marginBottom: '12px',
-                          lineHeight: '1.5',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden'
+                                      color: '#111827',
+                                      fontWeight: '500'
                         }}>
-                          {task.description || 'No description available'}
+                                      {employee.position || 'N/A'}
                         </div>
+                                  </td>
+                                  <td style={{ padding: '16px' }}>
                         <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: '12px',
-                          flexWrap: 'wrap'
+                                      fontSize: '13px',
+                                      color: '#111827',
+                                      fontWeight: '500'
                         }}>
+                                      {employee.department || 'N/A'}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '16px' }}>
                           <span style={{
-                            backgroundColor: priorityColor.bg,
-                            color: priorityColor.text,
+                                      backgroundColor: roleColor.bg,
+                                      color: roleColor.text,
                             padding: '6px 12px',
                             borderRadius: '8px',
                             fontSize: '11px',
                             fontWeight: '600',
                             letterSpacing: '0.3px',
-                            textTransform: 'uppercase'
+                                      textTransform: 'uppercase',
+                                      display: 'inline-block'
                           }}>
-                            {task.priority || 'Less Urgent'}
+                                      {employee.role || 'Employee'}
                           </span>
-                          <span style={{
-                            backgroundColor: statusColor.bg,
-                            color: statusColor.text,
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            letterSpacing: '0.3px',
-                            textTransform: 'uppercase'
+                                  </td>
+                                  <td style={{ padding: '16px' }}>
+                                    <div style={{
+                                      fontSize: '13px',
+                                      color: '#6b7280'
                           }}>
-                            {task.status || 'Pending'}
-                          </span>
+                                      {employee.joiningDate ? new Date(employee.joiningDate).toLocaleDateString() : 'N/A'}
                         </div>
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px',
-                          marginBottom: '12px',
-                          paddingTop: '12px',
-                          borderTop: '1px solid #e5e7eb'
+                                  </td>
+                                  <td style={{
+                                    padding: '16px',
+                                    borderTopRightRadius: '12px',
+                                    borderBottomRightRadius: '12px'
                         }}>
-                          <div style={{
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveTab('employees');
+                                      }}
+                                      style={{
+                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '8px 16px',
+                                        color: '#ffffff',
                             fontSize: '12px',
-                            color: '#6b7280',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px'
-                          }}>
-                            <Users size={14} />
-                            <span><strong>Assigned:</strong> {task.assignedToName || 'Unknown'}</span>
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(102, 126, 234, 0.4)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = 'none';
+                                      }}
+                                    >
+                                      <Eye size={14} />
+                                      View
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                           </div>
+                    ) : (
                           <div style={{
-                            fontSize: '12px',
-                            color: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date())
-                              ? '#ef4444'
-                              : task.status === 'Completed'
-                              ? '#10b981'
-                              : '#6b7280',
-                            fontWeight: '500',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}>
-                            <Clock size={14} />
-                            <span><strong>Start:</strong> {task.startDate ? new Date(task.startDate).toLocaleDateString() : 'No start date'}</span>
-                          </div>
-                        </div>
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        color: '#6b7280'
+                      }}>
                         <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          fontSize: '12px',
-                          color: '#667eea',
+                          fontSize: '16px',
                           fontWeight: '600',
-                          marginTop: '8px',
-                          paddingTop: '12px',
-                          borderTop: '1px solid #e5e7eb'
+                          marginBottom: '8px'
                         }}>
-                          <span>View details</span>
-                          <ArrowRight size={14} />
+                          No active employees found
                         </div>
-                      </div>
-                    );
-                  })}
-                  
-                  {filteredTasks.length === 0 && (
                     <div style={{
-                      textAlign: 'center',
-                      padding: '20px',
-                      color: '#6b7280',
-                      fontSize: '14px'
+                          fontSize: '14px',
+                          color: '#9ca3af'
                     }}>
-                      No recent tasks available
+                          There are no active employees at the moment.
                     </div>
-                  )}
                 </div>
+                    );
+                  })()}
+                </div>
+              )}
                 
                 {/* Extension Requests Section for Directors/Project Heads */}
                 {(isDirector || isProjectHead) && (
@@ -2466,7 +2883,8 @@ const Dashboard: React.FC = () => {
                     padding: '24px',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     transition: 'all 0.3s ease',
-                    cursor: 'pointer'
+                  cursor: 'pointer',
+                  marginTop: '24px'
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.transform = 'scale(1.02)';
@@ -2577,7 +2995,6 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           )}
 
@@ -3369,29 +3786,7 @@ const Dashboard: React.FC = () => {
                             letterSpacing: '-0.3px',
                             borderBottom: '2px solid #e5e7eb'
                           }}>
-                            Task Details
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Project
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Assigned To
+                            Priority
                           </th>
                           <th style={{
                             padding: '16px 20px',
@@ -3413,7 +3808,62 @@ const Dashboard: React.FC = () => {
                             letterSpacing: '-0.3px',
                             borderBottom: '2px solid #e5e7eb'
                           }}>
-                            Priority
+                            Project Name
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Task Title
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Description / Remarks
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Work Done (%)
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Flag (Director Input Required)
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Date
                           </th>
                           <th style={{
                             padding: '16px 20px',
@@ -3451,132 +3901,11 @@ const Dashboard: React.FC = () => {
                             e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
                             e.currentTarget.style.transform = 'scale(1)';
                           }}>
-                            <td style={{ padding: '20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                                <div style={{
-                                  width: '48px',
-                                  height: '48px',
-                                  background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-                                  borderRadius: '12px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0,
-                                  boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)'
-                                }}>
-                                  <FileText size={24} color="#3b82f6" />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{
-                                    fontSize: '15px',
-                                    fontWeight: '700',
-                                    color: '#111827',
-                                    margin: '0 0 6px 0',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    letterSpacing: '-0.3px'
-                                  }}>
-                                    {task.title}
-                                  </p>
-                                  <p style={{
-                                    fontSize: '13px',
-                                    color: '#6b7280',
-                                    margin: '0 0 8px 0',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    maxWidth: '250px',
-                                    lineHeight: '1.5'
-                                  }}>
-                                    {task.description || 'No description'}
-                                  </p>
-                                {task.comments && task.comments.length > 0 && (
-                                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '4px' }}>
-                                      <svg width="12" height="12" fill="none" stroke="#9ca3af" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                      <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '4px' }}>
-                                        {task.comments.length} comment{task.comments.length !== 1 ? 's' : ''}
-                                      </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                            <td style={{ padding: '20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{
-                                  width: '40px',
-                                  height: '40px',
-                                  background: 'linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%)',
-                                  borderRadius: '10px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)'
-                                }}>
-                                  <FolderKanban size={20} color="#8b5cf6" />
-                                </div>
-                                <span style={{ 
-                                  fontSize: '14px', 
-                                  color: '#111827',
-                                  fontWeight: '600'
-                                }}>
-                                  {task.projectName || 'N/A'}
-                                </span>
-                            </div>
-                          </td>
-                            <td style={{ padding: '20px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{
-                                  width: '40px',
-                                  height: '40px',
-                                  background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
-                                  borderRadius: '50%',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)'
-                                }}>
-                                  <Users size={18} color="#16a34a" />
-                                </div>
-                                <span style={{ 
-                                  fontSize: '14px', 
-                                  color: '#111827',
-                                  fontWeight: '600'
-                                }}>
-                                  {task.assignedToName || 'Unassigned'}
-                                </span>
-                            </div>
-                          </td>
+                            {/* Priority */}
                             <td style={{ padding: '20px' }}>
                               <span style={{
                                 display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '8px 16px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                letterSpacing: '0.3px',
-                                textTransform: 'uppercase',
-                                backgroundColor: task.status === 'Completed' ? '#d1fae5' :
-                                                task.status === 'In Progress' ? '#dbeafe' :
-                                                task.status === 'Pending' ? '#fef3c7' :
-                                                '#fee2e2',
-                                color: task.status === 'Completed' ? '#065f46' :
-                                       task.status === 'In Progress' ? '#1e3a8a' :
-                                       task.status === 'Pending' ? '#92400e' :
-                                       '#991b1b',
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                              }}>
-                              {task.status || 'Unknown'}
-                            </span>
-                          </td>
-                            <td style={{ padding: '20px' }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
+                                  alignItems: 'center',
                                 padding: '8px 16px',
                                 borderRadius: '10px',
                                 fontSize: '12px',
@@ -3592,9 +3921,150 @@ const Dashboard: React.FC = () => {
                                        task.priority === 'Free Time' ? '#065f46' :
                                        '#374151',
                                 boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                }}>
+                                {task.priority || 'Less Urgent'}
+                              </span>
+                            </td>
+                            {/* Status */}
+                            <td style={{ padding: '20px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '8px 16px',
+                                borderRadius: '10px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                letterSpacing: '0.3px',
+                                textTransform: 'uppercase',
+                                backgroundColor: task.status === 'Completed' ? '#d1fae5' :
+                                                task.status === 'In Progress' ? '#dbeafe' :
+                                                task.status === 'Pending' ? '#fef3c7' :
+                                                '#f3f4f6',
+                                color: task.status === 'Completed' ? '#065f46' :
+                                       task.status === 'In Progress' ? '#1e3a8a' :
+                                       task.status === 'Pending' ? '#92400e' :
+                                       '#374151',
+                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                               }}>
-                              {task.priority || 'Less Urgent'}
+                                {task.status || 'Pending'}
+                              </span>
+                            </td>
+                            {/* Project Name */}
+                            <td style={{ padding: '20px' }}>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                color: '#111827',
+                                fontWeight: '500'
+                              }}>
+                                {task.projectName || 'N/A'}
+                              </span>
+                            </td>
+                            {/* Task Title */}
+                            <td style={{ padding: '20px' }}>
+                                  <p style={{
+                                    fontSize: '15px',
+                                    fontWeight: '700',
+                                    color: '#111827',
+                                margin: 0,
+                                    letterSpacing: '-0.3px'
+                                  }}>
+                                    {task.title}
+                                  </p>
+                            </td>
+                            {/* Description / Remarks */}
+                            <td style={{ padding: '20px' }}>
+                                  <p style={{
+                                    fontSize: '13px',
+                                    color: '#6b7280',
+                                margin: 0,
+                                lineHeight: '1.5',
+                                maxWidth: '300px',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                                  }}>
+                                    {task.description || 'No description'}
+                                  </p>
+                          </td>
+                            {/* Work Done (%) */}
+                            <td style={{ padding: '20px' }}>
+                                <span style={{ 
+                                display: 'inline-flex',
+                                  alignItems: 'center',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                backgroundColor: '#e0e7ff',
+                                color: '#4f46e5'
+                                }}>
+                                {task.workDone || 0}%
+                                </span>
+                          </td>
+                            {/* Flag (Director Input Required) */}
+                            <td style={{ padding: '20px' }}>
+                              {task.flagDirectorInputRequired ? (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                fontSize: '12px',
+                                  fontWeight: '600',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#dc2626'
+                              }}>
+                                  Yes
                             </span>
+                              ) : (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                fontSize: '12px',
+                                  fontWeight: '600',
+                                  backgroundColor: '#f3f4f6',
+                                  color: '#6b7280'
+                              }}>
+                                  No
+                            </span>
+                              )}
+                            </td>
+                            {/* Date */}
+                            <td style={{ padding: '20px' }}>
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                              }}>
+                                {/* Created Date */}
+                                <div style={{
+                                  fontSize: '12px',
+                                  color: '#6b7280',
+                                  fontWeight: '500'
+                                }}>
+                                  <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                  {task.startDate 
+                                    ? new Date(task.startDate).toLocaleDateString() 
+                                    : 'N/A'}
+                                </div>
+                                {/* Reminder Date */}
+                                {task.reminderDate && (
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: '#dc2626',
+                                    fontWeight: '500',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                    {new Date(task.reminderDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
                           </td>
                             <td style={{ padding: '20px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3640,22 +4110,27 @@ const Dashboard: React.FC = () => {
                                         style={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
-                                          gap: '4px',
-                                          padding: '6px 12px',
+                                          gap: '6px',
+                                          padding: '8px 14px',
                                           backgroundColor: '#dcfce7',
                                           border: 'none',
-                                          borderRadius: '6px',
+                                          borderRadius: '8px',
                                           color: '#15803d',
                                           fontSize: '12px',
-                                          fontWeight: '500',
+                                          fontWeight: '600',
                                           cursor: 'pointer',
-                                          transition: 'all 0.2s ease'
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(22, 163, 74, 0.2)'
                                         }}
                                         onMouseOver={(e) => {
                                           e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(22, 163, 74, 0.3)';
                                         }}
                                         onMouseOut={(e) => {
                                           e.currentTarget.style.backgroundColor = '#dcfce7';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(22, 163, 74, 0.2)';
                                         }}
                                         title="Mark as Completed"
                                       >
@@ -5337,13 +5812,13 @@ const Dashboard: React.FC = () => {
                         <FileText size={24} color="#7c3aed" />
                       </div>
                       <div>
-                        <h2 style={{
+                      <h2 style={{
                           fontSize: '24px',
-                          fontWeight: '700',
-                          color: '#111827',
+                        fontWeight: '700',
+                        color: '#111827',
                           margin: '0 0 4px 0',
-                          letterSpacing: '-0.5px'
-                        }}>Completion Requests</h2>
+                        letterSpacing: '-0.5px'
+                      }}>Completion Requests</h2>
                         <p style={{
                           fontSize: '14px',
                           color: '#6b7280',
@@ -5864,15 +6339,15 @@ const Dashboard: React.FC = () => {
                     }}>
                       No Completion Requests
                     </h3>
-                    <p style={{
+                  <p style={{
                       fontSize: '15px',
-                      color: '#6b7280',
-                      margin: 0
-                    }}>
+                    color: '#6b7280',
+                    margin: 0
+                  }}>
                       {approvalStatusFilter !== 'all' 
                         ? `No requests found with status "${approvalStatusFilter}" at this time.`
                         : 'No completion requests have been submitted yet.'}
-                    </p>
+                  </p>
                   </div>
                 </div>
               )}

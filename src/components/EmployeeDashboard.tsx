@@ -14,7 +14,7 @@ import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
-import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock, Eye, X } from 'lucide-react';
 import { IndependentWork, IndependentWorkAttachment } from '../types';
 import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork, addComment, getIndependentWorkById } from '../services/independentWorkService';
 
@@ -86,6 +86,13 @@ const EmployeeDashboard: React.FC = () => {
     freeTimeTasks: 0,
     totalCompletedTasks: 0
   });
+  
+  // Track selected priority card for showing filtered tasks table
+  const [selectedPriorityCard, setSelectedPriorityCard] = useState<'urgent' | 'lessUrgent' | 'freeTime' | 'completed' | null>(null);
+  
+  // Track which task's workDone is being edited
+  const [editingWorkDone, setEditingWorkDone] = useState<string | null>(null);
+  const [workDoneValue, setWorkDoneValue] = useState<number>(0);
 
   const loadTasks = async () => {
     try {
@@ -606,6 +613,33 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  const handleWorkDoneEdit = (task: Task) => {
+    const taskId = task.id || task._id || '';
+    setEditingWorkDone(taskId);
+    setWorkDoneValue(task.workDone || 0);
+  };
+
+  const handleWorkDoneSave = async (task: Task) => {
+    const taskId = task.id || task._id;
+    if (!taskId) return;
+    
+    // Clamp value between 0 and 100
+    const clampedValue = Math.max(0, Math.min(100, workDoneValue));
+    
+    const updatedTask = {
+      ...task,
+      workDone: clampedValue
+    };
+    
+    await handleTaskUpdate(updatedTask);
+    setEditingWorkDone(null);
+  };
+
+  const handleWorkDoneCancel = () => {
+    setEditingWorkDone(null);
+    setWorkDoneValue(0);
+  };
+
   const handleTaskDelete = async (taskId: string) => {
     try {
       if (window.confirm('Are you sure you want to delete this task?')) {
@@ -1015,8 +1049,7 @@ const EmployeeDashboard: React.FC = () => {
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
                 }}
                 onClick={() => {
-                  setActiveTab('tasks');
-                  setTaskPriorityFilter('Urgent');
+                  setSelectedPriorityCard(selectedPriorityCard === 'urgent' ? null : 'urgent');
                 }}>
                   <div style={{
                     position: 'absolute',
@@ -1043,11 +1076,11 @@ const EmployeeDashboard: React.FC = () => {
                         height: '40px',
                         background: 'rgba(255, 255, 255, 0.2)',
                         borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
                         justifyContent: 'center',
                         backdropFilter: 'blur(10px)'
-                      }}>
+                  }}>
                         <AlertCircle size={20} />
                       </div>
                     </div>
@@ -1058,9 +1091,9 @@ const EmployeeDashboard: React.FC = () => {
                       letterSpacing: '-1px'
                     }}>
                       {employeePriorityStats.urgentTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
                       opacity: 0.8,
                       display: 'flex',
                       alignItems: 'center',
@@ -1083,20 +1116,19 @@ const EmployeeDashboard: React.FC = () => {
                   boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
                   transition: 'all 0.3s ease',
                   cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
+                  }}
+                  onMouseOver={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
-                }}
-                onMouseOut={(e) => {
+                  }}
+                  onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
                 }}
                 onClick={() => {
-                  setActiveTab('tasks');
-                  setTaskPriorityFilter('Less Urgent');
+                  setSelectedPriorityCard(selectedPriorityCard === 'lessUrgent' ? null : 'lessUrgent');
                 }}>
-                  <div style={{
+                <div style={{
                     position: 'absolute',
                     top: '-20px',
                     right: '-20px',
@@ -1113,19 +1145,19 @@ const EmployeeDashboard: React.FC = () => {
                         margin: 0,
                         opacity: 0.95,
                         letterSpacing: '0.5px'
-                      }}>
+                }}>
                         Less Urgent Tasks
                       </h3>
-                      <div style={{
+                  <div style={{
                         width: '40px',
                         height: '40px',
                         background: 'rgba(255, 255, 255, 0.2)',
                         borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
                         justifyContent: 'center',
                         backdropFilter: 'blur(10px)'
-                      }}>
+                  }}>
                         <Clock size={20} />
                       </div>
                     </div>
@@ -1136,9 +1168,9 @@ const EmployeeDashboard: React.FC = () => {
                       letterSpacing: '-1px'
                     }}>
                       {employeePriorityStats.lessUrgentTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
                       opacity: 0.8,
                       display: 'flex',
                       alignItems: 'center',
@@ -1161,20 +1193,19 @@ const EmployeeDashboard: React.FC = () => {
                   boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
                   transition: 'all 0.3s ease',
                   cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
+                  }}
+                  onMouseOver={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
-                }}
-                onMouseOut={(e) => {
+                  }}
+                  onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
                 }}
                 onClick={() => {
-                  setActiveTab('tasks');
-                  setTaskPriorityFilter('Free Time');
+                  setSelectedPriorityCard(selectedPriorityCard === 'freeTime' ? null : 'freeTime');
                 }}>
-                  <div style={{
+                <div style={{
                     position: 'absolute',
                     top: '-20px',
                     right: '-20px',
@@ -1191,19 +1222,19 @@ const EmployeeDashboard: React.FC = () => {
                         margin: 0,
                         opacity: 0.95,
                         letterSpacing: '0.5px'
-                      }}>
+                }}>
                         Free Time Tasks
                       </h3>
-                      <div style={{
+                  <div style={{
                         width: '40px',
                         height: '40px',
                         background: 'rgba(255, 255, 255, 0.2)',
                         borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
                         justifyContent: 'center',
                         backdropFilter: 'blur(10px)'
-                      }}>
+                  }}>
                         <CheckCircle size={20} />
                       </div>
                     </div>
@@ -1214,9 +1245,9 @@ const EmployeeDashboard: React.FC = () => {
                       letterSpacing: '-1px'
                     }}>
                       {employeePriorityStats.freeTimeTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
+                            </div>
+                  <div style={{
+                    fontSize: '12px',
                       opacity: 0.8,
                       display: 'flex',
                       alignItems: 'center',
@@ -1239,20 +1270,19 @@ const EmployeeDashboard: React.FC = () => {
                   boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
                   transition: 'all 0.3s ease',
                   cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
+                  }}
+                  onMouseOver={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
-                }}
-                onMouseOut={(e) => {
+                  }}
+                  onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
                 }}
                 onClick={() => {
-                  setActiveTab('tasks');
-                  setTaskFilter('completed');
+                  setSelectedPriorityCard(selectedPriorityCard === 'completed' ? null : 'completed');
                 }}>
-                  <div style={{
+                <div style={{
                     position: 'absolute',
                     top: '-20px',
                     right: '-20px',
@@ -1269,19 +1299,19 @@ const EmployeeDashboard: React.FC = () => {
                         margin: 0,
                         opacity: 0.95,
                         letterSpacing: '0.5px'
-                      }}>
+                }}>
                         Completed Tasks
                       </h3>
-                      <div style={{
+                  <div style={{
                         width: '40px',
                         height: '40px',
                         background: 'rgba(255, 255, 255, 0.2)',
                         borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
                         justifyContent: 'center',
                         backdropFilter: 'blur(10px)'
-                      }}>
+                  }}>
                         <CheckCircle2 size={20} />
                       </div>
                     </div>
@@ -1292,9 +1322,9 @@ const EmployeeDashboard: React.FC = () => {
                       letterSpacing: '-1px'
                     }}>
                       {employeePriorityStats.totalCompletedTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
+                            </div>
+                  <div style={{
+                    fontSize: '12px',
                       opacity: 0.8,
                       display: 'flex',
                       alignItems: 'center',
@@ -1303,268 +1333,982 @@ const EmployeeDashboard: React.FC = () => {
                       <CheckCircle2 size={12} />
                       <span>Tasks finished</span>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Content Panels */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '24px',
-                width: '100%'
-              }}>
-                {/* Project Progress Panel */}
-                <div style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  padding: '24px',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '20px'
-                  }}>
-                    <h3 style={{
-                      fontSize: '18px',
-                      fontWeight: '600',
-                      color: '#111827',
-                      margin: 0
-                    }}>Project Progress</h3>
-                  </div>
-                  {(() => {
-                    // Find active projects assigned to the employee
-                    const activeProjects = projects.filter(p => 
-                      p.status === 'Active' && 
-                      (isEmployee ? p.assignedEmployeeId === user?.id : true)
-                    );
-                    const firstActiveProject = activeProjects[0];
-                    
-                    if (!firstActiveProject) {
-                      return (
-                        <div style={{
-                          padding: '20px',
-                          textAlign: 'center',
-                          color: '#6b7280',
-                          fontSize: '14px'
-                        }}>
-                          No active projects
                         </div>
-                      );
-                    }
-                    
-                    // Use project's progress field, or calculate from tasks as fallback
-                    const projectTasks = tasks.filter(t => (t.projectId || '') === (firstActiveProject.id || firstActiveProject._id || ''));
-                    const completedTasks = projectTasks.filter(t => t.status === 'Completed').length;
-                    const totalTasks = projectTasks.length;
-                    // Use project.progress if available, otherwise calculate from tasks
-                    const progress = firstActiveProject.progress !== undefined && firstActiveProject.progress !== null 
-                      ? firstActiveProject.progress 
-                      : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
-                    
-                    return (
-                      <div
-                        onClick={() => {
-                          setSelectedProject(firstActiveProject);
-                          setIsProjectModalOpen(true);
-                        }}
+                      </div>
+                        </div>
+
+              {/* Priority Tasks Table - Show when priority card is clicked */}
+              {selectedPriorityCard && (() => {
+                // Filter tasks based on selected card
+                let filteredPriorityTasks: Task[] = [];
+                let cardTitle = '';
+                
+                const employeeTasks = filteredTasks.filter(task => {
+                  const taskAssignedId = task.assignedToId || '';
+                  const userId = user?.id || '';
+                  return taskAssignedId === userId || String(taskAssignedId) === String(userId);
+                });
+                
+                switch (selectedPriorityCard) {
+                  case 'urgent':
+                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Urgent');
+                    cardTitle = 'Urgent Tasks';
+                    break;
+                  case 'lessUrgent':
+                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Less Urgent');
+                    cardTitle = 'Less Urgent Tasks';
+                    break;
+                  case 'freeTime':
+                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Free Time');
+                    cardTitle = 'Free Time Tasks';
+                    break;
+                  case 'completed':
+                    filteredPriorityTasks = employeeTasks.filter(t => t.status === 'Completed');
+                    cardTitle = 'Completed Tasks';
+                    break;
+                }
+                
+                const priorityColors: Record<string, { bg: string; text: string }> = {
+                  'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                  'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                  'Free Time': { bg: '#d1fae5', text: '#059669' },
+                  'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                };
+                const statusColors: Record<string, { bg: string; text: string }> = {
+                  'Pending': { bg: '#fef3c7', text: '#d97706' },
+                  'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                  'Completed': { bg: '#d1fae5', text: '#059669' }
+                };
+                
+                return (
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                    marginTop: '24px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '24px',
+                      paddingBottom: '16px',
+                      borderBottom: '2px solid #f3f4f6'
+                    }}>
+                      <h3 style={{
+                        fontSize: '20px',
+                        fontWeight: '700',
+                        color: '#111827',
+                        margin: 0,
+                        letterSpacing: '-0.5px'
+                      }}>
+                        {cardTitle}
+                      </h3>
+                      <button
+                        onClick={() => setSelectedPriorityCard(null)}
                         style={{
+                          background: 'transparent',
+                          border: 'none',
                           cursor: 'pointer',
-                          padding: '16px',
-                          border: '1px solid #e5e7eb',
+                          padding: '8px',
                           borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           transition: 'all 0.2s ease'
                         }}
                         onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = '#3b82f6';
-                          e.currentTarget.style.backgroundColor = '#f8fafc';
-                          e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.backgroundColor = '#f3f4f6';
                         }}
                         onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = '#e5e7eb';
                           e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
+                        <X size={20} color="#6b7280" />
+                      </button>
+                    </div>
+                    
+                    {filteredPriorityTasks.length > 0 ? (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'separate',
+                          borderSpacing: 0
+                        }}>
+                          <thead style={{ 
+                            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            <tr>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Priority
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Status
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Project Name
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Task Title
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Description / Remarks
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Work Done (%)
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Flag (Director Input Required)
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Date
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredPriorityTasks.map((task, index) => {
+                              const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+                              const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+                              
+                              return (
+                                <tr
+                                  key={task.id || task._id}
+                                  style={{
+                                    borderBottom: index < filteredPriorityTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                    transition: 'all 0.2s ease',
+                                    backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                                    cursor: 'pointer'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
+                                    e.currentTarget.style.transform = 'scale(1.002)';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                  }}
+                                >
+                                  {/* Priority */}
+                                  <td style={{
+                                    padding: '20px',
+                                    borderTopLeftRadius: index === 0 ? '12px' : '0',
+                                    borderBottomLeftRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
+                                  }}>
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '8px 16px',
+                                      borderRadius: '10px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      letterSpacing: '0.3px',
+                                      textTransform: 'uppercase',
+                                      backgroundColor: priorityColor.bg,
+                                      color: priorityColor.text,
+                                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                    }}>
+                                      {task.priority || 'Less Urgent'}
+                                    </span>
+                                  </td>
+                                  {/* Status */}
+                                  <td style={{ padding: '20px' }}>
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '8px 16px',
+                                      borderRadius: '10px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      letterSpacing: '0.3px',
+                                      textTransform: 'uppercase',
+                                      backgroundColor: statusColor.bg,
+                                      color: statusColor.text,
+                                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                    }}>
+                                      {task.status || 'Pending'}
+                                    </span>
+                                  </td>
+                                  {/* Project Name */}
+                                  <td style={{ padding: '20px' }}>
+                                    <span style={{ 
+                                      fontSize: '14px', 
+                                      color: '#111827',
+                                      fontWeight: '500'
+                                    }}>
+                                      {task.projectName || 'N/A'}
+                                    </span>
+                                  </td>
+                                  {/* Task Title */}
+                                  <td style={{ padding: '20px' }}>
+                                    <p style={{
+                                      fontSize: '15px',
+                                      fontWeight: '700',
+                                      color: '#111827',
+                                      margin: 0,
+                                      letterSpacing: '-0.3px'
+                                    }}>
+                                      {task.title}
+                                    </p>
+                                  </td>
+                                  {/* Description / Remarks */}
+                                  <td style={{ padding: '20px' }}>
+                                    <p style={{
+                                      fontSize: '13px',
+                                      color: '#6b7280',
+                                      margin: 0,
+                                      lineHeight: '1.5',
+                                      maxWidth: '300px',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden'
+                                    }}>
+                                      {task.description || 'No description'}
+                                    </p>
+                                  </td>
+                                  {/* Work Done (%) */}
+                                  <td style={{ padding: '20px' }}>
+                                    {editingWorkDone === (task.id || task._id) ? (
+                                      <select
+                                        value={workDoneValue}
+                                        onChange={(e) => {
+                                          setWorkDoneValue(Number(e.target.value));
+                                          handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
+                                        }}
+                                        onBlur={() => {
+                                          handleWorkDoneSave(task);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') {
+                                            handleWorkDoneCancel();
+                                          }
+                                        }}
+                                        autoFocus
+                                        style={{
+                                          padding: '6px 12px',
+                                          border: '2px solid #3b82f6',
+                                          borderRadius: '8px',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#ffffff',
+                                          color: '#4f46e5',
+                                          outline: 'none',
+                                          cursor: 'pointer',
+                                          minWidth: '100px'
+                                        }}
+                                      >
+                                        {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                                          <option key={percent} value={percent}>
+                                            {percent}%
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span
+                                        onClick={() => handleWorkDoneEdit(task)}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#e0e7ff',
+                                          color: '#4f46e5',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#c7d2fe';
+                                          e.currentTarget.style.transform = 'scale(1.05)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#e0e7ff';
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                        }}
+                                        title="Click to edit Work Done (%)"
+                                      >
+                                        {task.workDone || 0}%
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Flag (Director Input Required) */}
+                                  <td style={{ padding: '20px' }}>
+                                    {task.flagDirectorInputRequired ? (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#dc2626'
+                                      }}>
+                                        Yes
+                                      </span>
+                                    ) : (
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#f3f4f6',
+                                        color: '#6b7280'
+                                      }}>
+                                        No
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Date */}
+                                  <td style={{ padding: '20px' }}>
+                                    <div style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '6px'
+                                    }}>
+                                      {/* Created Date */}
+                                      <div style={{
+                                        fontSize: '12px',
+                                        color: '#6b7280',
+                                        fontWeight: '500'
+                                      }}>
+                                        <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                        {task.startDate 
+                                          ? new Date(task.startDate).toLocaleDateString() 
+                                          : 'N/A'}
+                                      </div>
+                                      {/* Reminder Date */}
+                                      {task.reminderDate && (
+                                        <div style={{
+                                          fontSize: '12px',
+                                          color: '#dc2626',
+                                          fontWeight: '500',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}>
+                                          <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                          {new Date(task.reminderDate).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  {/* Actions */}
+                                  <td style={{
+                                    padding: '20px',
+                                    borderTopRightRadius: index === 0 ? '12px' : '0',
+                                    borderBottomRightRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
+                                  }}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTask(task);
+                                        setIsTaskModalOpen(true);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        backgroundColor: '#dbeafe',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#1e40af',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#dbeafe';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                      }}
+                                    >
+                                      <Eye size={14} />
+                                      View
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        color: '#6b7280'
+                      }}>
                         <div style={{
-                          color: '#111827',
                           fontSize: '16px',
                           fontWeight: '600',
                           marginBottom: '8px'
                         }}>
-                          {firstActiveProject.name}
+                          No {cardTitle.toLowerCase()} found
                         </div>
                         <div style={{
-                          color: '#6b7280',
                           fontSize: '14px',
-                          marginBottom: '12px'
+                          color: '#9ca3af'
                         }}>
-                          {firstActiveProject.description || 'No description'}
-                        </div>
-                        <div style={{
-                          color: '#111827',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          marginBottom: '8px'
-                        }}>
-                          Progress
-                        </div>
-                        <div style={{
-                          width: '100%',
-                          height: '8px',
-                          backgroundColor: '#e5e7eb',
-                          borderRadius: '4px',
-                          overflow: 'hidden',
-                          marginBottom: '8px'
-                        }}>
-                          <div style={{
-                            width: `${progress}%`,
-                            height: '100%',
-                            backgroundColor: '#10b981',
-                            transition: 'width 0.3s ease'
-                          }} />
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#6b7280',
-                          marginBottom: '8px'
-                        }}>
-                          {progress}% completed ({completedTasks}/{totalTasks} tasks)
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#3b82f6',
-                          fontStyle: 'italic',
-                          marginTop: '8px'
-                        }}>
-                          Click to view full details
+                          There are no tasks matching this category at the moment.
                         </div>
                       </div>
-                    );
-                  })()}
-                </div>
-                
-                {/* Recent Tasks Panel */}
-                <div style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  padding: '24px',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '20px'
-                  }}>
-                    <h3 style={{
-                      fontSize: '18px',
-                      fontWeight: '600',
-                      color: '#111827',
-                      margin: 0
-                    }}>Recent Tasks</h3>
-                          </div>
-                  {filteredTasks.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {filteredTasks.slice(0, 3).map((task) => (
-                        <div 
-                          key={task.id || task._id}
-                          style={{
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onClick={() => {
-                            setSelectedTask(task);
-                            setIsTaskModalOpen(true);
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = '#3b82f6';
-                            e.currentTarget.style.backgroundColor = '#f8fafc';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = '#e5e7eb';
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        >
-                          <h4 style={{
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            color: '#111827',
-                            margin: 0,
-                            marginBottom: '8px'
-                          }}>{task.title}</h4>
-                          <p style={{
-                            fontSize: '14px',
-                            color: '#6b7280',
-                            margin: 0,
-                            marginBottom: '8px'
-                          }}>{task.description || 'No description available'}</p>
-                          <p style={{
-                            fontSize: '14px',
-                            color: '#6b7280',
-                            margin: 0,
-                            marginBottom: '8px'
-                          }}>Assigned to: {task.assignedToName || 'Unknown'}</p>
-                          <p style={{
-                            fontSize: '14px',
-                            color: (task.status !== 'Completed' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#ef4444' : task.status === 'Completed' ? '#10b981' : '#6b7280',
-                            margin: 0,
-                            marginBottom: '12px'
-                          }}>
-                            Start: {task.startDate ? new Date(task.startDate).toLocaleDateString() : 'No start date'}
-                          </p>
-                          <div style={{
-                            display: 'flex',
-                            gap: '8px',
-                            marginBottom: '12px'
-                          }}>
-                            <span style={{
-                              padding: '4px 8px',
-                              backgroundColor: task.priority === 'Urgent' ? '#fee2e2' : task.priority === 'Less Urgent' ? '#fef3c7' : '#f0f9ff',
-                              color: task.priority === 'Urgent' ? '#dc2626' : task.priority === 'Less Urgent' ? '#d97706' : '#0369a1',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              fontWeight: '500'
-                            }}>{task.priority} Priority</span>
-                            <span style={{
-                              padding: '4px 8px',
-                              backgroundColor: task.status === 'Completed' ? '#f0fdf4' : task.status === 'In Progress' ? '#fef3c7' : (task.status === 'Pending' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#fef2f2' : '#f3f4f6',
-                              color: task.status === 'Completed' ? '#16a34a' : task.status === 'In Progress' ? '#d97706' : (task.status === 'Pending' && task.dueDate && new Date(task.dueDate) < new Date()) ? '#dc2626' : '#6b7280',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              fontWeight: '500'
-                            }}>{task.status}</span>
-                          </div>
-                          <div style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            fontStyle: 'italic'
-                          }}>
-                            Click to view details
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p style={{
-                      color: '#6b7280',
-                      fontSize: '14px',
-                      margin: 0
-                    }}>No tasks assigned yet.</p>
                     )}
                   </div>
+                );
+              })()}
+
+              {/* Assigned Tasks Table */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                padding: '24px',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb',
+                marginTop: '24px'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '24px',
+                  paddingBottom: '16px',
+                  borderBottom: '2px solid #f3f4f6'
+                }}>
+                  <h3 style={{
+                    fontSize: '20px',
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0,
+                    letterSpacing: '-0.5px'
+                  }}>
+                    My Assigned Tasks
+                  </h3>
                 </div>
+                
+                {(() => {
+                  const employeeTasks = filteredTasks.filter(task => {
+                    const taskAssignedId = task.assignedToId || '';
+                    const userId = user?.id || '';
+                    return taskAssignedId === userId || String(taskAssignedId) === String(userId);
+                  });
+
+                  const priorityColors: Record<string, { bg: string; text: string }> = {
+                    'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                    'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                    'Free Time': { bg: '#d1fae5', text: '#059669' },
+                    'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                  };
+                  const statusColors: Record<string, { bg: string; text: string }> = {
+                    'Pending': { bg: '#fef3c7', text: '#d97706' },
+                    'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                    'Completed': { bg: '#d1fae5', text: '#059669' }
+                  };
+
+                  return employeeTasks.length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'separate',
+                        borderSpacing: 0
+                      }}>
+                        <thead style={{ 
+                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>
+                          <tr>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Priority
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Status
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Project Name
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Task Title
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Description / Remarks
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Work Done (%)
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Flag (Director Input Required)
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Date
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {employeeTasks.map((task, index) => {
+                            const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+                            const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+                            
+                            return (
+                              <tr
+                                key={task.id || task._id}
+                                style={{
+                                  borderBottom: index < employeeTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                  transition: 'all 0.2s ease',
+                                  backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
+                                  e.currentTarget.style.transform = 'scale(1.002)';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
+                                  e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                              >
+                                {/* Priority */}
+                                <td style={{
+                                  padding: '20px',
+                                  borderTopLeftRadius: index === 0 ? '12px' : '0',
+                                  borderBottomLeftRadius: index === employeeTasks.length - 1 ? '12px' : '0'
+                                }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    fontSize: '12px',
+                                    fontWeight: '700',
+                                    letterSpacing: '0.3px',
+                                    textTransform: 'uppercase',
+                                    backgroundColor: priorityColor.bg,
+                                    color: priorityColor.text,
+                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                  }}>
+                                    {task.priority || 'Less Urgent'}
+                                  </span>
+                                </td>
+                                {/* Status */}
+                                <td style={{ padding: '20px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    fontSize: '12px',
+                                    fontWeight: '700',
+                                    letterSpacing: '0.3px',
+                                    textTransform: 'uppercase',
+                                    backgroundColor: statusColor.bg,
+                                    color: statusColor.text,
+                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                  }}>
+                                    {task.status || 'Pending'}
+                                  </span>
+                                </td>
+                                {/* Project Name */}
+                                <td style={{ padding: '20px' }}>
+                                  <span style={{ 
+                                    fontSize: '14px', 
+                                    color: '#111827',
+                                    fontWeight: '500'
+                                  }}>
+                                    {task.projectName || 'N/A'}
+                                  </span>
+                                </td>
+                                {/* Task Title */}
+                                <td style={{ padding: '20px' }}>
+                                  <p style={{
+                                    fontSize: '15px',
+                                    fontWeight: '700',
+                                    color: '#111827',
+                                    margin: 0,
+                                    letterSpacing: '-0.3px'
+                                  }}>
+                                    {task.title}
+                                  </p>
+                                </td>
+                                {/* Description / Remarks */}
+                                <td style={{ padding: '20px' }}>
+                                  <p style={{
+                                    fontSize: '13px',
+                                    color: '#6b7280',
+                                    margin: 0,
+                                    lineHeight: '1.5',
+                                    maxWidth: '300px',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden'
+                                  }}>
+                                    {task.description || 'No description'}
+                                  </p>
+                                </td>
+                                {/* Work Done (%) */}
+                                <td style={{ padding: '20px' }}>
+                                  {editingWorkDone === (task.id || task._id) ? (
+                                    <select
+                                      value={workDoneValue}
+                                      onChange={(e) => {
+                                        setWorkDoneValue(Number(e.target.value));
+                                        handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
+                                      }}
+                                      onBlur={() => {
+                                        handleWorkDoneSave(task);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                          handleWorkDoneCancel();
+                                        }
+                                      }}
+                                      autoFocus
+                                      style={{
+                                        padding: '6px 12px',
+                                        border: '2px solid #3b82f6',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#ffffff',
+                                        color: '#4f46e5',
+                                        outline: 'none',
+                                        cursor: 'pointer',
+                                        minWidth: '100px'
+                                      }}
+                                    >
+                                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                                        <option key={percent} value={percent}>
+                                          {percent}%
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span
+                                      onClick={() => handleWorkDoneEdit(task)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#e0e7ff',
+                                        color: '#4f46e5',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#c7d2fe';
+                                        e.currentTarget.style.transform = 'scale(1.05)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#e0e7ff';
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                      }}
+                                      title="Click to edit Work Done (%)"
+                                    >
+                                      {task.workDone || 0}%
+                                    </span>
+                                  )}
+                                </td>
+                                {/* Flag (Director Input Required) */}
+                                <td style={{ padding: '20px' }}>
+                                  {task.flagDirectorInputRequired ? (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      backgroundColor: '#fee2e2',
+                                      color: '#dc2626'
+                                    }}>
+                                      Yes
+                                    </span>
+                                  ) : (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      backgroundColor: '#f3f4f6',
+                                      color: '#6b7280'
+                                    }}>
+                                      No
+                                    </span>
+                                  )}
+                                </td>
+                                {/* Date */}
+                                <td style={{ padding: '20px' }}>
+                                  <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px'
+                                  }}>
+                                    {/* Created Date */}
+                                    <div style={{
+                                      fontSize: '12px',
+                                      color: '#6b7280',
+                                      fontWeight: '500'
+                                    }}>
+                                      <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                      {task.startDate 
+                                        ? new Date(task.startDate).toLocaleDateString() 
+                                        : 'N/A'}
+                                    </div>
+                                    {/* Reminder Date */}
+                                    {task.reminderDate && (
+                                      <div style={{
+                                        fontSize: '12px',
+                                        color: '#dc2626',
+                                        fontWeight: '500',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                      }}>
+                                        <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                        {new Date(task.reminderDate).toLocaleDateString()}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                {/* Actions */}
+                                <td style={{
+                                  padding: '20px',
+                                  borderTopRightRadius: index === 0 ? '12px' : '0',
+                                  borderBottomRightRadius: index === employeeTasks.length - 1 ? '12px' : '0'
+                                }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedTask(task);
+                                      setIsTaskModalOpen(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '8px 14px',
+                                      backgroundColor: '#dbeafe',
+                                      border: 'none',
+                                      borderRadius: '8px',
+                                      color: '#1e40af',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dbeafe';
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                    }}
+                                  >
+                                    <Eye size={14} />
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '60px 20px',
+                      color: '#6b7280'
+                    }}>
+                      <div style={{
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        marginBottom: '8px'
+                      }}>
+                        No tasks assigned
+                      </div>
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#9ca3af'
+                      }}>
+                        You don't have any assigned tasks at the moment.
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
 
             </div>
           )}
@@ -1973,442 +2717,517 @@ const EmployeeDashboard: React.FC = () => {
                     borderCollapse: 'separate',
                     borderSpacing: 0
                   }}>
-                    <thead style={{
-                      background: 'linear-gradient(to right, #f9fafb, #f3f4f6)'
+                    <thead style={{ 
+                      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                      borderBottom: '2px solid #e5e7eb'
                     }}>
                       <tr>
                         <th style={{
-                          padding: '16px 24px',
+                          padding: '16px 20px',
                           textAlign: 'left',
-                          fontSize: '12px',
-                          fontWeight: '600',
+                          fontSize: '13px',
+                          fontWeight: '700',
                           color: '#374151',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
                         }}>
-                          PROJECT
+                          Priority
                         </th>
                         <th style={{
-                          padding: '16px 24px',
+                          padding: '16px 20px',
                           textAlign: 'left',
-                          fontSize: '12px',
-                          fontWeight: '600',
+                          fontSize: '13px',
+                          fontWeight: '700',
                           color: '#374151',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
                         }}>
-                          ASSIGNED BY
+                          Status
                         </th>
                         <th style={{
-                          padding: '16px 24px',
+                          padding: '16px 20px',
                           textAlign: 'left',
-                          fontSize: '12px',
-                          fontWeight: '600',
+                          fontSize: '13px',
+                          fontWeight: '700',
                           color: '#374151',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
                         }}>
-                          STATUS
+                          Project Name
                         </th>
                         <th style={{
-                          padding: '16px 24px',
+                          padding: '16px 20px',
                           textAlign: 'left',
-                          fontSize: '12px',
-                          fontWeight: '600',
+                          fontSize: '13px',
+                          fontWeight: '700',
                           color: '#374151',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
                         }}>
-                          PRIORITY
+                          Task Title
                         </th>
                         <th style={{
-                          padding: '16px 24px',
+                          padding: '16px 20px',
                           textAlign: 'left',
-                          fontSize: '12px',
-                          fontWeight: '600',
+                          fontSize: '13px',
+                          fontWeight: '700',
                           color: '#374151',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em'
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
                         }}>
-                          ACTIONS
+                          Description / Remarks
+                        </th>
+                        <th style={{
+                          padding: '16px 20px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#374151',
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>
+                          Work Done (%)
+                        </th>
+                        <th style={{
+                          padding: '16px 20px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#374151',
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>
+                          Flag (Director Input Required)
+                        </th>
+                        <th style={{
+                          padding: '16px 20px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#374151',
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>
+                          Date
+                        </th>
+                        <th style={{
+                          padding: '16px 20px',
+                          textAlign: 'left',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          color: '#374151',
+                          letterSpacing: '-0.3px',
+                          borderBottom: '2px solid #e5e7eb'
+                        }}>
+                          Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody style={{
-                      backgroundColor: '#ffffff'
-                    }}>
-                      {filteredTasks.map((task) => (
-                        <tr key={task.id || task._id} style={{
-                          borderBottom: '1px solid #e5e7eb',
-                          transition: 'background-color 0.2s ease',
-                          backgroundColor: task.flagDirectorInputRequired ? '#dc2626' : '#ffffff'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
-                        }}>
-                          <td style={{
-                            padding: '16px 24px',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center'
+                    <tbody>
+                      {filteredTasks.map((task, index) => {
+                        const priorityColors: Record<string, { bg: string; text: string }> = {
+                          'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                          'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                          'Free Time': { bg: '#d1fae5', text: '#059669' },
+                          'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                        };
+                        const statusColors: Record<string, { bg: string; text: string }> = {
+                          'Pending': { bg: '#fef3c7', text: '#d97706' },
+                          'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                          'Completed': { bg: '#d1fae5', text: '#059669' }
+                        };
+                        const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+                        const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+                        
+                        return (
+                          <tr
+                            key={task.id || task._id}
+                            style={{
+                              borderBottom: index < filteredTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                              transition: 'all 0.2s ease',
+                              backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                              cursor: 'pointer'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
+                              e.currentTarget.style.transform = 'scale(1.002)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
+                              e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                          >
+                            {/* Priority */}
+                            <td style={{
+                              padding: '20px',
+                              borderTopLeftRadius: index === 0 ? '12px' : '0',
+                              borderBottomLeftRadius: index === filteredTasks.length - 1 ? '12px' : '0'
                             }}>
-                              <div style={{
-                                width: '24px',
-                                height: '24px',
-                                background: 'linear-gradient(135deg, #e9d5ff 0%, #ddd6fe 100%)',
-                                borderRadius: '4px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginRight: '8px'
-                              }}>
-                                <svg style={{ width: '12px', height: '12px', color: '#7c3aed' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                </svg>
-                              </div>
-                              <span style={{
-                                fontSize: '14px',
-                                color: '#111827',
-                                fontWeight: '500'
-                              }}>{task.projectName || 'N/A'}</span>
-                            </div>
-                          </td>
-                          <td style={{
-                            padding: '16px 24px',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}>
-                              <div style={{
-                                width: '24px',
-                                height: '24px',
-                                background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginRight: '8px'
-                              }}>
-                                <svg style={{ width: '12px', height: '12px', color: '#4f46e5' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                              </div>
-                              <span style={{
-                                fontSize: '14px',
-                                color: '#111827',
-                                fontWeight: '500'
-                              }}>{task.assignedByName || 'N/A'}</span>
-                            </div>
-                          </td>
-                          <td style={{
-                            padding: '16px 24px',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <div style={{
-                              fontSize: '14px',
-                              color: '#111827',
-                              fontWeight: '500'
-                            }}>
-                              {task.estimatedHours && `Est: ${task.estimatedHours}h`}
-                            </div>
-                          </td>
-                          <td style={{
-                            padding: '16px 24px',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <span style={{
-                              display: 'inline-flex',
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              borderRadius: '6px',
-                              backgroundColor: task.status === 'Completed' ? '#dcfce7' :
-                                            task.status === 'In Progress' ? '#dbeafe' :
-                                            task.status === 'Pending' ? '#fef3c7' :
-                                            task.status === 'Overdue' ? '#fee2e2' :
-                                            '#f3f4f6',
-                              color: task.status === 'Completed' ? '#166534' :
-                                     task.status === 'In Progress' ? '#1e40af' :
-                                     task.status === 'Pending' ? '#92400e' :
-                                     task.status === 'Overdue' ? '#991b1b' :
-                                     '#374151'
-                            }}>
-                              {task.status || 'Unknown'}
-                            </span>
-                          </td>
-                          <td style={{
-                            padding: '16px 24px',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px'
-                            }}>
-                              <button
-                                onClick={async () => {
-                                  const taskId = task.id || task._id;
-                                  if (!taskId) return;
-                                  
-                                  const updatedTask = {
-                                    ...task,
-                                    flagDirectorInputRequired: !task.flagDirectorInputRequired
-                                  };
-                                  await handleTaskUpdate(updatedTask);
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: '6px 12px',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  fontSize: '12px',
-                                  fontWeight: '500',
-                                  backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
-                                  color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
-                                }}
-                                onMouseOut={(e) => {
-                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
-                                }}
-                                title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
-                              >
-                                Red Flag
-                              </button>
                               <span style={{
                                 display: 'inline-flex',
-                                padding: '6px 12px',
+                                alignItems: 'center',
+                                padding: '8px 16px',
+                                borderRadius: '10px',
                                 fontSize: '12px',
-                                fontWeight: '600',
-                                borderRadius: '6px',
-                                backgroundColor: task.priority === 'Urgent' ? '#fee2e2' :
-                                            task.priority === 'Less Urgent' ? '#fef3c7' :
-                                            task.priority === 'Free Time' ? '#dcfce7' :
-                                            '#f3f4f6',
-                                color: task.priority === 'Urgent' ? '#991b1b' :
-                                       task.priority === 'Less Urgent' ? '#92400e' :
-                                       task.priority === 'Free Time' ? '#166534' :
-                                       '#374151'
+                                fontWeight: '700',
+                                letterSpacing: '0.3px',
+                                textTransform: 'uppercase',
+                                backgroundColor: priorityColor.bg,
+                                color: priorityColor.text,
+                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                               }}>
-                              {task.priority || 'Less Urgent'}
-                            </span>
-                              {/* Show Edit, View, Delete buttons only for employee-created tasks */}
-                              {task.isEmployeeCreated ? (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedTask(task);
-                                      setIsTaskModalOpen(true);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      border: 'none',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
-                                      color: '#1d4ed8',
-                                      backgroundColor: '#dbeafe',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dbeafe';
-                                    }}
-                                    title="View Task Details"
-                                  >
-                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                    View
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedTask(task);
-                                      setIsTaskModalOpen(true);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      border: 'none',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
-                                      color: '#16a34a',
-                                      backgroundColor: '#dcfce7',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dcfce7';
-                                    }}
-                                    title="Edit Task"
-                                  >
-                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      const taskId = task.id || task._id;
-                                      if (taskId) {
-                                        handleTaskDelete(String(taskId));
-                                      }
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      border: 'none',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
-                                      color: '#dc2626',
-                                      backgroundColor: '#fee2e2',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fecaca';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fee2e2';
-                                    }}
-                                    title="Delete Task"
-                                  >
-                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                    Delete
-                                  </button>
-                                </>
+                                {task.priority || 'Less Urgent'}
+                              </span>
+                            </td>
+                            {/* Status */}
+                            <td style={{ padding: '20px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '8px 16px',
+                                borderRadius: '10px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                letterSpacing: '0.3px',
+                                textTransform: 'uppercase',
+                                backgroundColor: statusColor.bg,
+                                color: statusColor.text,
+                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                              }}>
+                                {task.status || 'Pending'}
+                              </span>
+                            </td>
+                            {/* Project Name */}
+                            <td style={{ padding: '20px' }}>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                color: '#111827',
+                                fontWeight: '500'
+                              }}>
+                                {task.projectName || 'N/A'}
+                              </span>
+                            </td>
+                            {/* Task Title */}
+                            <td style={{ padding: '20px' }}>
+                              <p style={{
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                color: '#111827',
+                                margin: 0,
+                                letterSpacing: '-0.3px'
+                              }}>
+                                {task.title}
+                              </p>
+                            </td>
+                            {/* Description / Remarks */}
+                            <td style={{ padding: '20px' }}>
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#6b7280',
+                                margin: 0,
+                                lineHeight: '1.5',
+                                maxWidth: '300px',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              }}>
+                                {task.description || 'No description'}
+                              </p>
+                            </td>
+                            {/* Work Done (%) */}
+                            <td style={{ padding: '20px' }}>
+                              {editingWorkDone === (task.id || task._id) ? (
+                                <select
+                                  value={workDoneValue}
+                                  onChange={(e) => {
+                                    setWorkDoneValue(Number(e.target.value));
+                                    handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
+                                  }}
+                                  onBlur={() => {
+                                    handleWorkDoneSave(task);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      handleWorkDoneCancel();
+                                    }
+                                  }}
+                                  autoFocus
+                                  style={{
+                                    padding: '6px 12px',
+                                    border: '2px solid #3b82f6',
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    backgroundColor: '#ffffff',
+                                    color: '#4f46e5',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                    minWidth: '100px'
+                                  }}
+                                >
+                                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                                    <option key={percent} value={percent}>
+                                      {percent}%
+                                    </option>
+                                  ))}
+                                </select>
                               ) : (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedTask(task);
-                                      setIsTaskModalOpen(true);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      border: 'none',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
-                                      color: '#1d4ed8',
-                                      backgroundColor: '#dbeafe',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dbeafe';
-                                    }}
-                                    title="View Task Details"
-                                  >
-                                    <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                    View
-                                  </button>
-                                  {task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
+                                <span
+                                  onClick={() => handleWorkDoneEdit(task)}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    backgroundColor: '#e0e7ff',
+                                    color: '#4f46e5',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#c7d2fe';
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#e0e7ff';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                  }}
+                                  title="Click to edit Work Done (%)"
+                                >
+                                  {task.workDone || 0}%
+                                </span>
+                              )}
+                            </td>
+                            {/* Flag (Director Input Required) */}
+                            <td style={{ padding: '20px' }}>
+                              {task.flagDirectorInputRequired ? (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#dc2626'
+                                }}>
+                                  Yes
+                                </span>
+                              ) : (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  backgroundColor: '#f3f4f6',
+                                  color: '#6b7280'
+                                }}>
+                                  No
+                                </span>
+                              )}
+                            </td>
+                            {/* Date */}
+                            <td style={{ padding: '20px' }}>
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                              }}>
+                                {/* Created Date */}
+                                <div style={{
+                                  fontSize: '12px',
+                                  color: '#6b7280',
+                                  fontWeight: '500'
+                                }}>
+                                  <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                  {task.startDate 
+                                    ? new Date(task.startDate).toLocaleDateString() 
+                                    : 'N/A'}
+                                </div>
+                                {/* Reminder Date */}
+                                {task.reminderDate && (
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: '#dc2626',
+                                    fontWeight: '500',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                    {new Date(task.reminderDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            {/* Actions */}
+                            <td style={{
+                              padding: '20px',
+                              borderTopRightRadius: index === 0 ? '12px' : '0',
+                              borderBottomRightRadius: index === filteredTasks.length - 1 ? '12px' : '0'
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                flexWrap: 'wrap'
+                              }}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTask(task);
+                                    setIsTaskModalOpen(true);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 14px',
+                                    backgroundColor: '#dbeafe',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: '#1e40af',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                  }}
+                                  onMouseOver={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                  }}
+                                  onMouseOut={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#dbeafe';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                  }}
+                                >
+                                  <Eye size={14} />
+                                  View
+                                </button>
+                                {/* Show Edit, Delete buttons only for employee-created tasks */}
+                                {task.isEmployeeCreated && (
+                                  <>
                                     <button
-                                      onClick={() => handleTaskCompleted(task)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTask(task);
+                                        setIsTaskModalOpen(true);
+                                      }}
                                       style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        padding: '6px 12px',
-                                        border: 'none',
-                                        fontSize: '12px',
-                                        fontWeight: '500',
-                                        borderRadius: '6px',
-                                        color: '#15803d',
+                                        gap: '6px',
+                                        padding: '8px 14px',
                                         backgroundColor: '#dcfce7',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#15803d',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s ease'
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
                                       }}
                                       onMouseOver={(e) => {
                                         e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
                                       }}
                                       onMouseOut={(e) => {
                                         e.currentTarget.style.backgroundColor = '#dcfce7';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
                                       }}
-                                      title="Request Completion Approval"
                                     >
-                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                      Complete
+                                      Edit
                                     </button>
-                                  )}
-                                  {task.completionRequestStatus === 'Pending' && (
-                                    <span style={{
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const taskId = task.id || task._id;
+                                        if (taskId) {
+                                          handleTaskDelete(String(taskId));
+                                        }
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        backgroundColor: '#fee2e2',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#dc2626',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fecaca';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
+                                {/* Show Complete button for non-employee-created tasks */}
+                                {!task.isEmployeeCreated && task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTaskCompleted(task);
+                                    }}
+                                    style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      padding: '6px 12px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
-                                      color: '#f59e0b',
-                                      backgroundColor: '#fef3c7'
-                                    }}>
-                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      Pending Approval
-                                    </span>
-                                  )}
-                                  {task.status === 'Completed' && (
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
+                                      gap: '6px',
+                                      padding: '8px 14px',
+                                      backgroundColor: '#dcfce7',
                                       border: 'none',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      borderRadius: '6px',
+                                      borderRadius: '8px',
                                       color: '#15803d',
-                                      backgroundColor: '#dcfce7'
-                                    }}>
-                                      <svg style={{ width: '14px', height: '14px', marginRight: '4px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                      Completed
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease',
+                                      boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dcfce7';
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
+                                    }}
+                                  >
+                                    Complete
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

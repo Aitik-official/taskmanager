@@ -90,6 +90,7 @@ export interface Task {
   isEmployeeCreated?: boolean; // Flag to identify tasks created by employees from employee dashboard
   workDone?: number; // Percentage of work done (0-100)
   flagDirectorInputRequired?: boolean; // Flag when staff needs clarification, approval, or input
+  reminderDate?: string; // Date when the assigned employee should receive a reminder for this task
 }
 
 export interface Comment {

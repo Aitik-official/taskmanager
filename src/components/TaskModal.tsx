@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Task, Project, User, Employee } from '../types';
-import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell } from 'lucide-react';
 import { taskApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { createProject, deleteProject } from '../services/projectService';
@@ -44,7 +44,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
     directorRating: undefined,
     isLocked: false,
     workDone: 0,
-    flagDirectorInputRequired: false
+    flagDirectorInputRequired: false,
+    reminderDate: ''
   });
   const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
   
@@ -65,10 +66,37 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   useEffect(() => {
     if (task) {
-      setFormData({
+      // Normalize assignedToId to match the format used in select options
+      let normalizedAssignedToId = task.assignedToId || '';
+      let normalizedAssignedToName = task.assignedToName || '';
+      
+      if (normalizedAssignedToId && users.length > 0) {
+        // Try to find matching user to ensure ID format consistency
+        const matchingUser = users.find(u => {
+          const userId = u.id || ('_id' in u ? u._id : '') || '';
+          return userId === normalizedAssignedToId || 
+                 (u.id && u.id === normalizedAssignedToId) ||
+                 ('_id' in u && u._id === normalizedAssignedToId);
+        });
+        if (matchingUser) {
+          normalizedAssignedToId = matchingUser.id || ('_id' in matchingUser ? matchingUser._id : '') || normalizedAssignedToId;
+          // Update name if not set or if it doesn't match
+          if (!normalizedAssignedToName) {
+            normalizedAssignedToName = 'name' in matchingUser 
+              ? matchingUser.name 
+              : `${matchingUser.firstName} ${matchingUser.lastName}`;
+          }
+        }
+      }
+      
+      setFormData(prev => ({
+        ...prev,
         ...task,
-        dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : '')
-      });
+        assignedToId: normalizedAssignedToId,
+        assignedToName: normalizedAssignedToName,
+        dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
+        reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : ''
+      }));
     } else if (isEmployee && user) {
       // When creating a new task as an employee, pre-fill with employee's own ID
       setFormData({
@@ -83,10 +111,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
         directorRating: undefined,
         isLocked: false,
         workDone: 0,
-        flagDirectorInputRequired: false
+        flagDirectorInputRequired: false,
+        reminderDate: ''
       });
     }
-  }, [task, isEmployee, user]);
+  }, [task, isEmployee, user, users]);
 
 
   const handleInputChange = (field: keyof Task, value: any) => {
@@ -102,7 +131,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
       }
       
       if (field === 'assignedToId') {
-        const user = users.find(u => u.id === value);
+        const user = users.find(u => {
+          const userId = u.id || ('_id' in u ? u._id : '') || '';
+          return userId === value;
+        });
         if (user) {
           // Handle both User and Employee types
           const userName = 'name' in user 
@@ -119,18 +151,26 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Set default assignedToId if not provided (for employees, use their own ID)
-    const defaultAssignedToId = formData.assignedToId || (isEmployee ? (user?.id || '') : '');
-    const defaultAssignedToName = formData.assignedToName || (() => {
-      if (isEmployee && user) {
-        return user.name || user.email || '';
-      }
-      const foundUser = users.find(u => u.id === defaultAssignedToId);
+    // Get assignedToId from formData, with fallback for employees
+    const assignedToId = formData.assignedToId || (isEmployee ? (user?.id || '') : '');
+    
+    // Get assignedToName from formData, or find it from users array
+    let assignedToName = formData.assignedToName || '';
+    if (!assignedToName && assignedToId) {
+      const foundUser = users.find(u => {
+        const userId = u.id || ('_id' in u ? u._id : '') || '';
+        return userId === assignedToId;
+      });
       if (foundUser) {
-        return 'name' in foundUser ? foundUser.name : `${foundUser.firstName} ${foundUser.lastName}`;
+        assignedToName = 'name' in foundUser 
+          ? foundUser.name 
+          : `${foundUser.firstName} ${foundUser.lastName}`;
       }
-      return '';
-    })();
+    }
+    // Final fallback for employees
+    if (!assignedToName && isEmployee && user) {
+      assignedToName = user.name || user.email || '';
+    }
     
     const taskData: Task = {
       id: task?.id || task?._id || Date.now().toString(),
@@ -140,8 +180,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
       description: formData.description || '',
       projectId: formData.projectId || '',
       projectName: formData.projectName || projects.find(p => p.id === formData.projectId)?.name || '',
-      assignedToId: defaultAssignedToId,
-      assignedToName: defaultAssignedToName,
+      assignedToId: assignedToId,
+      assignedToName: assignedToName,
       assignedById: task?.assignedById || user?.id || '1',
       assignedByName: task?.assignedByName || user?.name || 'Admin',
       priority: (formData.priority || 'Less Urgent') as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom',
@@ -160,7 +200,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
       reasonForExtension: task?.reasonForExtension,
       extensionRequestStatus: task?.extensionRequestStatus || 'Pending',
       workDone: formData.workDone || 0,
-      flagDirectorInputRequired: formData.flagDirectorInputRequired || false
+      flagDirectorInputRequired: formData.flagDirectorInputRequired || false,
+      reminderDate: formData.reminderDate || undefined
     };
 
     onSave(taskData);
@@ -793,7 +834,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     setFormData({
                       ...task,
                       dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
-                      startDate: task.startDate ? task.startDate.split('T')[0] : ''
+                      startDate: task.startDate ? task.startDate.split('T')[0] : '',
+                      reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : ''
                     });
                     console.log('Form data set:', {
                       ...task,
@@ -906,6 +948,45 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 <option value="Free Time">Free Time</option>
                 {isEmployee && <option value="Custom">Custom</option>}
                 </select>
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Status *
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => handleInputChange('status', e.target.value as 'Pending' | 'Completed' | 'In Progress')}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  backgroundColor: '#ffffff'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                required
+              >
+                <option value="Pending">Pending</option>
+                <option value="Completed">Completed</option>
+                <option value="In Progress">In Progress</option>
+              </select>
             </div>
 
             <div>
@@ -1494,33 +1575,36 @@ const TaskModal: React.FC<TaskModalProps> = ({
               }}>
                 Assigned Employee *
               </label>
-              <select
-                value={formData.assignedToId || ''}
-                onChange={(e) => handleInputChange('assignedToId', e.target.value)}
+                <select
+                value={String(formData.assignedToId || '')}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  handleInputChange('assignedToId', newValue);
+                }}
                 disabled={isEmployee}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
                   backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
                   cursor: isEmployee ? 'not-allowed' : 'pointer'
-                }}
-                onFocus={(e) => {
+                  }}
+                  onFocus={(e) => {
                   if (!isEmployee) {
                     e.currentTarget.style.borderColor = '#3b82f6';
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
                   }
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 required
-              >
+                >
                 <option value="">Select Employee</option>
                 {users
                   .filter(u => {
@@ -1544,10 +1628,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     return (
                       <option key={userId} value={userId}>
                         {userName}
-                      </option>
+                    </option>
                     );
                   })}
-              </select>
+                </select>
             </div>
             </div>
 
@@ -1772,6 +1856,54 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     Used when staff needs clarification, approval, or input
                   </p>
                 </div>
+          </div>
+
+          {/* Reminder Date Field */}
+          <div>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#374151',
+              marginBottom: '8px'
+            }}>
+              <Bell size={16} color="#6b7280" />
+              Reminder Date
+            </label>
+            <input
+              type="date"
+              value={formData.reminderDate || ''}
+              onChange={(e) => handleInputChange('reminderDate', e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                outline: 'none',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                backgroundColor: '#ffffff'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#3b82f6';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#d1d5db';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            />
+            <p style={{
+              fontSize: '12px',
+              color: '#6b7280',
+              marginTop: '4px',
+              margin: 0
+            }}>
+              Select a date to send a reminder to the assigned employee about this task
+            </p>
           </div>
 
           {/* Comments Section */}
@@ -2259,6 +2391,45 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
+                  Status *
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => handleInputChange('status', e.target.value as 'Pending' | 'Completed' | 'In Progress')}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Completed">Completed</option>
+                  <option value="In Progress">In Progress</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
                   Project Name
                 </label>
                 {isDirector ? (
@@ -2547,14 +2718,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     {/* Custom Dropdown Button */}
                     <div
                       onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
                         paddingRight: '40px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
                         backgroundColor: '#ffffff',
                         cursor: 'pointer',
                         display: 'flex',
@@ -2606,7 +2777,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           onClick={() => {
                             handleInputChange('projectId', '');
                             setIsProjectDropdownOpen(false);
-                          }}
+                    }}
                           style={{
                             padding: '10px 12px',
                             cursor: 'pointer',
@@ -2625,8 +2796,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                             if (formData.projectId !== '') {
                               e.currentTarget.style.backgroundColor = 'transparent';
                             }
-                          }}
-                        >
+                    }}
+                  >
                           <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                         </div>
                         
@@ -2669,7 +2840,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                                   fontWeight: isSelected ? '500' : '400'
                                 }}
                               >
-                                {project.name}
+                        {project.name}
                               </span>
                               <button
                                 type="button"
@@ -2827,71 +2998,74 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </div>
 
               {/* Assigned Employee Field - Show for all users */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Assigned Employee *
-                </label>
-                <select
-                  value={formData.assignedToId || ''}
-                  onChange={(e) => handleInputChange('assignedToId', e.target.value)}
-                  disabled={isEmployee}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
+                <div>
+                  <label style={{
+                    display: 'block',
                     fontSize: '14px',
-                    fontFamily: 'inherit',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Assigned Employee *
+                  </label>
+                  <select
+                    value={String(formData.assignedToId || '')}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      handleInputChange('assignedToId', newValue);
+                    }}
+                  disabled={isEmployee}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
                     backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
                     cursor: isEmployee ? 'not-allowed' : 'pointer'
-                  }}
-                  onFocus={(e) => {
+                    }}
+                    onFocus={(e) => {
                     if (!isEmployee) {
                       e.currentTarget.style.borderColor = '#3b82f6';
                       e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
                     }
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  <option value="">Select Employee</option>
-                  {users
-                    .filter(u => {
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    required
+                  >
+                    <option value="">Select Employee</option>
+                    {users
+                      .filter(u => {
                       // For employees, only show themselves
                       if (isEmployee) {
                         const userId = u.id || ('_id' in u ? u._id : '') || '';
                         return userId === user?.id;
                       }
                       // For directors/project heads, show all employees
-                      if ('role' in u) {
-                        return u.role === 'Employee';
-                      }
-                      // If it's an Employee type (has firstName), include it
-                      return 'firstName' in u;
-                    })
-                    .map(u => {
-                      const userId = u.id || ('_id' in u ? u._id : '') || '';
-                      const userName = 'name' in u 
-                        ? u.name 
-                        : `${u.firstName} ${u.lastName}`;
-                      return (
-                        <option key={userId} value={userId}>
-                          {userName}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
+                        if ('role' in u) {
+                          return u.role === 'Employee';
+                        }
+                        // If it's an Employee type (has firstName), include it
+                        return 'firstName' in u;
+                      })
+                      .map(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        const userName = 'name' in u 
+                          ? u.name 
+                          : `${u.firstName} ${u.lastName}`;
+                        return (
+                          <option key={userId} value={userId}>
+                            {userName}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -3081,39 +3255,54 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       ))}
                     </select>
                   </div>
+            </div>
 
-                  <div>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                  cursor: 'pointer',
-                  marginBottom: '8px'
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.flagDirectorInputRequired || false}
-                        onChange={(e) => handleInputChange('flagDirectorInputRequired', e.target.checked)}
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          cursor: 'pointer'
-                        }}
-                      />
-                      <span>Flag (Director Input Required)</span>
-                    </label>
-                    <p style={{
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      marginTop: '4px',
-                      margin: 0
-                    }}>
-                      Used when staff needs clarification, approval, or input
-                    </p>
-                  </div>
+            {/* Reminder Date Field - Create Form */}
+            <div>
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                <Bell size={16} color="#6b7280" />
+                Reminder Date
+              </label>
+              <input
+                type="date"
+                value={formData.reminderDate || ''}
+                onChange={(e) => handleInputChange('reminderDate', e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  backgroundColor: '#ffffff'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#6b7280',
+                marginTop: '4px',
+                margin: 0
+              }}>
+                Select a date to send a reminder to the assigned employee about this task
+              </p>
             </div>
 
             <div style={{
