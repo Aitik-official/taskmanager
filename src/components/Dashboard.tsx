@@ -18,7 +18,7 @@ import { getProjects, createProject, updateProject, deleteProject } from '../ser
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { taskApi } from '../services/api';
 import { getAllIndependentWork, updateIndependentWork, deleteIndependentWork, addComment } from '../services/independentWorkService';
-import { Download, Database, FolderKanban, CheckCircle2, Clock, AlertCircle, Users, TrendingUp, ArrowRight, Search, Filter, Eye, CheckCircle, Trash2, FileText, Calendar, User as UserIcon, X, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Database, FolderKanban, CheckCircle2, Clock, AlertCircle, Users, TrendingUp, ArrowRight, Search, Filter, Eye, CheckCircle, Trash2, FileText, Calendar, User as UserIcon, X, Edit, ChevronLeft, ChevronRight, CheckSquare, FileCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // Helper function to download files without external dependencies
 const downloadFile = (data: Blob, filename: string) => {
@@ -114,9 +114,16 @@ const Dashboard: React.FC = () => {
  
   // Project filters
   const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [projectNameFilter, setProjectNameFilter] = useState('');
+  const [projectNumberFilter, setProjectNumberFilter] = useState('');
+  const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | 'Current' | 'Upcoming' | 'Sleeping (On Hold)' | 'Completed'>('all');
   const [projectStaffFilter, setProjectStaffFilter] = useState<string>('all');
   const [projectDateRangeStart, setProjectDateRangeStart] = useState('');
   const [projectDateRangeEnd, setProjectDateRangeEnd] = useState('');
+  
+  // Employee filters
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'all' | 'Active' | 'Inactive' | 'On Leave'>('all');
+  const [employeeRoleFilter, setEmployeeRoleFilter] = useState<'all' | 'Director' | 'Project Head' | 'Employee'>('all');
   const [viewingEntry, setViewingEntry] = useState<IndependentWork | null>(null);
   const [editingEntry, setEditingEntry] = useState<IndependentWork | null>(null);
   const [editForm, setEditForm] = useState({
@@ -329,7 +336,7 @@ const Dashboard: React.FC = () => {
         { 'Total Employees': employees.length },
         { 'Total Projects': projects.length },
         { 'Total Tasks': tasks.length },
-        { 'Active Projects': projects.filter(p => p.status === 'Active').length },
+        { 'Current Projects': projects.filter(p => p.status === 'Current').length },
         { 'Completed Tasks': tasks.filter(t => t.status === 'Completed').length },
         { 'Pending Tasks': tasks.filter(t => t.status === 'Pending').length },
         { 'In Progress Tasks': tasks.filter(t => t.status === 'In Progress').length },
@@ -677,7 +684,7 @@ const Dashboard: React.FC = () => {
     const overdueTasks = tasks.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
     const inProgressTasks = tasks.filter(t => t.status === 'In Progress').length;
     const totalProjects = projects.length;
-    const activeProjects = projects.filter(p => p.status === 'Active').length;
+    const activeProjects = projects.filter(p => p.status === 'Current').length;
     const activeEmployees = employees.filter(e => e.status === 'Active').length;
 
     setStats({
@@ -847,6 +854,50 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleProjectSave = async (project: Project) => {
+    try {
+      const projectId = project.id || project._id;
+      
+      if (!projectId) {
+        // New project - create it
+        const projectToCreate = { ...project };
+        delete projectToCreate.id;
+        delete projectToCreate._id;
+        
+        console.log('Creating project with data:', JSON.stringify(projectToCreate, null, 2));
+        
+        await createProject(projectToCreate);
+      } else {
+        // Existing project - update it
+        console.log('Updating project with data:', JSON.stringify(project, null, 2));
+        
+        await updateProject(projectId, project);
+      }
+      
+      await loadProjects(); // Reload projects from database
+    } catch (error: any) {
+      console.error('Error saving project:', error);
+      alert(`Error saving project: ${error.response?.data?.message || error.message}`);
+      throw error;
+    }
+  };
+
+  const handleProjectDelete = async (projectId: string) => {
+    try {
+      // Confirm with user
+      if (!window.confirm(`Are you sure you want to delete this project? This action cannot be undone.`)) {
+        return;
+      }
+      
+      await deleteProject(projectId);
+      await loadProjects(); // Reload projects from database
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      alert(`Error deleting project: ${error.response?.data?.message || error.message}`);
+      throw error;
+    }
+  };
+
   const handleTaskUpdate = async (updatedTask: Task) => {
     console.log('handleTaskUpdate called with:', updatedTask);
     console.log('Task comments:', updatedTask.comments);
@@ -985,7 +1036,7 @@ const Dashboard: React.FC = () => {
       if (taskPriorityFilter === 'Red Flag') {
         filtered = filtered.filter(task => task.flagDirectorInputRequired === true);
       } else {
-        filtered = filtered.filter(task => task.priority === taskPriorityFilter);
+      filtered = filtered.filter(task => task.priority === taskPriorityFilter);
       }
     }
 
@@ -1042,19 +1093,40 @@ const Dashboard: React.FC = () => {
           filtered = filtered.filter(project => project.status === 'Completed');
           break;
         case 'pending':
-          filtered = filtered.filter(project => project.status === 'Active' || project.status === 'On Hold');
+          filtered = filtered.filter(project => project.status === 'Current' || project.status === 'Upcoming' || project.status === 'Sleeping (On Hold)');
           break;
         default:
           break;
       }
     }
 
-    // Apply search filter (project name)
+    // Apply search filter (general search)
     if (projectSearchTerm.trim()) {
       filtered = filtered.filter(project => 
         project.name.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
-        project.description?.toLowerCase().includes(projectSearchTerm.toLowerCase())
+        project.description?.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
+        project.projectNumber?.toLowerCase().includes(projectSearchTerm.toLowerCase()) ||
+        project.location?.toLowerCase().includes(projectSearchTerm.toLowerCase())
       );
+    }
+
+    // Apply project name filter
+    if (projectNameFilter.trim()) {
+      filtered = filtered.filter(project => 
+        project.name.toLowerCase().includes(projectNameFilter.toLowerCase())
+      );
+    }
+
+    // Apply project number filter
+    if (projectNumberFilter.trim()) {
+      filtered = filtered.filter(project => 
+        project.projectNumber?.toLowerCase().includes(projectNumberFilter.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (projectStatusFilter !== 'all') {
+      filtered = filtered.filter(project => project.status === projectStatusFilter);
     }
 
     // Apply staff name filter
@@ -1091,7 +1163,24 @@ const Dashboard: React.FC = () => {
     }
 
     return filtered;
-  }, [projects, user, isEmployee, isDirector, projectFilter, projectSearchTerm, projectStaffFilter, projectSourceFilter, projectDateRangeStart, projectDateRangeEnd, employees]);
+  }, [projects, user, isEmployee, isDirector, projectFilter, projectSearchTerm, projectNameFilter, projectNumberFilter, projectStatusFilter, projectStaffFilter, projectSourceFilter, projectDateRangeStart, projectDateRangeEnd, employees]);
+
+  // Filter employees by status and role
+  const filteredEmployees = useMemo(() => {
+    let filtered: Employee[] = employees;
+
+    // Apply status filter
+    if (employeeStatusFilter !== 'all') {
+      filtered = filtered.filter(employee => employee.status === employeeStatusFilter);
+    }
+
+    // Apply role filter
+    if (employeeRoleFilter !== 'all') {
+      filtered = filtered.filter(employee => employee.role === employeeRoleFilter);
+    }
+
+    return filtered;
+  }, [employees, employeeStatusFilter, employeeRoleFilter]);
 
   // Debug logging for projects
   console.log('Projects state:', projects);
@@ -1360,82 +1449,82 @@ const Dashboard: React.FC = () => {
                     background: 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '50%'
                   }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
                             Urgent Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
                             <AlertCircle size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {employeePriorityStats.urgentTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <AlertCircle size={12} />
-                          <span>High priority tasks</span>
-                        </div>
                       </div>
                     </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
+                          {employeePriorityStats.urgentTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                          <AlertCircle size={12} />
+                          <span>High priority tasks</span>
+                    </div>
+                  </div>
+                </div>
 
                     {/* Less Urgent Tasks Card - Employee Only */}
-                    <div style={{
+                <div style={{
                       background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                      color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
                       boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
                       e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
                     }}
                     onClick={() => {
                       setActiveTab('tasks');
                       setTaskPriorityFilter('Less Urgent');
-                    }}>
+                }}>
                   <div style={{
                     position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
                     borderRadius: '50%'
                   }} />
                   <div style={{ position: 'relative', zIndex: 1 }}>
@@ -1502,62 +1591,62 @@ const Dashboard: React.FC = () => {
                 onMouseOut={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
-                    }}
+                }}
                     onClick={() => {
                       setActiveTab('tasks');
                       setTaskPriorityFilter('Free Time');
                     }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
                             Free Time Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
                             <CheckCircle size={20} />
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
                           {employeePriorityStats.freeTimeTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
                           gap: '4px'
-                        }}>
+                    }}>
                           <CheckCircle size={12} />
                           <span>Low priority tasks</span>
-                        </div>
+                    </div>
                       </div>
                     </div>
 
@@ -1566,18 +1655,18 @@ const Dashboard: React.FC = () => {
                       background: 'linear-gradient(135deg, #06ffa5 0%, #00d4aa 100%)',
                       borderRadius: '16px',
                       padding: '24px',
-                      color: '#ffffff',
+                        color: '#ffffff',
                       position: 'relative',
                       overflow: 'hidden',
                       boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
                       transition: 'all 0.3s ease',
                       cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
+                      }}
+                      onMouseOver={(e) => {
                       e.currentTarget.style.transform = 'translateY(-4px)';
                       e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
+                      }}
+                      onMouseOut={(e) => {
                       e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
                     }}
@@ -1616,9 +1705,9 @@ const Dashboard: React.FC = () => {
                         backdropFilter: 'blur(10px)'
                       }}>
                         <CheckCircle2 size={20} />
-                      </div>
-                    </div>
-                    <div style={{
+                  </div>
+                </div>
+                <div style={{
                       fontSize: '36px',
                       fontWeight: '700',
                       margin: '0 0 8px 0',
@@ -1641,28 +1730,105 @@ const Dashboard: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {/* Urgent Tasks Card - Director */}
+                    {/* Total Tasks Card - Director */}
                     <div style={{
-                      background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  color: '#ffffff',
+                  position: 'relative',
+                  overflow: 'hidden',
+                      boxShadow: '0 10px 25px -5px rgba(102, 126, 234, 0.3)',
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(102, 126, 234, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(102, 126, 234, 0.3)';
+                }}
+                    onClick={() => {
+                      setActiveTab('tasks');
+                    }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-20px',
+                    right: '-20px',
+                    width: '100px',
+                    height: '100px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '50%'
+                  }} />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <h3 style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        margin: 0,
+                        opacity: 0.95,
+                        letterSpacing: '0.5px'
+                      }}>
+                            Total Tasks
+                      </h3>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        background: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backdropFilter: 'blur(10px)'
+                      }}>
+                            <CheckSquare size={20} />
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: '36px',
+                      fontWeight: '700',
+                      margin: '0 0 8px 0',
+                      letterSpacing: '-1px'
+                    }}>
+                          {stats.totalTasks}
+                    </div>
+                    <div style={{
+                      fontSize: '12px',
+                      opacity: 0.8,
+                      display: 'flex',
+                      alignItems: 'center',
+                          gap: '4px'
+                    }}>
+                          <CheckSquare size={12} />
+                          <span>All tasks</span>
+                    </div>
+                      </div>
+                    </div>
+
+                    {/* Total Projects Card - Director */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
                       borderRadius: '16px',
                       padding: '24px',
-                      color: '#ffffff',
+                        color: '#ffffff',
                       position: 'relative',
                       overflow: 'hidden',
-                      boxShadow: '0 10px 25px -5px rgba(255, 107, 107, 0.3)',
+                      boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
                       transition: 'all 0.3s ease',
                       cursor: 'pointer'
-                    }}
-                    onMouseOver={(e) => {
+                      }}
+                      onMouseOver={(e) => {
                       e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(255, 107, 107, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
+                      }}
+                      onMouseOut={(e) => {
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
                     }}
                     onClick={() => {
-                      setSelectedPriorityCard(selectedPriorityCard === 'urgent' ? null : 'urgent');
+                      setActiveTab('projects');
                     }}>
                       <div style={{
                         position: 'absolute',
@@ -1682,7 +1848,7 @@ const Dashboard: React.FC = () => {
                             opacity: 0.95,
                             letterSpacing: '0.5px'
                           }}>
-                            Urgent Tasks
+                            Total Projects
                           </h3>
                           <div style={{
                             width: '40px',
@@ -1694,7 +1860,7 @@ const Dashboard: React.FC = () => {
                             justifyContent: 'center',
                             backdropFilter: 'blur(10px)'
                           }}>
-                            <AlertCircle size={20} />
+                            <FolderKanban size={20} />
                           </div>
                         </div>
                         <div style={{
@@ -1703,7 +1869,7 @@ const Dashboard: React.FC = () => {
                           margin: '0 0 8px 0',
                           letterSpacing: '-1px'
                         }}>
-                          {directorPriorityStats.urgentTasks}
+                          {stats.totalProjects}
                         </div>
                         <div style={{
                           fontSize: '12px',
@@ -1712,246 +1878,13 @@ const Dashboard: React.FC = () => {
                           alignItems: 'center',
                           gap: '4px'
                         }}>
-                          <AlertCircle size={12} />
-                          <span>High priority tasks</span>
+                          <FolderKanban size={12} />
+                          <span>All projects</span>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Less Urgent Tasks Card - Director */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
-                }}
-                    onClick={() => {
-                      setSelectedPriorityCard(selectedPriorityCard === 'lessUrgent' ? null : 'lessUrgent');
-                    }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
-                      }}>
-                            Less Urgent Tasks
-                      </h3>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                      }}>
-                        <Clock size={20} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                          {directorPriorityStats.lessUrgentTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                          gap: '4px'
-                    }}>
-                      <Clock size={12} />
-                          <span>Medium priority tasks</span>
-                    </div>
                   </div>
                 </div>
-                
-                    {/* Free Time Tasks Card - Director */}
-                <div style={{
-                      background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                      boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
-                }}
-                    onClick={() => {
-                      setSelectedPriorityCard(selectedPriorityCard === 'freeTime' ? null : 'freeTime');
-                    }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
-                      }}>
-                            Free Time Tasks
-                      </h3>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                      }}>
-                            <CheckCircle size={20} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                          {directorPriorityStats.freeTimeTasks}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                          gap: '4px'
-                    }}>
-                          <CheckCircle size={12} />
-                          <span>Low priority tasks</span>
-                    </div>
-                      </div>
-                    </div>
 
-                    {/* Completed Tasks Card - Director */}
-                    <div style={{
-                      background: 'linear-gradient(135deg, #06ffa5 0%, #00d4aa 100%)',
-                      borderRadius: '16px',
-                      padding: '24px',
-                        color: '#ffffff',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer'
-                      }}
-                      onMouseOver={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
-                      }}
-                      onMouseOut={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
-                    }}
-                    onClick={() => {
-                      setSelectedPriorityCard(selectedPriorityCard === 'completed' ? null : 'completed');
-                    }}>
-                      <div style={{
-                        position: 'absolute',
-                        top: '-20px',
-                        right: '-20px',
-                        width: '100px',
-                        height: '100px',
-                        background: 'rgba(255, 255, 255, 0.1)',
-                        borderRadius: '50%'
-                      }} />
-                      <div style={{ position: 'relative', zIndex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            margin: 0,
-                            opacity: 0.95,
-                            letterSpacing: '0.5px'
-                          }}>
-                            Completed Tasks
-                          </h3>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            background: 'rgba(255, 255, 255, 0.2)',
-                            borderRadius: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(10px)'
-                          }}>
-                            <CheckCircle2 size={20} />
-                  </div>
-                </div>
-                        <div style={{
-                          fontSize: '36px',
-                          fontWeight: '700',
-                          margin: '0 0 8px 0',
-                          letterSpacing: '-1px'
-                        }}>
-                          {directorPriorityStats.totalCompletedTasks}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          opacity: 0.8,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <CheckCircle2 size={12} />
-                          <span>Tasks finished</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Active Employees Card */}
+                    {/* Total Employees Card - Director */}
                 <div style={{
                   background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
                   borderRadius: '16px',
@@ -1971,9 +1904,9 @@ const Dashboard: React.FC = () => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(79, 172, 254, 0.3)';
                 }}
-                onClick={() => {
-                  setShowActiveEmployees(!showActiveEmployees);
-                }}>
+                    onClick={() => {
+                      setActiveTab('employees');
+                    }}>
                   <div style={{
                     position: 'absolute',
                     top: '-20px',
@@ -1992,7 +1925,7 @@ const Dashboard: React.FC = () => {
                         opacity: 0.95,
                         letterSpacing: '0.5px'
                       }}>
-                        Active Employees
+                            Total Employees
                       </h3>
                       <div style={{
                         width: '40px',
@@ -2013,49 +1946,99 @@ const Dashboard: React.FC = () => {
                       margin: '0 0 8px 0',
                       letterSpacing: '-1px'
                     }}>
-                      {stats.activeEmployees}
+                          {employees.length}
                     </div>
                     <div style={{
                       fontSize: '12px',
                       opacity: 0.8,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px',
-                      marginBottom: '8px'
+                          gap: '4px'
                     }}>
                       <Users size={12} />
                       <span>Team members</span>
                     </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowActiveEmployees(!showActiveEmployees);
-                      }}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.25)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '6px 12px',
+                      </div>
+                    </div>
+
+                    {/* Approvals Card - Director */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                      borderRadius: '16px',
+                      padding: '24px',
                         color: '#ffffff',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        backdropFilter: 'blur(10px)'
+                      position: 'relative',
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 25px -5px rgba(250, 112, 154, 0.3)',
+                      transition: 'all 0.3s ease',
+                      cursor: 'pointer'
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(250, 112, 154, 0.4)';
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
-                      }}>
-                      View All <ArrowRight size={12} />
-                    </button>
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(250, 112, 154, 0.3)';
+                    }}
+                    onClick={() => {
+                      setActiveTab('approvals');
+                    }}>
+                      <div style={{
+                        position: 'absolute',
+                        top: '-20px',
+                        right: '-20px',
+                        width: '100px',
+                        height: '100px',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        borderRadius: '50%'
+                      }} />
+                      <div style={{ position: 'relative', zIndex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                          <h3 style={{
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            margin: 0,
+                            opacity: 0.95,
+                            letterSpacing: '0.5px'
+                          }}>
+                            Approvals
+                          </h3>
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backdropFilter: 'blur(10px)'
+                          }}>
+                            <FileCheck size={20} />
                   </div>
                 </div>
+                        <div style={{
+                          fontSize: '36px',
+                          fontWeight: '700',
+                          margin: '0 0 8px 0',
+                          letterSpacing: '-1px'
+                        }}>
+                          {completionRequests.filter(task => task.completionRequestStatus === 'Pending').length}
+              </div>
+              <div style={{
+                          fontSize: '12px',
+                          opacity: 0.8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <FileCheck size={12} />
+                          <span>Pending approvals</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               
               {/* Priority Tasks Table - Director Only */}
@@ -2303,7 +2286,7 @@ const Dashboard: React.FC = () => {
                                   <td style={{ padding: '16px' }}>
                         <div style={{
                                       fontSize: '13px',
-                                      color: '#111827',
+                          color: '#111827',
                                       fontWeight: '500'
                         }}>
                                       {task.projectName || 'N/A'}
@@ -2341,7 +2324,7 @@ const Dashboard: React.FC = () => {
                                   <td style={{ padding: '16px' }}>
                                     <span style={{
                                       display: 'inline-flex',
-                                      alignItems: 'center',
+                          alignItems: 'center',
                                       padding: '6px 12px',
                                       borderRadius: '8px',
                                       fontSize: '12px',
@@ -2355,20 +2338,20 @@ const Dashboard: React.FC = () => {
                                   {/* Flag (Director Input Required) */}
                                   <td style={{ padding: '16px' }}>
                                     {task.flagDirectorInputRequired ? (
-                                      <span style={{
+                          <span style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         padding: '6px 12px',
                                         borderRadius: '8px',
                                         fontSize: '11px',
-                                        fontWeight: '600',
+                            fontWeight: '600',
                                         backgroundColor: '#fee2e2',
                                         color: '#dc2626'
-                                      }}>
+                          }}>
                                         Yes
-                                      </span>
+                          </span>
                                     ) : (
-                                      <span style={{
+                          <span style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         padding: '6px 12px',
@@ -2377,36 +2360,36 @@ const Dashboard: React.FC = () => {
                                         fontWeight: '600',
                                         backgroundColor: '#f3f4f6',
                                         color: '#6b7280'
-                                      }}>
+                          }}>
                                         No
-                                      </span>
+                          </span>
                                     )}
                                   </td>
                                   {/* Date */}
                                   <td style={{ padding: '16px' }}>
                         <div style={{
-                                      display: 'flex',
+                          display: 'flex',
                                       flexDirection: 'column',
                                       gap: '6px'
-                                    }}>
+                        }}>
                                       {/* Created Date */}
                                       <div style={{
-                                        fontSize: '12px',
-                                        color: '#6b7280',
-                                        fontWeight: '500'
-                                      }}>
+                            fontSize: '12px',
+                            color: '#6b7280',
+                            fontWeight: '500'
+                          }}>
                                         <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
                                         {task.startDate 
                                           ? new Date(task.startDate).toLocaleDateString() 
                                           : 'N/A'}
-                                      </div>
+                        </div>
                                       {/* Reminder Date */}
                                       {task.reminderDate && (
-                                        <div style={{
+                        <div style={{
                                           fontSize: '12px',
                                           color: '#dc2626',
                                           fontWeight: '500',
-                                          display: 'flex',
+                          display: 'flex',
                                           alignItems: 'center',
                                           gap: '4px'
                                         }}>
@@ -2431,15 +2414,15 @@ const Dashboard: React.FC = () => {
                                         }}
                                         style={{
                                           display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
+                          alignItems: 'center',
+                          gap: '6px',
                                           padding: '8px 14px',
                                           backgroundColor: '#dbeafe',
                                           border: 'none',
                                           borderRadius: '8px',
                                           color: '#1e40af',
-                                          fontSize: '12px',
-                                          fontWeight: '600',
+                          fontSize: '12px',
+                          fontWeight: '600',
                                           cursor: 'pointer',
                                           transition: 'all 0.2s ease',
                                           boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
@@ -4386,6 +4369,388 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
+          {/* Projects Tab - Modern Design */}
+          {activeTab === 'projects' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Header - Modern Design */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingBottom: '20px',
+                borderBottom: '2px solid #f3f4f6'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)'
+                  }}>
+                    <FolderKanban size={24} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h1 style={{
+                      fontSize: '28px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      margin: '0 0 4px 0',
+                      letterSpacing: '-0.5px'
+                    }}>
+                      Projects
+                    </h1>
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      margin: 0
+                    }}>
+                      Manage and track all your projects
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search and Filter Section - Modern Design */}
+              <div style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                borderRadius: '20px',
+                padding: '32px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                border: '1px solid #e5e7eb',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {/* Decorative gradient background element */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: '300px',
+                  height: '300px',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%)',
+                  borderRadius: '50%',
+                  transform: 'translate(30%, -30%)',
+                  pointerEvents: 'none'
+                }} />
+                
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  marginBottom: '28px',
+                  paddingBottom: '20px',
+                  borderBottom: '2px solid #e5e7eb',
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)'
+                  }}>
+                    <Filter size={24} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h3 style={{
+                      fontSize: '20px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      margin: 0,
+                      letterSpacing: '-0.5px'
+                    }}>
+                      Filters & Search
+                    </h3>
+                    <p style={{
+                      fontSize: '13px',
+                      color: '#6b7280',
+                      margin: '4px 0 0 0'
+                    }}>
+                      Refine your project list with powerful filters
+                    </p>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '24px',
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  {/* Search Bar */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      marginBottom: '10px',
+                      letterSpacing: '-0.2px'
+                    }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Search size={16} color="#3b82f6" />
+                      </div>
+                      Search
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Search projects..."
+                        value={projectSearchTerm}
+                        onChange={(e) => setProjectSearchTerm(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px 12px 48px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          transition: 'all 0.3s ease',
+                          backgroundColor: '#ffffff',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#10b981';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      />
+                      <Search size={18} style={{
+                        position: 'absolute',
+                        left: '16px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#9ca3af',
+                        pointerEvents: 'none',
+                        transition: 'color 0.2s ease'
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Filter by Project Name */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      marginBottom: '10px',
+                      letterSpacing: '-0.2px'
+                    }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <FolderKanban size={16} color="#16a34a" />
+                      </div>
+                      Project Name
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter by project name..."
+                        value={projectNameFilter}
+                        onChange={(e) => setProjectNameFilter(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px 12px 16px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          transition: 'all 0.3s ease',
+                          backgroundColor: '#ffffff',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#10b981';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter by Project Number */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      marginBottom: '10px',
+                      letterSpacing: '-0.2px'
+                    }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <FileText size={16} color="#d97706" />
+                      </div>
+                      Project Number
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Filter by project number..."
+                        value={projectNumberFilter}
+                        onChange={(e) => setProjectNumberFilter(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px 12px 16px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          transition: 'all 0.3s ease',
+                          backgroundColor: '#ffffff',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#10b981';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter by Status */}
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: '#111827',
+                      marginBottom: '10px',
+                      letterSpacing: '-0.2px'
+                    }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Filter size={16} color="#6366f1" />
+                      </div>
+                      Status
+                    </label>
+                    <select
+                      value={projectStatusFilter}
+                      onChange={(e) => setProjectStatusFilter(e.target.value as 'all' | 'Current' | 'Upcoming' | 'Sleeping (On Hold)' | 'Completed')}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        outline: 'none',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                        appearance: 'none',
+                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'right 16px center',
+                        paddingRight: '40px'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#10b981';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                    >
+                      <option value="all">All Status</option>
+                      <option value="Current">Current</option>
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="Sleeping (On Hold)">Sleeping (On Hold)</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project List Component */}
+              <ProjectList
+                projects={filteredProjects}
+                users={employees.map(emp => ({
+                  id: emp.id || emp._id || '',
+                  name: `${emp.firstName} ${emp.lastName}`,
+                  email: emp.email,
+                  role: emp.role
+                }))}
+                onProjectSave={handleProjectSave}
+                onProjectDelete={handleProjectDelete}
+                onProjectComplete={handleProjectCompleted}
+              />
+            </div>
+          )}
 
           {/* Employees Tab - Modern Design */}
           {activeTab === 'employees' && (
@@ -4465,8 +4830,187 @@ const Dashboard: React.FC = () => {
                   </button>
                 )}
               </div>
+
+              {/* Employee Status Filter */}
+              {isDirector && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Filter size={20} color="#ffffff" />
+                    </div>
+                    <div>
+                      <h3 style={{
+                        fontSize: '18px',
+                        fontWeight: '700',
+                        color: '#111827',
+                        margin: 0,
+                        letterSpacing: '-0.3px'
+                      }}>
+                        Filter Employees
+                      </h3>
+                      <p style={{
+                        fontSize: '13px',
+                        color: '#6b7280',
+                        margin: '4px 0 0 0'
+                      }}>
+                        Filter by employee status and role
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '16px'
+                  }}>
+                    <div>
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#111827',
+                        marginBottom: '10px'
+                      }}>
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          background: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <Users size={14} color="#6366f1" />
+                        </div>
+                        Status
+                      </label>
+                      <select
+                        value={employeeStatusFilter}
+                        onChange={(e) => setEmployeeStatusFilter(e.target.value as 'all' | 'Active' | 'Inactive' | 'On Leave')}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                          appearance: 'none',
+                          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 16px center',
+                          paddingRight: '40px'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#4facfe';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 0 0 4px rgba(79, 172, 254, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        <option value="all">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="On Leave">On Leave</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#111827',
+                        marginBottom: '10px'
+                      }}>
+                        <div style={{
+                          width: '28px',
+                          height: '28px',
+                          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <UserIcon size={14} color="#d97706" />
+                        </div>
+                        Role
+                      </label>
+                      <select
+                        value={employeeRoleFilter}
+                        onChange={(e) => setEmployeeRoleFilter(e.target.value as 'all' | 'Director' | 'Project Head' | 'Employee')}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          outline: 'none',
+                          backgroundColor: '#ffffff',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s ease',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                          appearance: 'none',
+                          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 16px center',
+                          paddingRight: '40px'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = '#4facfe';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 0 0 4px rgba(79, 172, 254, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = '#e5e7eb';
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        <option value="all">All Roles</option>
+                        <option value="Director">Director</option>
+                        <option value="Project Head">Project Head</option>
+                        <option value="Employee">Employee</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <EmployeeList
-                employees={employees}
+                employees={filteredEmployees}
                 projects={projects}
                 tasks={tasks}
                 onEmployeeSave={async (employee: any, assignmentData?: any) => {

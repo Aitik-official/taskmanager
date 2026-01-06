@@ -1334,7 +1334,7 @@ const EmployeeDashboard: React.FC = () => {
                       <span>Tasks finished</span>
                     </div>
                         </div>
-                      </div>
+                          </div>
                         </div>
 
               {/* Priority Tasks Table - Show when priority card is clicked */}
@@ -1381,26 +1381,26 @@ const EmployeeDashboard: React.FC = () => {
                 };
                 
                 return (
-                  <div style={{
-                    backgroundColor: '#ffffff',
+                <div style={{
+                  backgroundColor: '#ffffff',
                     border: '1px solid #e5e7eb',
                     borderRadius: '16px',
-                    padding: '24px',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                  padding: '24px',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
                     marginTop: '24px'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                       marginBottom: '24px',
                       paddingBottom: '16px',
                       borderBottom: '2px solid #f3f4f6'
-                    }}>
-                      <h3 style={{
+                  }}>
+                    <h3 style={{
                         fontSize: '20px',
                         fontWeight: '700',
-                        color: '#111827',
+                      color: '#111827',
                         margin: 0,
                         letterSpacing: '-0.5px'
                       }}>
@@ -1428,7 +1428,7 @@ const EmployeeDashboard: React.FC = () => {
                       >
                         <X size={20} color="#6b7280" />
                       </button>
-                    </div>
+                  </div>
                     
                     {filteredPriorityTasks.length > 0 ? (
                       <div style={{ overflowX: 'auto' }}>
@@ -1548,7 +1548,7 @@ const EmployeeDashboard: React.FC = () => {
                               const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
                               const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
                               
-                              return (
+                      return (
                                 <tr
                                   key={task.id || task._id}
                                   style={{
@@ -1568,7 +1568,7 @@ const EmployeeDashboard: React.FC = () => {
                                 >
                                   {/* Priority */}
                                   <td style={{
-                                    padding: '20px',
+                          padding: '20px',
                                     borderTopLeftRadius: index === 0 ? '12px' : '0',
                                     borderBottomLeftRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
                                   }}>
@@ -1632,7 +1632,7 @@ const EmployeeDashboard: React.FC = () => {
                                   <td style={{ padding: '20px' }}>
                                     <p style={{
                                       fontSize: '13px',
-                                      color: '#6b7280',
+                          color: '#6b7280',
                                       margin: 0,
                                       lineHeight: '1.5',
                                       maxWidth: '300px',
@@ -1662,7 +1662,7 @@ const EmployeeDashboard: React.FC = () => {
                                           }
                                         }}
                                         autoFocus
-                                        style={{
+                        style={{
                                           padding: '6px 12px',
                                           border: '2px solid #3b82f6',
                                           borderRadius: '8px',
@@ -1671,7 +1671,7 @@ const EmployeeDashboard: React.FC = () => {
                                           backgroundColor: '#ffffff',
                                           color: '#4f46e5',
                                           outline: 'none',
-                                          cursor: 'pointer',
+                          cursor: 'pointer',
                                           minWidth: '100px'
                                         }}
                                       >
@@ -1688,19 +1688,19 @@ const EmployeeDashboard: React.FC = () => {
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           padding: '6px 12px',
-                                          borderRadius: '8px',
+                          borderRadius: '8px',
                                           fontSize: '13px',
                                           fontWeight: '600',
                                           backgroundColor: '#e0e7ff',
                                           color: '#4f46e5',
                                           cursor: 'pointer',
-                                          transition: 'all 0.2s ease'
-                                        }}
-                                        onMouseOver={(e) => {
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
                                           e.currentTarget.style.backgroundColor = '#c7d2fe';
                                           e.currentTarget.style.transform = 'scale(1.05)';
-                                        }}
-                                        onMouseOut={(e) => {
+                        }}
+                        onMouseOut={(e) => {
                                           e.currentTarget.style.backgroundColor = '#e0e7ff';
                                           e.currentTarget.style.transform = 'scale(1)';
                                         }}
@@ -1719,7 +1719,7 @@ const EmployeeDashboard: React.FC = () => {
                                         padding: '6px 12px',
                                         borderRadius: '8px',
                                         fontSize: '12px',
-                                        fontWeight: '600',
+                          fontWeight: '600',
                                         backgroundColor: '#fee2e2',
                                         color: '#dc2626'
                                       }}>
@@ -1742,7 +1742,7 @@ const EmployeeDashboard: React.FC = () => {
                                   </td>
                                   {/* Date */}
                                   <td style={{ padding: '20px' }}>
-                                    <div style={{
+                        <div style={{
                                       display: 'flex',
                                       flexDirection: 'column',
                                       gap: '6px'
@@ -1750,27 +1750,27 @@ const EmployeeDashboard: React.FC = () => {
                                       {/* Created Date */}
                                       <div style={{
                                         fontSize: '12px',
-                                        color: '#6b7280',
+                          color: '#6b7280',
                                         fontWeight: '500'
-                                      }}>
+                        }}>
                                         <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
                                         {task.startDate 
                                           ? new Date(task.startDate).toLocaleDateString() 
                                           : 'N/A'}
-                                      </div>
+                        </div>
                                       {/* Reminder Date */}
                                       {task.reminderDate && (
-                                        <div style={{
+                        <div style={{
                                           fontSize: '12px',
                                           color: '#dc2626',
-                                          fontWeight: '500',
+                          fontWeight: '500',
                                           display: 'flex',
                                           alignItems: 'center',
                                           gap: '4px'
-                                        }}>
+                        }}>
                                           <span style={{ fontWeight: '600' }}>Reminder: </span>
                                           {new Date(task.reminderDate).toLocaleDateString()}
-                                        </div>
+                        </div>
                                       )}
                                     </div>
                                   </td>
@@ -1779,8 +1779,8 @@ const EmployeeDashboard: React.FC = () => {
                                     padding: '20px',
                                     borderTopRightRadius: index === 0 ? '12px' : '0',
                                     borderBottomRightRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
-                                  }}>
-                                    <div style={{
+                        }}>
+                          <div style={{
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: '8px',
@@ -1863,7 +1863,7 @@ const EmployeeDashboard: React.FC = () => {
                                       >
                                         🚩 Red Flag
                                       </button>
-                                    </div>
+                        </div>
                                   </td>
                                 </tr>
                               );
@@ -1872,7 +1872,7 @@ const EmployeeDashboard: React.FC = () => {
                         </table>
                       </div>
                     ) : (
-                      <div style={{
+                        <div style={{
                         textAlign: 'center',
                         padding: '60px 20px',
                         color: '#6b7280'
@@ -1892,37 +1892,37 @@ const EmployeeDashboard: React.FC = () => {
                         </div>
                       </div>
                     )}
-                  </div>
-                );
-              })()}
-
+                      </div>
+                    );
+                  })()}
+                
               {/* Assigned Tasks Table */}
-              <div style={{
-                backgroundColor: '#ffffff',
+                <div style={{
+                  backgroundColor: '#ffffff',
                 borderRadius: '16px',
-                padding: '24px',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                  padding: '24px',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
                 border: '1px solid #e5e7eb',
                 marginTop: '24px'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   marginBottom: '24px',
                   paddingBottom: '16px',
                   borderBottom: '2px solid #f3f4f6'
-                }}>
-                  <h3 style={{
+                  }}>
+                    <h3 style={{
                     fontSize: '20px',
                     fontWeight: '700',
-                    color: '#111827',
+                      color: '#111827',
                     margin: 0,
                     letterSpacing: '-0.5px'
                   }}>
                     My Assigned Tasks
                   </h3>
-                </div>
+                          </div>
                 
                 {(() => {
                   const employeeTasks = filteredTasks.filter(task => {
@@ -2063,18 +2063,18 @@ const EmployeeDashboard: React.FC = () => {
                             
                             return (
                               <tr
-                                key={task.id || task._id}
-                                style={{
+                          key={task.id || task._id}
+                          style={{
                                   borderBottom: index < employeeTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
                                   transition: 'all 0.2s ease',
                                   backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
                                   cursor: 'pointer'
-                                }}
-                                onMouseOver={(e) => {
+                          }}
+                          onMouseOver={(e) => {
                                   e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
                                   e.currentTarget.style.transform = 'scale(1.002)';
-                                }}
-                                onMouseOut={(e) => {
+                          }}
+                          onMouseOut={(e) => {
                                   e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
                                   e.currentTarget.style.transform = 'scale(1)';
                                 }}
@@ -2123,7 +2123,7 @@ const EmployeeDashboard: React.FC = () => {
                                 <td style={{ padding: '20px' }}>
                                   <span style={{ 
                                     fontSize: '14px', 
-                                    color: '#111827',
+                            color: '#111827',
                                     fontWeight: '500'
                                   }}>
                                     {task.projectName || 'N/A'}
@@ -2131,11 +2131,11 @@ const EmployeeDashboard: React.FC = () => {
                                 </td>
                                 {/* Task Title */}
                                 <td style={{ padding: '20px' }}>
-                                  <p style={{
+                          <p style={{
                                     fontSize: '15px',
                                     fontWeight: '700',
                                     color: '#111827',
-                                    margin: 0,
+                            margin: 0,
                                     letterSpacing: '-0.3px'
                                   }}>
                                     {task.title}
@@ -2143,10 +2143,10 @@ const EmployeeDashboard: React.FC = () => {
                                 </td>
                                 {/* Description / Remarks */}
                                 <td style={{ padding: '20px' }}>
-                                  <p style={{
+                          <p style={{
                                     fontSize: '13px',
-                                    color: '#6b7280',
-                                    margin: 0,
+                            color: '#6b7280',
+                            margin: 0,
                                     lineHeight: '1.5',
                                     maxWidth: '300px',
                                     display: '-webkit-box',
@@ -2255,37 +2255,37 @@ const EmployeeDashboard: React.FC = () => {
                                 </td>
                                 {/* Date */}
                                 <td style={{ padding: '20px' }}>
-                                  <div style={{
-                                    display: 'flex',
+                          <div style={{
+                            display: 'flex',
                                     flexDirection: 'column',
                                     gap: '6px'
-                                  }}>
+                          }}>
                                     {/* Created Date */}
                                     <div style={{
-                                      fontSize: '12px',
+                              fontSize: '12px',
                                       color: '#6b7280',
-                                      fontWeight: '500'
+                              fontWeight: '500'
                                     }}>
                                       <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
                                       {task.startDate 
                                         ? new Date(task.startDate).toLocaleDateString() 
                                         : 'N/A'}
-                                    </div>
+                          </div>
                                     {/* Reminder Date */}
                                     {task.reminderDate && (
-                                      <div style={{
-                                        fontSize: '12px',
+                          <div style={{
+                            fontSize: '12px',
                                         color: '#dc2626',
                                         fontWeight: '500',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px'
-                                      }}>
+                          }}>
                                         <span style={{ fontWeight: '600' }}>Reminder: </span>
                                         {new Date(task.reminderDate).toLocaleDateString()}
-                                      </div>
+                          </div>
                                     )}
-                                  </div>
+                        </div>
                                 </td>
                                 {/* Actions */}
                                 <td style={{
@@ -2398,15 +2398,15 @@ const EmployeeDashboard: React.FC = () => {
                         No tasks assigned
                       </div>
                       <div style={{
-                        fontSize: '14px',
+                      fontSize: '14px',
                         color: '#9ca3af'
                       }}>
                         You don't have any assigned tasks at the moment.
-                      </div>
+                  </div>
                     </div>
                   );
                 })()}
-              </div>
+                </div>
 
             </div>
           )}
@@ -2815,7 +2815,7 @@ const EmployeeDashboard: React.FC = () => {
                     borderCollapse: 'separate',
                     borderSpacing: 0
                   }}>
-                    <thead style={{ 
+                    <thead style={{
                       background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                       borderBottom: '2px solid #e5e7eb'
                     }}>
@@ -2945,22 +2945,22 @@ const EmployeeDashboard: React.FC = () => {
                               transition: 'all 0.2s ease',
                               backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
                               cursor: 'pointer'
-                            }}
-                            onMouseOver={(e) => {
+                        }}
+                        onMouseOver={(e) => {
                               e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
                               e.currentTarget.style.transform = 'scale(1.002)';
-                            }}
-                            onMouseOut={(e) => {
+                        }}
+                        onMouseOut={(e) => {
                               e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
                               e.currentTarget.style.transform = 'scale(1)';
                             }}
                           >
                             {/* Priority */}
-                            <td style={{
+                          <td style={{
                               padding: '20px',
                               borderTopLeftRadius: index === 0 ? '12px' : '0',
                               borderBottomLeftRadius: index === filteredTasks.length - 1 ? '12px' : '0'
-                            }}>
+                          }}>
                               <span style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -2976,7 +2976,7 @@ const EmployeeDashboard: React.FC = () => {
                               }}>
                                 {task.priority || 'Less Urgent'}
                               </span>
-                            </td>
+                          </td>
                             {/* Status */}
                             <td style={{ padding: '20px' }}>
                               <span style={{
@@ -2997,26 +2997,26 @@ const EmployeeDashboard: React.FC = () => {
                             </td>
                             {/* Project Name */}
                             <td style={{ padding: '20px' }}>
-                              <span style={{ 
-                                fontSize: '14px', 
+                              <span style={{
+                                fontSize: '14px',
                                 color: '#111827',
                                 fontWeight: '500'
                               }}>
                                 {task.projectName || 'N/A'}
                               </span>
-                            </td>
+                          </td>
                             {/* Task Title */}
                             <td style={{ padding: '20px' }}>
                               <p style={{
                                 fontSize: '15px',
                                 fontWeight: '700',
-                                color: '#111827',
+                              color: '#111827',
                                 margin: 0,
                                 letterSpacing: '-0.3px'
-                              }}>
+                            }}>
                                 {task.title}
                               </p>
-                            </td>
+                          </td>
                             {/* Description / Remarks */}
                             <td style={{ padding: '20px' }}>
                               <p style={{
@@ -3102,18 +3102,18 @@ const EmployeeDashboard: React.FC = () => {
                             {/* Flag (Director Input Required) */}
                             <td style={{ padding: '20px' }}>
                               {task.flagDirectorInputRequired ? (
-                                <span style={{
-                                  display: 'inline-flex',
+                            <span style={{
+                              display: 'inline-flex',
                                   alignItems: 'center',
-                                  padding: '6px 12px',
+                              padding: '6px 12px',
                                   borderRadius: '8px',
-                                  fontSize: '12px',
-                                  fontWeight: '600',
+                              fontSize: '12px',
+                              fontWeight: '600',
                                   backgroundColor: '#fee2e2',
                                   color: '#dc2626'
-                                }}>
+                            }}>
                                   Yes
-                                </span>
+                            </span>
                               ) : (
                                 <span style={{
                                   display: 'inline-flex',
@@ -3128,7 +3128,7 @@ const EmployeeDashboard: React.FC = () => {
                                   No
                                 </span>
                               )}
-                            </td>
+                          </td>
                             {/* Date */}
                             <td style={{ padding: '20px' }}>
                               <div style={{
@@ -3164,54 +3164,54 @@ const EmployeeDashboard: React.FC = () => {
                               </div>
                             </td>
                             {/* Actions */}
-                            <td style={{
+                          <td style={{
                               padding: '20px',
                               borderTopRightRadius: index === 0 ? '12px' : '0',
                               borderBottomRightRadius: index === filteredTasks.length - 1 ? '12px' : '0'
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
                                 gap: '8px',
                                 flexWrap: 'wrap'
-                              }}>
-                                <button
+                            }}>
+                              <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedTask(task);
                                     setIsTaskModalOpen(true);
-                                  }}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
                                     gap: '6px',
                                     padding: '8px 14px',
                                     backgroundColor: '#dbeafe',
-                                    border: 'none',
+                                  border: 'none',
                                     borderRadius: '8px',
                                     color: '#1e40af',
-                                    fontSize: '12px',
+                                  fontSize: '12px',
                                     fontWeight: '600',
-                                    cursor: 'pointer',
+                                  cursor: 'pointer',
                                     transition: 'all 0.2s ease',
                                     boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                  }}
-                                  onMouseOver={(e) => {
+                                }}
+                                onMouseOver={(e) => {
                                     e.currentTarget.style.backgroundColor = '#bfdbfe';
                                     e.currentTarget.style.transform = 'translateY(-1px)';
                                     e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                  }}
-                                  onMouseOut={(e) => {
+                                }}
+                                onMouseOut={(e) => {
                                     e.currentTarget.style.backgroundColor = '#dbeafe';
                                     e.currentTarget.style.transform = 'translateY(0)';
                                     e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                  }}
-                                >
+                                }}
+                              >
                                   <Eye size={14} />
                                   View
-                                </button>
+                              </button>
                                 {/* Red Flag Button - Available for all tasks */}
-                                <button
+                                  <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     const taskId = task.id || task._id;
@@ -3222,28 +3222,28 @@ const EmployeeDashboard: React.FC = () => {
                                       flagDirectorInputRequired: !task.flagDirectorInputRequired
                                     };
                                     await handleTaskUpdate(updatedTask);
-                                  }}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
                                     gap: '6px',
                                     padding: '8px 14px',
                                     backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
-                                    border: 'none',
+                                      border: 'none',
                                     borderRadius: '8px',
                                     color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
-                                    fontSize: '12px',
+                                      fontSize: '12px',
                                     fontWeight: '600',
-                                    cursor: 'pointer',
+                                      cursor: 'pointer',
                                     transition: 'all 0.2s ease',
                                     boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
-                                  }}
-                                  onMouseOver={(e) => {
+                                    }}
+                                    onMouseOver={(e) => {
                                     e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
                                     e.currentTarget.style.transform = 'translateY(-1px)';
                                     e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
-                                  }}
-                                  onMouseOut={(e) => {
+                                    }}
+                                    onMouseOut={(e) => {
                                     e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
                                     e.currentTarget.style.transform = 'translateY(0)';
                                     e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
@@ -3251,81 +3251,81 @@ const EmployeeDashboard: React.FC = () => {
                                   title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
                                 >
                                   🚩 Red Flag
-                                </button>
+                                  </button>
                                 {/* Show Edit, Delete buttons only for employee-created tasks */}
                                 {task.isEmployeeCreated && (
                                   <>
-                                    <button
+                                  <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedTask(task);
-                                        setIsTaskModalOpen(true);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
+                                      setSelectedTask(task);
+                                      setIsTaskModalOpen(true);
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
                                         gap: '6px',
                                         padding: '8px 14px',
                                         backgroundColor: '#dcfce7',
-                                        border: 'none',
+                                      border: 'none',
                                         borderRadius: '8px',
                                         color: '#15803d',
-                                        fontSize: '12px',
+                                      fontSize: '12px',
                                         fontWeight: '600',
-                                        cursor: 'pointer',
+                                      cursor: 'pointer',
                                         transition: 'all 0.2s ease',
                                         boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
                                         e.currentTarget.style.transform = 'translateY(-1px)';
                                         e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#dcfce7';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#dcfce7';
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        const taskId = task.id || task._id;
-                                        if (taskId) {
-                                          handleTaskDelete(String(taskId));
-                                        }
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
+                                      const taskId = task.id || task._id;
+                                      if (taskId) {
+                                        handleTaskDelete(String(taskId));
+                                      }
+                                    }}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
                                         gap: '6px',
                                         padding: '8px 14px',
                                         backgroundColor: '#fee2e2',
-                                        border: 'none',
+                                      border: 'none',
                                         borderRadius: '8px',
-                                        color: '#dc2626',
+                                      color: '#dc2626',
                                         fontSize: '12px',
                                         fontWeight: '600',
-                                        cursor: 'pointer',
+                                      cursor: 'pointer',
                                         transition: 'all 0.2s ease',
                                         boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#fecaca';
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#fecaca';
                                         e.currentTarget.style.transform = 'translateY(-1px)';
                                         e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#fee2e2';
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
-                                      }}
-                                    >
-                                      Delete
-                                    </button>
-                                  </>
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </>
                                 )}
                                 {/* Show Complete button for non-employee-created tasks */}
                                 {!task.isEmployeeCreated && task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
@@ -3348,24 +3348,24 @@ const EmployeeDashboard: React.FC = () => {
                                       cursor: 'pointer',
                                       transition: 'all 0.2s ease',
                                       boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                      }}
+                                      onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#bbf7d0';
                                       e.currentTarget.style.transform = 'translateY(-1px)';
                                       e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dcfce7';
+                                      }}
+                                      onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#dcfce7';
                                       e.currentTarget.style.transform = 'translateY(0)';
                                       e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
-                                    }}
-                                  >
-                                    Complete
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                                      }}
+                                    >
+                                      Complete
+                                    </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                         );
                       })}
                     </tbody>

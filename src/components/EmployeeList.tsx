@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { Edit, Eye, Trash2, Plus, Download, Users, Mail, Phone, Briefcase, Building2 } from 'lucide-react';
+import { Edit, Eye, Trash2, Plus, Download, Users, Mail, Phone, Briefcase, Building2, User as UserIcon } from 'lucide-react';
 import { Employee, Project, Task } from '../types';
 import EmployeeModal from './EmployeeModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -102,17 +102,17 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
   };
 
   const exportEmployees = () => {
-    const csvContent = [
-      ['Name', 'Position', 'Department', 'Email', 'Phone', 'Status', 'Username', 'Role', 'Joining Date'],
+      const csvContent = [
+      ['Name', 'Position', 'Department', 'Email', 'Phone', 'Designation', 'Status', 'Username', 'Joining Date'],
       ...employees.map(employee => [
         `${employee.firstName} ${employee.lastName}`,
         employee.position,
         employee.department,
         employee.email,
         employee.phone,
+        employee.role,
         employee.status,
         employee.username,
-        employee.role,
         formatDate(employee.joiningDate)
       ])
     ];
@@ -320,6 +320,17 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                   letterSpacing: '-0.3px',
                   borderBottom: '2px solid #e5e7eb'
                 }}>
+                  Designation
+                </th>
+                <th style={{
+                  padding: '16px 24px',
+                  textAlign: 'left',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#374151',
+                  letterSpacing: '-0.3px',
+                  borderBottom: '2px solid #e5e7eb'
+                }}>
                   Status
                 </th>
                 <th style={{
@@ -338,7 +349,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
             <tbody style={{ backgroundColor: '#ffffff' }}>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{
+                  <td colSpan={8} style={{
                     padding: '48px 24px',
                     textAlign: 'center',
                     color: '#6b7280'
@@ -490,6 +501,32 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                           fontWeight: '500'
                         }}>
                           {employee.phone}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{
+                      padding: '20px 24px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <UserIcon size={16} color="#6b7280" style={{ flexShrink: 0 }} />
+                        <span style={{
+                          padding: '6px 14px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          letterSpacing: '0.2px',
+                          borderRadius: '8px',
+                          backgroundColor: employee.role === 'Director' ? '#e0e7ff' :
+                                          employee.role === 'Project Head' ? '#fef3c7' :
+                                          '#dcfce7',
+                          color: employee.role === 'Director' ? '#4338ca' :
+                                 employee.role === 'Project Head' ? '#92400e' :
+                                 '#065f46',
+                          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                        }}>
+                          {employee.role}
                         </span>
                       </div>
                     </td>

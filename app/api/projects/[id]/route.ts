@@ -38,25 +38,34 @@ export async function PUT(
   try {
     await dbConnect()
     
-    const { name, description, assignedEmployeeId, assignedEmployeeName, status, startDate, progress } = await request.json()
+    const { name, projectNumber, location, description, contactDetails, projectRemarks, assignedEmployeeId, assignedEmployeeName, status, startDate, progress } = await request.json()
     
     // Validate required fields
-    if (!name || !description || !assignedEmployeeId || !assignedEmployeeName || !startDate) {
+    if (!name || !description) {
       return NextResponse.json({ message: 'All required fields must be provided' }, { status: 400 })
     }
     
+    // Build update object with only provided fields
+    const updateData: any = {
+      name,
+      description,
+      updatedAt: new Date()
+    };
+    
+    // Only add optional fields if they have values
+    if (projectNumber !== undefined) updateData.projectNumber = projectNumber || null;
+    if (location !== undefined) updateData.location = location || null;
+    if (contactDetails !== undefined) updateData.contactDetails = contactDetails || null;
+    if (projectRemarks !== undefined) updateData.projectRemarks = projectRemarks || [];
+    if (assignedEmployeeId !== undefined) updateData.assignedEmployeeId = assignedEmployeeId || null;
+    if (assignedEmployeeName !== undefined) updateData.assignedEmployeeName = assignedEmployeeName || null;
+    if (status !== undefined) updateData.status = status || 'Current';
+    if (startDate !== undefined) updateData.startDate = startDate || null;
+    if (progress !== undefined && progress !== null) updateData.progress = progress;
+    
     const updatedProject = await Project.findByIdAndUpdate(
       params.id,
-      {
-        name,
-        description,
-        assignedEmployeeId,
-        assignedEmployeeName,
-        status,
-        startDate,
-        progress,
-        updatedAt: new Date()
-      },
+      updateData,
       { new: true }
     )
     

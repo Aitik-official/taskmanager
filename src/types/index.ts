@@ -6,16 +6,25 @@ export interface User {
   avatar?: string;
 }
 
+export interface ProjectRemark {
+  date: string;
+  remark: string;
+}
+
 export interface Project {
   id?: string; // Optional for frontend compatibility
   _id?: string; // MongoDB ID field
   name: string;
+  projectNumber?: string; // e.g., 2025-001 / 2025-002 / 2025-003
+  location?: string;
   description: string;
-  assignedEmployeeId: string;
-  assignedEmployeeName: string;
-  status: 'Active' | 'Completed' | 'On Hold';
-  startDate: string;
-  progress: number;
+  contactDetails?: string;
+  projectRemarks?: ProjectRemark[]; // Date-wise remarks
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  status: 'Current' | 'Upcoming' | 'Sleeping (On Hold)' | 'Completed';
+  startDate?: string;
+  progress?: number;
   comments?: ProjectComment[];
   createdAt?: string;
   updatedAt?: string;
@@ -58,10 +67,14 @@ export interface Task {
   description: string;
   projectId?: string; // Optional - not required in new spec
   projectName?: string; // Optional - not required in new spec
-  assignedToId: string;
-  assignedToName: string;
+  assignedToId: string; // Keep for backward compatibility - will use first employee if multiple assigned
+  assignedToName: string; // Keep for backward compatibility - will use first employee if multiple assigned
+  assignedEmployeeIds?: string[]; // Array of assigned employee IDs
+  assignedEmployeeNames?: string[]; // Array of assigned employee names
   assignedById: string;
   assignedByName: string;
+  projectHeadId?: string; // Optional - Project Head assigned to the task
+  projectHeadName?: string; // Optional - Project Head name
   priority: 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom';
   status: 'Pending' | 'In Progress' | 'Completed';
   estimatedHours?: number; // Optional - not required in new spec

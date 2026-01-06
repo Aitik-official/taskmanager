@@ -1,10 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit, Trash2, MessageCircle, Send } from 'lucide-react';
-import { Project, User, ProjectComment, Employee } from '../types';
+import { X, Save, Edit, Trash2 } from 'lucide-react';
+import { Project, User, Employee } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { addProjectComment } from '../services/projectService';
 
 interface ProjectModalProps {
   project?: Project | null;
@@ -13,7 +12,6 @@ interface ProjectModalProps {
   onSave: (project: Project) => void;
   onDelete?: (projectId: string) => void;
   users: (User | Employee)[];
-  onCommentAdded?: (projectId: string, comment: ProjectComment) => void;
 }
 
 const ProjectModal: React.FC<ProjectModalProps> = ({
@@ -22,13 +20,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
   onClose,
   onSave,
   onDelete,
-  users,
-  onCommentAdded
+  users
 }) => {
   const { user } = useAuth();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [isAddingComment, setIsAddingComment] = useState(false);
 
   // Debug logging for users prop
   useEffect(() => {
@@ -44,40 +39,48 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
   }, [users]);
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
+    projectNumber: '',
+    location: '',
     description: '',
+    contactDetails: '',
+    projectRemarks: [],
     assignedEmployeeId: '',
     assignedEmployeeName: '',
-    status: 'Active',
+    status: 'Current',
     startDate: '',
     progress: 0
   });
+
+  // State for managing project remarks
+  const [newRemarkDate, setNewRemarkDate] = useState('');
+  const [newRemarkText, setNewRemarkText] = useState('');
 
   useEffect(() => {
     if (project) {
       setFormData({
         ...project,
         startDate: project.startDate ? project.startDate.split('T')[0] : '',
-        progress: project.progress || 0
+        progress: project.progress || 0,
+        projectRemarks: project.projectRemarks || []
       });
     } else {
-      // When creating a new project, check if user is an employee and pre-fill their ID
-      const isEmployee = user?.role === 'Employee';
-      const employeeId = isEmployee && user?.id ? user.id : '';
-      const employeeName = isEmployee && user 
-        ? (user.name || user.email || '') 
-        : '';
-      
       setFormData({
         name: '',
+        projectNumber: '',
+        location: '',
         description: '',
-        assignedEmployeeId: employeeId,
-        assignedEmployeeName: employeeName,
-        status: 'Active',
+        contactDetails: '',
+        projectRemarks: [],
+        assignedEmployeeId: '',
+        assignedEmployeeName: '',
+        status: 'Current',
         startDate: '',
         progress: 0
       });
     }
     setIsEditMode(false);
+    setNewRemarkDate('');
+    setNewRemarkText('');
   }, [project, user]);
 
   const handleInputChange = (field: keyof Project, value: any) => {
@@ -85,28 +88,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
       ...prev,
       [field]: value
     }));
-
-    // Auto-update assignedEmployeeName when assignedEmployeeId changes
-    if (field === 'assignedEmployeeId') {
-      const selectedUser = users.find(u => u.id === value);
-      if (selectedUser) {
-        // Handle both User and Employee types
-        const employeeName = 'name' in selectedUser 
-          ? selectedUser.name 
-          : `${selectedUser.firstName} ${selectedUser.lastName}`;
-        
-        setFormData(prev => ({
-          ...prev,
-          assignedEmployeeName: employeeName
-        }));
-      }
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.description || !formData.assignedEmployeeId || !formData.assignedEmployeeName || !formData.startDate) {
+    if (!formData.name || !formData.description) {
       window.alert('Please fill in all required fields');
       return;
     }
@@ -114,11 +101,15 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
     const projectData: Project = {
       id: project?.id || project?._id, // Use existing ID if available
       name: formData.name,
+      projectNumber: formData.projectNumber || '',
+      location: formData.location || '',
       description: formData.description,
+      contactDetails: formData.contactDetails || '',
+      projectRemarks: formData.projectRemarks || [],
       assignedEmployeeId: formData.assignedEmployeeId || '',
       assignedEmployeeName: formData.assignedEmployeeName || '',
-      status: formData.status || 'Active',
-      startDate: formData.startDate,
+      status: formData.status || 'Current',
+      startDate: formData.startDate || '',
       progress: Number(formData.progress) || 0
     };
 
@@ -136,115 +127,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
     if (project && project.id && onDelete && canEdit && window.confirm('Are you sure you want to delete this project?')) {
       onDelete(project.id);
       onClose();
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!commentText.trim() || !project || !user) return;
-    
-    console.log('Project object:', project);
-    console.log('Project ID:', project.id);
-    console.log('Project _id:', project._id);
-    
-    // Use _id if id is not available (MongoDB ObjectId)
-    const projectId = project._id || project.id;
-    if (!projectId) {
-      console.error('No project ID found:', project);
-      window.alert('Error: Project ID not found. Please try again.');
-      return;
-    }
-    
-    console.log('Using project ID for comment:', projectId);
-    console.log('Project ID type:', typeof projectId);
-    
-    try {
-      setIsAddingComment(true);
-      console.log('Adding comment to project:', projectId);
-      console.log('User data:', { id: user.id, name: user.name, role: user.role });
-      
-      const commentData = {
-        userId: user.id,
-        userName: user.name,
-        userRole: user.role,
-        content: commentText.trim()
-      };
-      
-      console.log('Comment data being sent:', commentData);
-      
-      // Try to save to backend first
-      let backendSuccess = false;
-      let backendComment: any = null;
-      
-      try {
-        console.log('🔄 Attempting to save comment to backend...');
-        console.log('📤 Project ID being sent:', projectId);
-        console.log('📤 Comment data being sent:', commentData);
-        
-        const updatedProject = await addProjectComment(projectId, commentData);
-        console.log('✅ Backend response successful:', updatedProject);
-        backendSuccess = true;
-        
-        // Extract the new comment from the backend response
-        if (updatedProject.comments && updatedProject.comments.length > 0) {
-          // Find the comment we just added (by content and user)
-          backendComment = updatedProject.comments.find((c: any) => 
-            c.content === commentText.trim() && 
-            c.userId === user.id &&
-            c.userName === user.name
-          );
-          console.log('🔍 Found backend comment:', backendComment);
-        }
-      } catch (backendError: any) {
-        console.error('❌ Backend save failed:', backendError);
-        console.error('Error details:', {
-          message: backendError.message,
-          status: backendError.response?.status,
-          data: backendError.response?.data
-        });
-        console.warn('⚠️ Continuing with local update only...');
-      }
-      
-      // Update the local project state to show the new comment immediately
-      if (project) {
-        // Use backend comment if available, otherwise create local comment
-        const newComment = backendComment || {
-          id: Date.now().toString(),
-          userId: user.id,
-          userName: user.name,
-          userRole: user.role,
-          content: commentText.trim(),
-          timestamp: new Date().toISOString(),
-          isVisibleToEmployee: true
-        };
-        
-        // Ensure comments array exists
-        const currentComments = project.comments || [];
-        
-        // Update the project object with the new comment
-        const updatedLocalProject = {
-          ...project,
-          comments: [...currentComments, newComment]
-        };
-        
-        console.log('Updated local project:', updatedLocalProject);
-        
-        // Notify parent component about the new comment
-        if (onCommentAdded) {
-          onCommentAdded(projectId, newComment);
-        }
-      }
-      
-      setCommentText('');
-    } catch (error: any) {
-      console.error('Error adding comment:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      window.alert('Error adding comment. Please try again.');
-    } finally {
-      setIsAddingComment(false);
     }
   };
 
@@ -328,20 +210,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
         {project && !isEditMode ? (
           // Project Details View (Read-only)
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Debug Info */}
-            <div style={{
-              marginBottom: '16px',
-              padding: '12px',
-              backgroundColor: '#dbeafe',
-              borderRadius: '6px',
-              fontSize: '14px'
-            }}>
-              <p style={{ margin: '0 0 8px 0', fontWeight: '600' }}>Project Info:</p>
-              <p style={{ margin: '0 0 4px 0' }}>Project ID: {project.id}</p>
-              <p style={{ margin: '0 0 4px 0' }}>Status: {project.status}</p>
-              <p style={{ margin: '0 0 4px 0' }}>Progress: {project.progress}%</p>
-            </div>
-
             {/* Project Header */}
             <div style={{
               display: 'flex',
@@ -361,12 +229,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 borderRadius: '9999px',
                 fontSize: '14px',
                 fontWeight: '500',
-                backgroundColor: project.status === 'Active' ? '#dcfce7' :
+                backgroundColor: project.status === 'Current' ? '#dcfce7' :
+                                project.status === 'Upcoming' ? '#dbeafe' :
                                 project.status === 'Completed' ? '#dbeafe' :
-                                '#fef3c7',
-                color: project.status === 'Active' ? '#166534' :
+                                project.status === 'Sleeping (On Hold)' ? '#fef3c7' :
+                                '#f3f4f6',
+                color: project.status === 'Current' ? '#166534' :
+                       project.status === 'Upcoming' ? '#1e40af' :
                        project.status === 'Completed' ? '#1e40af' :
-                       '#92400e'
+                       project.status === 'Sleeping (On Hold)' ? '#92400e' :
+                       '#374151'
               }}>
                 {project.status}
               </span>
@@ -392,53 +264,33 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   Project Information
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#6b7280' }}>Assigned Employee:</span>
-                    <span style={{ fontWeight: '500' }}>{project.assignedEmployeeName}</span>
-                              </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#6b7280' }}>Start Date:</span>
-                    <span style={{ fontWeight: '500' }}>{new Date(project.startDate).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                          </div>
-
-              <div style={{
-                backgroundColor: '#f9fafb',
-                borderRadius: '8px',
-                padding: '16px'
-              }}>
-                <h4 style={{
-                  fontWeight: '600',
-                  color: '#111827',
-                  marginBottom: '12px',
-                  fontSize: '16px'
-                }}>
-                  Progress
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                    <span style={{ color: '#6b7280' }}>Completion:</span>
-                    <span style={{ fontWeight: '500' }}>{project.progress}%</span>
-                  </div>
-                  <div style={{
-                    width: '100%',
-                    backgroundColor: '#e5e7eb',
-                    borderRadius: '9999px',
-                    height: '12px'
-                  }}>
-                    <div 
-                      style={{
-                        height: '12px',
-                        borderRadius: '9999px',
-                        transition: 'all 0.3s ease',
-                        backgroundColor: project.progress === 100 ? '#10b981' : '#3b82f6',
-                        width: `${project.progress}%`
-                      }}
-                    ></div>
-                  </div>
+                  {project.projectNumber && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#6b7280' }}>Project Number:</span>
+                      <span style={{ fontWeight: '500' }}>{project.projectNumber}</span>
+                    </div>
+                  )}
+                  {project.location && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#6b7280' }}>Location:</span>
+                      <span style={{ fontWeight: '500' }}>{project.location}</span>
+                    </div>
+                  )}
+                  {project.assignedEmployeeName && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#6b7280' }}>Assigned Employee:</span>
+                      <span style={{ fontWeight: '500' }}>{project.assignedEmployeeName}</span>
+                    </div>
+                  )}
+                  {project.startDate && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#6b7280' }}>Start Date:</span>
+                      <span style={{ fontWeight: '500' }}>{new Date(project.startDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
+
             </div>
 
             {/* Description */}
@@ -449,7 +301,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 marginBottom: '8px',
                 fontSize: '16px'
               }}>
-                Description
+                Project Description
               </h4>
               <p style={{
                 color: '#374151',
@@ -463,156 +315,74 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
               </p>
             </div>
 
-            {/* Comments Section */}
-            <div style={{
-              borderTop: '1px solid #e5e7eb',
-              paddingTop: '24px'
-            }}>
-              <h4 style={{
-                fontWeight: '600',
-                color: '#111827',
-                marginBottom: '16px',
-                fontSize: '16px',
-                display: 'flex',
-                alignItems: 'center'
-              }}>
-                <MessageCircle size={20} style={{ marginRight: '8px' }} />
-                Project Comments
-              </h4>
-              
-              {/* Comments List */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                marginBottom: '16px',
-                maxHeight: '240px',
-                overflowY: 'auto'
-              }}>
-                {project.comments && project.comments.length > 0 ? (
-                  project.comments.map((comment) => (
-                    <div key={comment.id} style={{
+            {/* Contact Details */}
+            {project.contactDetails && (
+              <div>
+                <h4 style={{
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginBottom: '8px',
+                  fontSize: '16px'
+                }}>
+                  Contact Details
+                </h4>
+                <p style={{
+                  color: '#374151',
+                  backgroundColor: '#f9fafb',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  margin: 0,
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {project.contactDetails}
+                </p>
+              </div>
+            )}
+
+            {/* Project Remarks */}
+            {project.projectRemarks && project.projectRemarks.length > 0 && (
+              <div>
+                <h4 style={{
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginBottom: '12px',
+                  fontSize: '16px'
+                }}>
+                  Project Remarks
+                </h4>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  {project.projectRemarks.map((remark, index) => (
+                    <div key={index} style={{
                       backgroundColor: '#f9fafb',
+                      padding: '16px',
                       borderRadius: '8px',
-                      padding: '12px'
+                      border: '1px solid #e5e7eb'
                     }}>
                       <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '8px'
+                        fontSize: '12px',
+                        color: '#6b7280',
+                        marginBottom: '8px',
+                        fontWeight: '500'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{
-                            fontWeight: '500',
-                            fontSize: '14px',
-                            color: '#111827'
-                          }}>
-                            {comment.userName}
-                          </span>
-                          <span style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            backgroundColor: '#e5e7eb',
-                            padding: '2px 8px',
-                            borderRadius: '9999px'
-                          }}>
-                            {comment.userRole}
-                          </span>
-                        </div>
-                        <span style={{
-                          fontSize: '12px',
-                          color: '#6b7280'
-                        }}>
-                          {new Date(comment.timestamp).toLocaleString()}
-                        </span>
+                        {new Date(remark.date).toLocaleDateString()}
                       </div>
-                      <p style={{
+                      <div style={{
                         fontSize: '14px',
                         color: '#374151',
-                        margin: 0
+                        lineHeight: '1.5'
                       }}>
-                        {comment.content}
-                      </p>
+                        {remark.remark}
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <p style={{
-                    color: '#6b7280',
-                    fontSize: '14px',
-                    textAlign: 'center',
-                    padding: '16px 0',
-                    margin: 0
-                  }}>
-                    No comments yet. Start the conversation!
-                  </p>
-                )}
-              </div>
-              
-              {/* Add Comment Form */}
-              <div style={{
-                borderTop: '1px solid #e5e7eb',
-                paddingTop: '16px'
-              }}>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Add a comment..."
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
-                  />
-                  <button
-                    onClick={handleAddComment}
-                    disabled={!commentText.trim() || isAddingComment}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: (!commentText.trim() || isAddingComment) ? '#9ca3af' : '#2563eb',
-                      color: '#ffffff',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: (!commentText.trim() || isAddingComment) ? 'not-allowed' : 'pointer',
-                      transition: 'background-color 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}
-                    onMouseOver={(e) => {
-                      if (commentText.trim() && !isAddingComment) {
-                        e.currentTarget.style.backgroundColor = '#1d4ed8';
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (commentText.trim() && !isAddingComment) {
-                        e.currentTarget.style.backgroundColor = '#2563eb';
-                      }
-                    }}
-                  >
-                    <Send size={16} />
-                    {isAddingComment ? 'Adding...' : 'Send'}
-                  </button>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Action Buttons */}
             <div style={{
@@ -727,6 +497,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="e.g., ABC, XYZ, LRQ"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -748,69 +519,6 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 />
               </div>
 
-                          <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                              Assigned Employee *
-                            </label>
-                            <select
-                              value={formData.assignedEmployeeId}
-                              onChange={(e) => handleInputChange('assignedEmployeeId', e.target.value)}
-                              disabled={user?.role === 'Employee' && !project} // Disable for employees creating new projects
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    backgroundColor: user?.role === 'Employee' && !project ? '#f3f4f6' : '#ffffff',
-                    cursor: user?.role === 'Employee' && !project ? 'not-allowed' : 'pointer'
-                  }}
-                  onFocus={(e) => {
-                    if (!(user?.role === 'Employee' && !project)) {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                              required
-                            >
-                              <option value="">Select Employee</option>
-                              {users.filter(u => {
-                                // Handle both User and Employee types
-                                if ('name' in u) {
-                                  return u.role === 'Employee'; // User type
-                                } else {
-                                  return u.role === 'Employee'; // Employee type
-                                }
-                              }).map(user => (
-                                <option key={user.id} value={user.id}>
-                                  {'name' in user ? user.name : `${user.firstName} ${user.lastName}`} ({user.role})
-                                </option>
-                              ))}
-                            </select>
-                            {user?.role === 'Employee' && !project && (
-                              <p style={{
-                                fontSize: '12px',
-                                color: '#6b7280',
-                                marginTop: '4px',
-                                margin: 0
-                              }}>
-                                Projects you create will be assigned to yourself
-                              </p>
-                            )}
-                          </div>
-
               <div>
                 <label style={{
                   display: 'block',
@@ -819,12 +527,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                  Start Date *
+                  Project Number
                 </label>
                 <input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => handleInputChange('startDate', e.target.value)}
+                  type="text"
+                  value={formData.projectNumber || ''}
+                  onChange={(e) => handleInputChange('projectNumber', e.target.value)}
+                  placeholder="e.g., 2025-001"
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -842,7 +551,41 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                     e.currentTarget.style.borderColor = '#d1d5db';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
-                  required
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={formData.location || ''}
+                  onChange={(e) => handleInputChange('location', e.target.value)}
+                  placeholder="Project location"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                 />
               </div>
 
@@ -878,46 +621,11 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
-                  <option value="Active">Active</option>
-                  <option value="On Hold">On Hold</option>
+                  <option value="Current">Current</option>
+                  <option value="Upcoming">Upcoming</option>
+                  <option value="Sleeping (On Hold)">Sleeping (On Hold)</option>
                   <option value="Completed">Completed</option>
                 </select>
-              </div>
-
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Progress (%)
-                </label>
-                <input
-                  type="number"
-                  value={formData.progress || 0}
-                  onChange={(e) => handleInputChange('progress', parseInt(e.target.value) || 0)}
-                  min="0"
-                  max="100"
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
               </div>
             </div>
 
@@ -929,12 +637,13 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 color: '#374151',
                 marginBottom: '8px'
               }}>
-                Description *
+                Project Description *
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 rows={4}
+                placeholder="Enter project description"
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -955,6 +664,256 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
                 }}
                 required
               />
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Contact Details
+              </label>
+              <textarea
+                value={formData.contactDetails || ''}
+                onChange={(e) => handleInputChange('contactDetails', e.target.value)}
+                rows={3}
+                placeholder="Enter contact details (phone, email, etc.)"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {/* Project Remarks Section */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '12px'
+              }}>
+                Project Remarks (Date-wise)
+              </label>
+              
+              {/* Existing Remarks */}
+              {formData.projectRemarks && formData.projectRemarks.length > 0 && (
+                <div style={{
+                  marginBottom: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  {formData.projectRemarks.map((remark, index) => (
+                    <div key={index} style={{
+                      padding: '12px',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '12px'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#6b7280',
+                          marginBottom: '4px',
+                          fontWeight: '500'
+                        }}>
+                          {new Date(remark.date).toLocaleDateString()}
+                        </div>
+                        <div style={{
+                          fontSize: '14px',
+                          color: '#111827'
+                        }}>
+                          {remark.remark}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedRemarks = formData.projectRemarks?.filter((_, i) => i !== index) || [];
+                          handleInputChange('projectRemarks', updatedRemarks);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '500'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fecaca';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fee2e2';
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add New Remark */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '16px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 2fr auto',
+                  gap: '12px',
+                  alignItems: 'flex-end'
+                }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      marginBottom: '4px'
+                    }}>
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={newRemarkDate}
+                      onChange={(e) => setNewRemarkDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: '#6b7280',
+                      marginBottom: '4px'
+                    }}>
+                      Remark
+                    </label>
+                    <input
+                      type="text"
+                      value={newRemarkText}
+                      onChange={(e) => setNewRemarkText(e.target.value)}
+                      placeholder="Enter remark"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newRemarkDate && newRemarkText.trim()) {
+                          e.preventDefault();
+                          const updatedRemarks = [...(formData.projectRemarks || []), {
+                            date: newRemarkDate,
+                            remark: newRemarkText.trim()
+                          }];
+                          handleInputChange('projectRemarks', updatedRemarks);
+                          setNewRemarkDate('');
+                          setNewRemarkText('');
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newRemarkDate && newRemarkText.trim()) {
+                        const updatedRemarks = [...(formData.projectRemarks || []), {
+                          date: newRemarkDate,
+                          remark: newRemarkText.trim()
+                        }];
+                        handleInputChange('projectRemarks', updatedRemarks);
+                        setNewRemarkDate('');
+                        setNewRemarkText('');
+                      }
+                    }}
+                    disabled={!newRemarkDate || !newRemarkText.trim()}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: (!newRemarkDate || !newRemarkText.trim()) ? '#9ca3af' : '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: (!newRemarkDate || !newRemarkText.trim()) ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => {
+                      if (newRemarkDate && newRemarkText.trim()) {
+                        e.currentTarget.style.backgroundColor = '#1d4ed8';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (newRemarkDate && newRemarkText.trim()) {
+                        e.currentTarget.style.backgroundColor = '#2563eb';
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
             </div>
 
                                     {/* Form Actions */}

@@ -72,9 +72,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
 
   const getStatusColor = (status: Project['status']) => {
     switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800';
-      case 'Completed': return 'bg-blue-100 text-blue-800';
-      case 'On Hold': return 'bg-yellow-100 text-yellow-800';
+      case 'Current': return 'bg-green-100 text-green-800';
+      case 'Upcoming': return 'bg-blue-100 text-blue-800';
+      case 'Sleeping (On Hold)': return 'bg-yellow-100 text-yellow-800';
+      case 'Completed': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -242,19 +243,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
-                            Assigned Employee
-                          </th>
-              <th style={{
-                padding: '12px 24px',
-                textAlign: 'left',
-                fontSize: '12px',
-                fontWeight: '500',
-                color: '#6b7280',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                borderBottom: '1px solid #e5e7eb'
-              }}>
-                Start Date
+                Project Number
               </th>
               <th style={{
                 padding: '12px 24px',
@@ -266,7 +255,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
-                Progress
+                Location
               </th>
               <th style={{
                 padding: '12px 24px',
@@ -290,6 +279,30 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
+                Project Description (in short)
+              </th>
+              <th style={{
+                padding: '12px 24px',
+                textAlign: 'left',
+                fontSize: '12px',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
+                Contact Details
+              </th>
+              <th style={{
+                padding: '12px 24px',
+                textAlign: 'left',
+                fontSize: '12px',
+                fontWeight: '500',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                borderBottom: '1px solid #e5e7eb'
+              }}>
                 Actions
               </th>
             </tr>
@@ -297,7 +310,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
           <tbody style={{ backgroundColor: '#ffffff' }}>
             {projects.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{
+                <td colSpan={7} style={{
                   padding: '48px 24px',
                   textAlign: 'center',
                   color: '#6b7280'
@@ -354,30 +367,20 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
                 }}>
+                  {/* Project Name */}
                   <td style={{
                     padding: '16px 24px',
                     whiteSpace: 'nowrap'
                   }}>
-                    <div>
-                      <div style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: '#111827'
-                      }}>
-                        {project.name}
-                      </div>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#6b7280',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: '200px',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {project.description}
-                      </div>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#111827'
+                    }}>
+                      {project.name || '-'}
                     </div>
                   </td>
+                  {/* Project Number */}
                   <td style={{
                     padding: '16px 24px',
                     whiteSpace: 'nowrap'
@@ -386,9 +389,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       fontSize: '14px',
                       color: '#111827'
                     }}>
-                      {project.assignedEmployeeName || '-'}
+                      {project.projectNumber || '-'}
                     </div>
                   </td>
+                  {/* Location */}
                   <td style={{
                     padding: '16px 24px',
                     whiteSpace: 'nowrap'
@@ -397,44 +401,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       fontSize: '14px',
                       color: '#111827'
                     }}>
-                      {project.startDate ? formatDate(project.startDate) : '-'}
+                      {project.location || '-'}
                     </div>
                   </td>
-                  <td style={{
-                    padding: '16px 24px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}>
-                      <div style={{
-                        width: '64px',
-                        backgroundColor: '#e5e7eb',
-                        borderRadius: '9999px',
-                        height: '8px',
-                        marginRight: '8px'
-                      }}>
-                        <div
-                          style={{
-                            height: '8px',
-                            borderRadius: '9999px',
-                            transition: 'all 0.3s ease',
-                            backgroundColor: getProgressColor(project.progress) === 'bg-green-500' ? '#10b981' :
-                                           getProgressColor(project.progress) === 'bg-blue-500' ? '#3b82f6' :
-                                           getProgressColor(project.progress) === 'bg-yellow-500' ? '#eab308' : '#ef4444',
-                            width: `${project.progress}%`
-                          }}
-                        ></div>
-                      </div>
-                      <span style={{
-                        fontSize: '14px',
-                        color: '#111827'
-                      }}>
-                        {project.progress}%
-                      </span>
-                    </div>
-                  </td>
+                  {/* Status */}
                   <td style={{
                     padding: '16px 24px',
                     whiteSpace: 'nowrap'
@@ -446,15 +416,55 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       lineHeight: '1.25',
                       fontWeight: '600',
                       borderRadius: '9999px',
-                      backgroundColor: project.status === 'Active' ? '#dcfce7' :
+                      backgroundColor: project.status === 'Current' ? '#dcfce7' :
+                                      project.status === 'Upcoming' ? '#dbeafe' :
                                       project.status === 'Completed' ? '#dbeafe' :
-                                      project.status === 'On Hold' ? '#fef3c7' : '#f3f4f6',
-                      color: project.status === 'Active' ? '#166534' :
+                                      project.status === 'Sleeping (On Hold)' ? '#fef3c7' : '#f3f4f6',
+                      color: project.status === 'Current' ? '#166534' :
+                             project.status === 'Upcoming' ? '#1e40af' :
                              project.status === 'Completed' ? '#1e40af' :
-                             project.status === 'On Hold' ? '#92400e' : '#374151'
+                             project.status === 'Sleeping (On Hold)' ? '#92400e' : '#374151'
                     }}>
-                      {project.status}
+                      {project.status || '-'}
                     </span>
+                  </td>
+                  {/* Project Description (in short) */}
+                  <td style={{
+                    padding: '16px 24px',
+                    whiteSpace: 'normal',
+                    maxWidth: '300px'
+                  }}>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      lineHeight: '1.4'
+                    }}>
+                      {project.description || '-'}
+                    </div>
+                  </td>
+                  {/* Contact Details */}
+                  <td style={{
+                    padding: '16px 24px',
+                    whiteSpace: 'normal',
+                    maxWidth: '250px'
+                  }}>
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      lineHeight: '1.4'
+                    }}>
+                      {project.contactDetails || '-'}
+                    </div>
                   </td>
                   <td style={{
                     padding: '16px 24px',

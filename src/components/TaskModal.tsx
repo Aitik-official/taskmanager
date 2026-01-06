@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Task, Project, User, Employee } from '../types';
-import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell } from 'lucide-react';
+import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell, ChevronDown, Check } from 'lucide-react';
 import { taskApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { createProject, deleteProject } from '../services/projectService';
@@ -37,6 +37,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
     title: '',
     description: '',
     assignedToId: '',
+    assignedEmployeeIds: [],
+    assignedEmployeeNames: [],
+    projectHeadId: '',
     priority: 'Less Urgent',
     status: 'Pending',
     dueDate: '',
@@ -47,6 +50,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     flagDirectorInputRequired: false,
     reminderDate: ''
   });
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
   
   const [newComment, setNewComment] = useState('');
@@ -63,6 +67,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [showNewProjectInput, setShowNewProjectInput] = useState(false);
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -89,11 +94,50 @@ const TaskModal: React.FC<TaskModalProps> = ({
         }
       }
       
+      // Normalize projectHeadId if present
+      let normalizedProjectHeadId = task.projectHeadId || '';
+      let normalizedProjectHeadName = task.projectHeadName || '';
+      
+      if (normalizedProjectHeadId && users.length > 0) {
+        const matchingProjectHead = users.find(u => {
+          const userId = u.id || ('_id' in u ? u._id : '') || '';
+          return userId === normalizedProjectHeadId;
+        });
+        if (matchingProjectHead) {
+          normalizedProjectHeadId = matchingProjectHead.id || ('_id' in matchingProjectHead ? matchingProjectHead._id : '') || normalizedProjectHeadId;
+          if (!normalizedProjectHeadName) {
+            normalizedProjectHeadName = 'name' in matchingProjectHead 
+              ? matchingProjectHead.name 
+              : `${matchingProjectHead.firstName} ${matchingProjectHead.lastName}`;
+          }
+        }
+      }
+      
+      // Handle multiple assigned employees
+      let assignedEmployeeIds: string[] = [];
+      let assignedEmployeeNames: string[] = [];
+      
+      if (task.assignedEmployeeIds && task.assignedEmployeeIds.length > 0) {
+        // Use the new multiple assignment format
+        assignedEmployeeIds = task.assignedEmployeeIds;
+        assignedEmployeeNames = task.assignedEmployeeNames || [];
+      } else if (normalizedAssignedToId) {
+        // Fallback to single assignment for backward compatibility
+        assignedEmployeeIds = [normalizedAssignedToId];
+        assignedEmployeeNames = [normalizedAssignedToName];
+      }
+      
+      setSelectedEmployeeIds(assignedEmployeeIds);
+      
       setFormData(prev => ({
         ...prev,
         ...task,
         assignedToId: normalizedAssignedToId,
         assignedToName: normalizedAssignedToName,
+        assignedEmployeeIds: assignedEmployeeIds,
+        assignedEmployeeNames: assignedEmployeeNames,
+        projectHeadId: normalizedProjectHeadId,
+        projectHeadName: normalizedProjectHeadName,
         dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
         reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : ''
       }));
@@ -144,32 +188,130 @@ const TaskModal: React.FC<TaskModalProps> = ({
         }
       }
       
+      if (field === 'projectHeadId') {
+        const projectHead = users.find(u => {
+          const userId = u.id || ('_id' in u ? u._id : '') || '';
+          return userId === value;
+        });
+        if (projectHead) {
+          const projectHeadName = 'name' in projectHead 
+            ? projectHead.name 
+            : `${projectHead.firstName} ${projectHead.lastName}`;
+          updated.projectHeadName = projectHeadName;
+        } else {
+          updated.projectHeadName = '';
+        }
+      }
+      
       return updated;
     });
+  };
+
+  const handleEmployeeSelectionChange = (employeeId: string, checked: boolean) => {
+    if (checked) {
+      // Add employee to selection
+      const newSelectedIds = [...selectedEmployeeIds, employeeId];
+      setSelectedEmployeeIds(newSelectedIds);
+      
+      // Update names array
+      const employee = users.find(u => {
+        const userId = u.id || ('_id' in u ? u._id : '') || '';
+        return userId === employeeId;
+      });
+      
+      if (employee) {
+        const employeeName = 'name' in employee 
+          ? employee.name 
+          : `${employee.firstName} ${employee.lastName}`;
+        
+        const currentNames = formData.assignedEmployeeNames || [];
+        const newNames = [...currentNames, employeeName];
+        
+        setFormData(prev => ({
+          ...prev,
+          assignedEmployeeIds: newSelectedIds,
+          assignedEmployeeNames: newNames,
+          // Keep backward compatibility - use first employee
+          assignedToId: newSelectedIds[0] || '',
+          assignedToName: newNames[0] || ''
+        }));
+      }
+    } else {
+      // Remove employee from selection
+      const newSelectedIds = selectedEmployeeIds.filter(id => id !== employeeId);
+      setSelectedEmployeeIds(newSelectedIds);
+      
+      // Update names array
+      const employee = users.find(u => {
+        const userId = u.id || ('_id' in u ? u._id : '') || '';
+        return userId === employeeId;
+      });
+      
+      if (employee) {
+        const employeeName = 'name' in employee 
+          ? employee.name 
+          : `${employee.firstName} ${employee.lastName}`;
+        
+        const currentNames = formData.assignedEmployeeNames || [];
+        const newNames = currentNames.filter(name => name !== employeeName);
+        
+        setFormData(prev => ({
+          ...prev,
+          assignedEmployeeIds: newSelectedIds,
+          assignedEmployeeNames: newNames,
+          // Keep backward compatibility - use first employee
+          assignedToId: newSelectedIds[0] || '',
+          assignedToName: newNames[0] || ''
+        }));
+      }
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Get assignedToId from formData, with fallback for employees
-    const assignedToId = formData.assignedToId || (isEmployee ? (user?.id || '') : '');
+    // Validate that at least one employee is selected
+    if (selectedEmployeeIds.length === 0 && !isEmployee) {
+      alert('Please select at least one employee to assign this task.');
+      return;
+    }
     
-    // Get assignedToName from formData, or find it from users array
-    let assignedToName = formData.assignedToName || '';
-    if (!assignedToName && assignedToId) {
+    // Get assigned employees from selectedEmployeeIds
+    const assignedEmployeeIds = selectedEmployeeIds.length > 0 
+      ? selectedEmployeeIds 
+      : (isEmployee && user?.id ? [user.id] : []);
+    
+    const assignedEmployeeNames: string[] = [];
+    assignedEmployeeIds.forEach(id => {
       const foundUser = users.find(u => {
         const userId = u.id || ('_id' in u ? u._id : '') || '';
-        return userId === assignedToId;
+        return userId === id;
       });
       if (foundUser) {
-        assignedToName = 'name' in foundUser 
+        const userName = 'name' in foundUser 
           ? foundUser.name 
           : `${foundUser.firstName} ${foundUser.lastName}`;
+        assignedEmployeeNames.push(userName);
       }
-    }
-    // Final fallback for employees
-    if (!assignedToName && isEmployee && user) {
-      assignedToName = user.name || user.email || '';
+    });
+    
+    // Get assignedToId from formData, with fallback for employees (backward compatibility)
+    const assignedToId = assignedEmployeeIds[0] || (isEmployee ? (user?.id || '') : '');
+    const assignedToName = assignedEmployeeNames[0] || (isEmployee && user ? (user.name || user.email || '') : '');
+    
+    // Get projectHeadId and projectHeadName from formData
+    const projectHeadId = formData.projectHeadId || '';
+    let projectHeadName = formData.projectHeadName || '';
+    if (!projectHeadName && projectHeadId) {
+      const foundProjectHead = users.find(u => {
+        const userId = u.id || ('_id' in u ? u._id : '') || '';
+        return userId === projectHeadId;
+      });
+      if (foundProjectHead) {
+        projectHeadName = 'name' in foundProjectHead 
+          ? foundProjectHead.name 
+          : `${foundProjectHead.firstName} ${foundProjectHead.lastName}`;
+      }
     }
     
     const taskData: Task = {
@@ -182,8 +324,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
       projectName: formData.projectName || projects.find(p => p.id === formData.projectId)?.name || '',
       assignedToId: assignedToId,
       assignedToName: assignedToName,
+      assignedEmployeeIds: assignedEmployeeIds,
+      assignedEmployeeNames: assignedEmployeeNames,
       assignedById: task?.assignedById || user?.id || '1',
       assignedByName: task?.assignedByName || user?.name || 'Admin',
+      projectHeadId: projectHeadId || undefined,
+      projectHeadName: projectHeadName || undefined,
       priority: (formData.priority || 'Less Urgent') as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom',
       status: task?.status || 'Pending', // Keep existing status or default to Pending
       estimatedHours: task?.estimatedHours || 0, // Keep existing or default to 0
@@ -986,7 +1132,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 <option value="Pending">Pending</option>
                 <option value="Completed">Completed</option>
                 <option value="In Progress">In Progress</option>
-              </select>
+                </select>
             </div>
 
             <div>
@@ -1087,8 +1233,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                       </div>
                       
-                      {/* Project List with Delete Buttons */}
-                      {projects.map(project => {
+                      {/* Project List with Delete Buttons - Only show Current projects */}
+                      {projects.filter(project => project.status === 'Current').map(project => {
                         const projectId = project.id || project._id || '';
                         const isSelected = formData.projectId === projectId;
                         return (
@@ -1368,8 +1514,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                       </div>
                       
-                      {/* Project List with Delete Buttons */}
-                      {projects.map(project => {
+                      {/* Project List with Delete Buttons - Only show Current projects */}
+                      {projects.filter(project => project.status === 'Current').map(project => {
                         const projectId = project.id || project._id || '';
                         const isSelected = formData.projectId === projectId;
                         return (
@@ -1564,8 +1710,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
               )}
             </div>
 
-            {/* Assigned Employee Field - Show for all users */}
-            <div>
+            {/* Assigned Employees Field - Multi-select Dropdown */}
+            <div style={{ position: 'relative' }}>
               <label style={{
                 display: 'block',
                 fontSize: '14px',
@@ -1573,15 +1719,279 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 color: '#374151',
                 marginBottom: '8px'
               }}>
-                Assigned Employee *
+                Assigned Employee(s) *
               </label>
-                <select
-                value={String(formData.assignedToId || '')}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  handleInputChange('assignedToId', newValue);
+              <div
+                onClick={() => {
+                  if (!isEmployee) {
+                    setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
+                  }
                 }}
-                disabled={isEmployee}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
+                  cursor: isEmployee ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  minHeight: '40px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isEmployee) {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isEmployee && !isEmployeeDropdownOpen) {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                  }
+                }}
+              >
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '6px',
+                  alignItems: 'center'
+                }}>
+                  {selectedEmployeeIds.length === 0 ? (
+                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>
+                      Select Employee(s)
+                    </span>
+                  ) : (
+                    selectedEmployeeIds.map(id => {
+                      const employee = users.find(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        return userId === id;
+                      });
+                      if (!employee) return null;
+                      const userName = 'name' in employee 
+                        ? employee.name 
+                        : `${employee.firstName} ${employee.lastName}`;
+                      return (
+                        <span
+                          key={id}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#eff6ff',
+                            color: '#1e40af',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {userName}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEmployeeSelectionChange(id, false);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              color: '#1e40af'
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+                <ChevronDown 
+                  size={18} 
+                  style={{ 
+                    color: '#6b7280',
+                    transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease'
+                  }} 
+                />
+              </div>
+
+              {/* Dropdown Menu */}
+              {isEmployeeDropdownOpen && !isEmployee && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    zIndex: 1000,
+                    maxHeight: '250px',
+                    overflowY: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {users
+                    .filter(u => {
+                      if (isEmployee) {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        return userId === user?.id;
+                      }
+                      if ('role' in u) {
+                        if (u.role === 'Employee') {
+                          if ('status' in u) {
+                            return u.status === 'Active';
+                          }
+                          return true;
+                        }
+                        return false;
+                      }
+                      if ('firstName' in u) {
+                        if ('status' in u) {
+                          return u.status === 'Active';
+                        }
+                        return true;
+                      }
+                      return false;
+                    })
+                    .map(u => {
+                      const userId = u.id || ('_id' in u ? u._id : '') || '';
+                      const userName = 'name' in u 
+                        ? u.name 
+                        : `${u.firstName} ${u.lastName}`;
+                      const isChecked = selectedEmployeeIds.includes(userId);
+                      
+                      return (
+                        <label
+                          key={userId}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            backgroundColor: isChecked ? '#eff6ff' : 'transparent',
+                            borderBottom: '1px solid #f3f4f6',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              handleEmployeeSelectionChange(userId, e.target.checked);
+                            }}
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              cursor: 'pointer',
+                              accentColor: '#3b82f6'
+                            }}
+                          />
+                          <span style={{
+                            fontSize: '14px',
+                            color: '#111827',
+                            fontWeight: isChecked ? '600' : '500',
+                            flex: 1
+                          }}>
+                            {userName}
+                          </span>
+                          {isChecked && (
+                            <Check size={16} color="#3b82f6" />
+                          )}
+                        </label>
+                      );
+                    })}
+                  {users.filter(u => {
+                    if (isEmployee) {
+                      const userId = u.id || ('_id' in u ? u._id : '') || '';
+                      return userId === user?.id;
+                    }
+                    if ('role' in u && u.role === 'Employee') {
+                      if ('status' in u) return u.status === 'Active';
+                      return true;
+                    }
+                    if ('firstName' in u) {
+                      if ('status' in u) return u.status === 'Active';
+                      return true;
+                    }
+                    return false;
+                  }).length === 0 && (
+                    <div style={{
+                      padding: '16px',
+                      textAlign: 'center',
+                      color: '#6b7280',
+                      fontSize: '14px'
+                    }}>
+                      No active employees available
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Click outside to close dropdown */}
+              {isEmployeeDropdownOpen && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 999
+                  }}
+                  onClick={() => setIsEmployeeDropdownOpen(false)}
+                />
+              )}
+
+              {selectedEmployeeIds.length > 0 && (
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#059669',
+                  fontWeight: '500'
+                }}>
+                  {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
+                </div>
+              )}
+            </div>
+
+            {/* Project Head Field - Show for directors */}
+            {isDirector && (
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Project Head
+                </label>
+                <select
+                  value={String(formData.projectHeadId || '')}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    handleInputChange('projectHeadId', newValue);
+                  }}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -1590,49 +2000,41 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     outline: 'none',
                     fontSize: '14px',
                     fontFamily: 'inherit',
-                  backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
-                  cursor: isEmployee ? 'not-allowed' : 'pointer'
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer'
                   }}
                   onFocus={(e) => {
-                  if (!isEmployee) {
                     e.currentTarget.style.borderColor = '#3b82f6';
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }
                   }}
                   onBlur={(e) => {
                     e.currentTarget.style.borderColor = '#d1d5db';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
-                required
                 >
-                <option value="">Select Employee</option>
-                {users
-                  .filter(u => {
-                    // For employees, only show themselves
-                    if (isEmployee) {
+                  <option value="">Select Project Head (Optional)</option>
+                  {users
+                    .filter(u => {
+                      // Show only Project Heads
+                      if ('role' in u) {
+                        return u.role === 'Project Head';
+                      }
+                      return false;
+                    })
+                    .map(u => {
                       const userId = u.id || ('_id' in u ? u._id : '') || '';
-                      return userId === user?.id;
-                    }
-                    // For directors/project heads, show all employees
-                    if ('role' in u) {
-                      return u.role === 'Employee';
-                    }
-                    // If it's an Employee type (has firstName), include it
-                    return 'firstName' in u;
-                  })
-                  .map(u => {
-                    const userId = u.id || ('_id' in u ? u._id : '') || '';
-                    const userName = 'name' in u 
-                      ? u.name 
-                      : `${u.firstName} ${u.lastName}`;
-                    return (
-                      <option key={userId} value={userId}>
-                        {userName}
-                    </option>
-                    );
-                  })}
+                      const userName = 'name' in u 
+                        ? u.name 
+                        : `${u.firstName} ${u.lastName}`;
+                      return (
+                        <option key={userId} value={userId}>
+                          {userName}
+                        </option>
+                      );
+                    })}
                 </select>
-            </div>
+              </div>
+            )}
             </div>
 
             <div>
@@ -2419,7 +2821,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   <option value="Pending">Pending</option>
                   <option value="Completed">Completed</option>
                   <option value="In Progress">In Progress</option>
-                </select>
+                  </select>
               </div>
 
               <div>
@@ -2520,8 +2922,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                         </div>
                         
-                        {/* Project List with Delete Buttons */}
-                        {projects.map(project => {
+                        {/* Project List with Delete Buttons - Only show Current projects */}
+                        {projects.filter(project => project.status === 'Current').map(project => {
                           const projectId = project.id || project._id || '';
                           const isSelected = formData.projectId === projectId;
                           return (
@@ -2801,8 +3203,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                         </div>
                         
-                        {/* Project List with Delete Buttons */}
-                        {projects.map(project => {
+                        {/* Project List with Delete Buttons - Only show Current projects */}
+                        {projects.filter(project => project.status === 'Current').map(project => {
                           const projectId = project.id || project._id || '';
                           const isSelected = formData.projectId === projectId;
                           return (
@@ -2840,7 +3242,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                                   fontWeight: isSelected ? '500' : '400'
                                 }}
                               >
-                        {project.name}
+                                {project.name}
                               </span>
                               <button
                                 type="button"
@@ -2997,8 +3399,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 )}
               </div>
 
-              {/* Assigned Employee Field - Show for all users */}
-                <div>
+              {/* Assigned Employees Field - Multi-select Dropdown */}
+                <div style={{ position: 'relative' }}>
                   <label style={{
                     display: 'block',
                     fontSize: '14px',
@@ -3006,15 +3408,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     color: '#374151',
                     marginBottom: '8px'
                   }}>
-                    Assigned Employee *
+                    Assigned Employee(s) *
                   </label>
-                  <select
-                    value={String(formData.assignedToId || '')}
-                    onChange={(e) => {
-                      const newValue = e.target.value;
-                      handleInputChange('assignedToId', newValue);
+                  <div
+                    onClick={() => {
+                      if (!isEmployee) {
+                        setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
+                      }
                     }}
-                  disabled={isEmployee}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -3023,49 +3424,306 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       outline: 'none',
                       fontSize: '14px',
                       fontFamily: 'inherit',
-                    backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
-                    cursor: isEmployee ? 'not-allowed' : 'pointer'
+                      backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
+                      cursor: isEmployee ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      minHeight: '40px',
+                      transition: 'all 0.2s ease'
                     }}
-                    onFocus={(e) => {
-                    if (!isEmployee) {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    required
-                  >
-                    <option value="">Select Employee</option>
-                    {users
-                      .filter(u => {
-                      // For employees, only show themselves
-                      if (isEmployee) {
-                        const userId = u.id || ('_id' in u ? u._id : '') || '';
-                        return userId === user?.id;
+                    onMouseEnter={(e) => {
+                      if (!isEmployee) {
+                        e.currentTarget.style.borderColor = '#3b82f6';
                       }
-                      // For directors/project heads, show all employees
-                        if ('role' in u) {
-                          return u.role === 'Employee';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isEmployee && !isEmployeeDropdownOpen) {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }
+                    }}
+                  >
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                      alignItems: 'center'
+                    }}>
+                      {selectedEmployeeIds.length === 0 ? (
+                        <span style={{ color: '#9ca3af', fontSize: '14px' }}>
+                          Select Employee(s)
+                        </span>
+                      ) : (
+                        selectedEmployeeIds.map(id => {
+                          const employee = users.find(u => {
+                            const userId = u.id || ('_id' in u ? u._id : '') || '';
+                            return userId === id;
+                          });
+                          if (!employee) return null;
+                          const userName = 'name' in employee 
+                            ? employee.name 
+                            : `${employee.firstName} ${employee.lastName}`;
+                          return (
+                            <span
+                              key={id}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#eff6ff',
+                                color: '#1e40af',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {userName}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEmployeeSelectionChange(id, false);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  color: '#1e40af'
+                                }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
+                    <ChevronDown 
+                      size={18} 
+                      style={{ 
+                        color: '#6b7280',
+                        transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease'
+                      }} 
+                    />
+                  </div>
+
+                  {/* Dropdown Menu */}
+                  {isEmployeeDropdownOpen && !isEmployee && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                        zIndex: 1000,
+                        maxHeight: '250px',
+                        overflowY: 'auto'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {users
+                        .filter(u => {
+                          if (isEmployee) {
+                            const userId = u.id || ('_id' in u ? u._id : '') || '';
+                            return userId === user?.id;
+                          }
+                          if ('role' in u) {
+                            if (u.role === 'Employee') {
+                              if ('status' in u) {
+                                return u.status === 'Active';
+                              }
+                              return true;
+                            }
+                            return false;
+                          }
+                          if ('firstName' in u) {
+                            if ('status' in u) {
+                              return u.status === 'Active';
+                            }
+                            return true;
+                          }
+                          return false;
+                        })
+                        .map(u => {
+                          const userId = u.id || ('_id' in u ? u._id : '') || '';
+                          const userName = 'name' in u 
+                            ? u.name 
+                            : `${u.firstName} ${u.lastName}`;
+                          const isChecked = selectedEmployeeIds.includes(userId);
+                          
+                          return (
+                            <label
+                              key={userId}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '10px 12px',
+                                cursor: 'pointer',
+                                backgroundColor: isChecked ? '#eff6ff' : 'transparent',
+                                borderBottom: '1px solid #f3f4f6',
+                                transition: 'background-color 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  handleEmployeeSelectionChange(userId, e.target.checked);
+                                }}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  cursor: 'pointer',
+                                  accentColor: '#3b82f6'
+                                }}
+                              />
+                              <span style={{
+                                fontSize: '14px',
+                                color: '#111827',
+                                fontWeight: isChecked ? '600' : '500',
+                                flex: 1
+                              }}>
+                                {userName}
+                              </span>
+                              {isChecked && (
+                                <Check size={16} color="#3b82f6" />
+                              )}
+                            </label>
+                          );
+                        })}
+                      {users.filter(u => {
+                        if (isEmployee) {
+                          const userId = u.id || ('_id' in u ? u._id : '') || '';
+                          return userId === user?.id;
                         }
-                        // If it's an Employee type (has firstName), include it
-                        return 'firstName' in u;
-                      })
-                      .map(u => {
-                        const userId = u.id || ('_id' in u ? u._id : '') || '';
-                        const userName = 'name' in u 
-                          ? u.name 
-                          : `${u.firstName} ${u.lastName}`;
-                        return (
-                          <option key={userId} value={userId}>
-                            {userName}
-                          </option>
-                        );
-                      })}
-                  </select>
+                        if ('role' in u && u.role === 'Employee') {
+                          if ('status' in u) return u.status === 'Active';
+                          return true;
+                        }
+                        if ('firstName' in u) {
+                          if ('status' in u) return u.status === 'Active';
+                          return true;
+                        }
+                        return false;
+                      }).length === 0 && (
+                        <div style={{
+                          padding: '16px',
+                          textAlign: 'center',
+                          color: '#6b7280',
+                          fontSize: '14px'
+                        }}>
+                          No active employees available
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Click outside to close dropdown */}
+                  {isEmployeeDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 999
+                      }}
+                      onClick={() => setIsEmployeeDropdownOpen(false)}
+                    />
+                  )}
+
+                  {selectedEmployeeIds.length > 0 && (
+                    <div style={{
+                      marginTop: '8px',
+                      fontSize: '12px',
+                      color: '#059669',
+                      fontWeight: '500'
+                    }}>
+                      {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
+                    </div>
+                  )}
                 </div>
+
+                {/* Project Head Field - Show for directors */}
+                {isDirector && (
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Project Head
+                    </label>
+                    <select
+                      value={String(formData.projectHeadId || '')}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        handleInputChange('projectHeadId', newValue);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <option value="">Select Project Head (Optional)</option>
+                      {users
+                        .filter(u => {
+                          // Show only Project Heads
+                          if ('role' in u) {
+                            return u.role === 'Project Head';
+                          }
+                          return false;
+                        })
+                        .map(u => {
+                          const userId = u.id || ('_id' in u ? u._id : '') || '';
+                          const userName = 'name' in u 
+                            ? u.name 
+                            : `${u.firstName} ${u.lastName}`;
+                          return (
+                            <option key={userId} value={userId}>
+                              {userName}
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -3076,7 +3734,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   color: '#374151',
                   marginBottom: '8px'
                 }}>
-                Task Title *
+                  Task Title *
                 </label>
                 {isEmployee && tasks.length > 0 && (
                   <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -3255,28 +3913,28 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       ))}
                     </select>
                   </div>
-            </div>
+                  </div>
 
             {/* Reminder Date Field - Create Form */}
-            <div>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
+                  <div>
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                  marginBottom: '8px'
+                    }}>
                 <Bell size={16} color="#6b7280" />
                 Reminder Date
               </label>
-              <input
+                      <input
                 type="date"
                 value={formData.reminderDate || ''}
                 onChange={(e) => handleInputChange('reminderDate', e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                style={{
+                        style={{
                   width: '100%',
                   padding: '8px 12px',
                   border: '1px solid #d1d5db',
@@ -3285,7 +3943,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   fontSize: '14px',
                   fontFamily: 'inherit',
                   backgroundColor: '#ffffff'
-                }}
+                        }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = '#3b82f6';
                   e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
@@ -3295,14 +3953,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               />
-              <p style={{
-                fontSize: '12px',
-                color: '#6b7280',
-                marginTop: '4px',
-                margin: 0
-              }}>
+                    <p style={{
+                      fontSize: '12px',
+                      color: '#6b7280',
+                      marginTop: '4px',
+                      margin: 0
+                    }}>
                 Select a date to send a reminder to the assigned employee about this task
-              </p>
+                    </p>
             </div>
 
             <div style={{
