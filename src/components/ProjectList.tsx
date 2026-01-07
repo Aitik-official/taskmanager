@@ -87,7 +87,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
     return 'bg-red-500';
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
