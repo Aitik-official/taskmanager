@@ -73,23 +73,23 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects }) => {
             
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-500">Progress</span>
-              <span className="text-xs font-medium text-gray-900">{project.progress}%</span>
+              <span className="text-xs font-medium text-gray-900">{project.progress ?? 0}%</span>
             </div>
             
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className={`h-2 rounded-full transition-all duration-300 ${
-                  project.progress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                  (project.progress ?? 0) === 100 ? 'bg-green-500' : 'bg-blue-500'
                 }`}
-                style={{ width: `${project.progress}%` }}
+                style={{ width: `${project.progress ?? 0}%` }}
               ></div>
             </div>
             
-            {project.progress > 0 && (
+            {(project.progress ?? 0) > 0 && (
               <div className="flex items-center space-x-1 text-xs text-gray-500">
                 <TrendingUp className="h-3 w-3" />
                 <span>
-                  {project.progress === 100 ? 'Completed' : `${project.progress}% Complete`}
+                  {(project.progress ?? 0) === 100 ? 'Completed' : `${project.progress ?? 0}% Complete`}
                 </span>
               </div>
             )}
