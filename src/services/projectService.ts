@@ -1,29 +1,7 @@
 import axios from 'axios';
+import { Project } from '../types';
 
 const API_BASE_URL = '/api';
-
-export interface Project {
-  id?: string;
-  _id?: string;
-  name: string;
-  description: string;
-  assignedEmployeeId: string;
-  assignedEmployeeName: string;
-  status: 'Active' | 'Completed' | 'On Hold';
-  startDate: string;
-  progress: number;
-  comments?: Array<{
-    id: string;
-    userId: string;
-    userName: string;
-    userRole: string;
-    content: string;
-    timestamp: string;
-    isVisibleToEmployee: boolean;
-  }>;
-  createdAt?: string;
-  updatedAt?: string;
-}
 
 // Get all projects
 export const getProjects = async (): Promise<Project[]> => {

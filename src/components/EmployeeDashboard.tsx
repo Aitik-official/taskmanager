@@ -124,13 +124,30 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  const normalizeProjectStatus = (status?: string): Project['status'] => {
+    switch (status) {
+      case 'Active':
+        return 'Current';
+      case 'On Hold':
+        return 'Sleeping (On Hold)';
+      case 'Sleeping (On Hold)':
+      case 'Current':
+      case 'Upcoming':
+      case 'Completed':
+        return status;
+      default:
+        return 'Current';
+    }
+  };
+
   const loadProjects = async () => {
     try {
       const fetchedProjects = await getProjects();
       // Transform the projects to match the expected type
-      const transformedProjects = fetchedProjects.map(project => ({
+      const transformedProjects: Project[] = fetchedProjects.map(project => ({
         ...project,
-        id: project.id || project._id || ''
+        id: project.id || project._id || '',
+        status: normalizeProjectStatus(project.status)
       }));
       setProjects(transformedProjects);
     } catch (error: any) {
@@ -489,7 +506,7 @@ const EmployeeDashboard: React.FC = () => {
     const overdueTasks = tasksForStats.filter(t => t.status === 'Pending' && t.dueDate && new Date(t.dueDate) < new Date()).length;
     const inProgressTasks = tasksForStats.filter(t => t.status === 'In Progress').length;
     const totalProjects = projectsForStats.length;
-    const activeProjects = projectsForStats.filter(p => p.status === 'Active').length;
+    const activeProjects = projectsForStats.filter(p => p.status === 'Current').length;
     // Note: User interface doesn't have status, so activeEmployees is set to 0 for employee dashboard
     const activeEmployees = 0;
 
@@ -663,10 +680,10 @@ const EmployeeDashboard: React.FC = () => {
       // Ensure project is assigned to the employee creating it
       const projectWithUserInfo = {
         ...newProject,
-        assignedEmployeeId: user?.id || newProject.assignedEmployeeId,
-        assignedEmployeeName: user?.name || user?.email || newProject.assignedEmployeeName,
-        progress: newProject.progress || 0,
-        status: newProject.status || 'Active',
+        assignedEmployeeId: user?.id || newProject.assignedEmployeeId || '',
+        assignedEmployeeName: user?.name || user?.email || newProject.assignedEmployeeName || '',
+        progress: newProject.progress ?? 0,
+        status: normalizeProjectStatus(newProject.status),
         isEmployeeCreated: true // Flag to identify this project was created by employee from employee dashboard
       };
       
@@ -700,7 +717,10 @@ const EmployeeDashboard: React.FC = () => {
         console.error('No project ID available for update:', updatedProject);
         return;
       }
-      await updateProject(String(projectId), updatedProject);
+      await updateProject(String(projectId), {
+        ...updatedProject,
+        status: normalizeProjectStatus(updatedProject.status)
+      });
       await loadProjects(); // Reload projects from database
       
       setNotificationMessage('Project updated successfully!');
@@ -847,7 +867,7 @@ const EmployeeDashboard: React.FC = () => {
           filtered = project.status === 'Completed';
           break;
         case 'pending':
-          filtered = project.status === 'Active' || project.status === 'On Hold';
+          filtered = project.status === 'Current' || project.status === 'Sleeping (On Hold)' || project.status === 'Upcoming';
           break;
         default:
           filtered = true;
