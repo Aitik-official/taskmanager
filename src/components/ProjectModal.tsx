@@ -12,6 +12,8 @@ interface ProjectModalProps {
   onSave: (project: Project) => void;
   onDelete?: (projectId: string) => void;
   users: (User | Employee)[];
+  // Callback reserved for adding comments to a project (currently unused here)
+  onCommentAdded?: (projectId: string, comment: any) => void;
 }
 
 const ProjectModal: React.FC<ProjectModalProps> = ({
