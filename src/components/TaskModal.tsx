@@ -481,7 +481,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         description: 'New project', // Required field - provide default description
         assignedEmployeeId: user.id,
         assignedEmployeeName: user.name || user.email || 'User',
-        status: 'Active',
+        status: 'Current',
         startDate: new Date().toISOString().split('T')[0],
         progress: 0
       };
