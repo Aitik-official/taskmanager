@@ -7,7 +7,8 @@ interface ProjectOverviewProps {
 }
 
 const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects }) => {
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
@@ -16,9 +17,10 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects }) => {
 
   const getStatusColor = (status: Project['status']) => {
     switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800';
+      case 'Current': return 'bg-green-100 text-green-800';
       case 'Completed': return 'bg-blue-100 text-blue-800';
-      case 'On Hold': return 'bg-yellow-100 text-yellow-800';
+      case 'Sleeping (On Hold)': return 'bg-yellow-100 text-yellow-800';
+      case 'Upcoming': return 'bg-blue-50 text-blue-700';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -61,10 +63,12 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects }) => {
                 <User className="h-3 w-3" />
                 <span>{project.assignedEmployeeName}</span>
               </div>
-              <div className="flex items-center space-x-1">
-                <Calendar className="h-3 w-3" />
-                <span>{formatDate(project.startDate)}</span>
-              </div>
+              {project.startDate && (
+                <div className="flex items-center space-x-1">
+                  <Calendar className="h-3 w-3" />
+                  <span>{formatDate(project.startDate)}</span>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center justify-between">
