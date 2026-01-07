@@ -3546,10 +3546,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                             return false;
                           }
                           if ('firstName' in u) {
-                            if ('status' in u) {
-                              return u.status === 'Active';
-                            }
-                            return true;
+                            const employee = u as Employee;
+                            return employee.status ? employee.status === 'Active' : true;
                           }
                           return false;
                         })
