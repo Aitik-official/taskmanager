@@ -1366,7 +1366,7 @@ const Dashboard: React.FC = () => {
               </svg>
               This week
             </button>
-                {isDirector && (
+                {(isDirector || isProjectHead) && (
                   <button
                     onClick={() => setIsTaskModalOpen(true)}
                 style={{
@@ -1961,7 +1961,8 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Approvals Card - Director */}
+                    {/* Approvals Card - Director Only */}
+                    {isDirector && (
                     <div style={{
                       background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
                       borderRadius: '16px',
@@ -2037,6 +2038,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    )}
                   </>
                 )}
               </div>
@@ -3056,7 +3058,7 @@ const Dashboard: React.FC = () => {
                     <Download size={16} />
                     Export
                   </button>
-                {isDirector && (
+                {(isDirector || isProjectHead) && (
                   <button
                     onClick={() => setIsTaskModalOpen(true)}
                       style={{
@@ -3723,7 +3725,7 @@ const Dashboard: React.FC = () => {
                       }}>
                         Create your first task to get started
                       </p>
-                {isDirector && (
+                {(isDirector || isProjectHead) && (
                   <button
                     onClick={() => setIsTaskModalOpen(true)}
                           style={{
