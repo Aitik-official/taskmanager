@@ -64,10 +64,10 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects }) => {
                 <span>{project.assignedEmployeeName}</span>
               </div>
               {project.startDate && (
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{formatDate(project.startDate)}</span>
-                </div>
+              <div className="flex items-center space-x-1">
+                <Calendar className="h-3 w-3" />
+                <span>{formatDate(project.startDate)}</span>
+              </div>
               )}
             </div>
             

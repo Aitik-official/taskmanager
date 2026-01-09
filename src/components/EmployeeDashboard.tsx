@@ -14,7 +14,7 @@ import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
-import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock, Eye, X } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock, Eye, X, CheckSquare, MessageSquare } from 'lucide-react';
 import { IndependentWork, IndependentWorkAttachment } from '../types';
 import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork, addComment, getIndependentWorkById } from '../services/independentWorkService';
 
@@ -24,7 +24,8 @@ const getUsersFromEmployees = async (): Promise<User[]> => {
     const response = await fetch('/api/employees');
     const employees = await response.json();
     return employees.map((emp: any) => ({
-      id: emp.id,
+      id: emp.id || emp._id,
+      _id: emp._id || emp.id, // Include both for compatibility
       name: `${emp.firstName} ${emp.lastName}`,
       email: emp.email,
       role: emp.role
@@ -55,12 +56,12 @@ const EmployeeDashboard: React.FC = () => {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals' | 'notifications'>('overview');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [taskFilter, setTaskFilter] = useState<'all' | 'completed' | 'pending' | 'overdue'>('all');
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom'>('all');
-  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'self'>('all');
+  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'projectHead' | 'self'>('all');
   const [projectSourceFilter, setProjectSourceFilter] = useState<'all' | 'director' | 'self'>('all');
   const [projectFilter, setProjectFilter] = useState<'all' | 'employee' | 'completed' | 'pending'>('all');
   const [independentWork, setIndependentWork] = useState<IndependentWork[]>([]);
@@ -93,6 +94,87 @@ const EmployeeDashboard: React.FC = () => {
   // Track which task's workDone is being edited
   const [editingWorkDone, setEditingWorkDone] = useState<string | null>(null);
   const [workDoneValue, setWorkDoneValue] = useState<number>(0);
+  
+  // Track previous tasks and comments for notifications
+  const [previousTasks, setPreviousTasks] = useState<Task[]>([]);
+  const [previousCommentCounts, setPreviousCommentCounts] = useState<Record<string, number>>({});
+  
+  // Notifications state
+  interface Notification {
+    id: string;
+    type: 'task' | 'comment';
+    message: string;
+    taskId?: string;
+    taskTitle?: string;
+    creatorName: string;
+    creatorRole: string;
+    timestamp: number;
+    read: boolean;
+  }
+  
+  // Load notifications from localStorage on mount
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    try {
+      const saved = localStorage.getItem('employeeNotifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Filter out old notifications (older than 5 minutes)
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        const validNotifications = parsed.filter((n: Notification) => n.timestamp > fiveMinutesAgo);
+        console.log('📥 Loaded notifications from localStorage:', validNotifications.length, 'valid out of', parsed.length);
+        return validNotifications;
+      }
+    } catch (error) {
+      console.error('Error loading notifications from localStorage:', error);
+    }
+    return [];
+  });
+  
+  // Save notifications to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('employeeNotifications', JSON.stringify(notifications));
+      console.log('💾 Saved notifications to localStorage:', notifications.length);
+    } catch (error) {
+      console.error('Error saving notifications to localStorage:', error);
+    }
+  }, [notifications]);
+
+  // Auto-remove notifications after 5 minutes
+  useEffect(() => {
+    if (notifications.length === 0) return;
+    
+    const timeouts: NodeJS.Timeout[] = [];
+    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+    
+    notifications.forEach((notification) => {
+      const age = Date.now() - notification.timestamp;
+      const remainingTime = fiveMinutes - age;
+      
+      if (remainingTime > 0) {
+        // Set timeout to remove notification after remaining time
+        const timeout = setTimeout(() => {
+          console.log('⏰ Auto-removing notification after 5 minutes:', notification.id, notification.message);
+          setNotifications(prev => {
+            const filtered = prev.filter(n => n.id !== notification.id);
+            console.log('🗑️ Removed notification. Remaining:', filtered.length);
+            return filtered;
+          });
+        }, remainingTime);
+        timeouts.push(timeout);
+        console.log(`⏱️ Notification "${notification.message.substring(0, 30)}..." will be removed in ${Math.round(remainingTime / 1000)} seconds`);
+      } else {
+        // Notification is already older than 5 minutes, remove it immediately
+        console.log('⏰ Removing old notification (>5 minutes):', notification.id);
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }
+    });
+    
+    // Cleanup timeouts on unmount or when notifications change
+    return () => {
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [notifications]);
 
   const loadTasks = async () => {
     try {
@@ -115,6 +197,8 @@ const EmployeeDashboard: React.FC = () => {
       }
       
       setTasks(fetchedTasks);
+      
+      // Don't initialize previousTasks here - let the polling logic handle it after initial delay
     } catch (error: any) {
       console.error('Error loading tasks:', error);
       // Fallback to empty array if API fails
@@ -167,6 +251,322 @@ const EmployeeDashboard: React.FC = () => {
     }
   }, [user]);
 
+  // Poll for new tasks and comments (for employees only)
+  useEffect(() => {
+    if (!isEmployee || !user) return;
+
+    const checkForUpdates = async () => {
+      try {
+        const fetchedTasks = await taskApi.getTasksByUser(user.id, 'Employee');
+        
+        // Check for new tasks assigned by Director/Project Head
+        // Only check if we have previous tasks to compare against (skip initial load)
+        if (previousTasks.length > 0) {
+          const currentTaskIds = new Set(fetchedTasks.map((t: Task) => String(t.id || t._id || '')));
+          const previousTaskIds = new Set(previousTasks.map((t: Task) => String(t.id || t._id || '')));
+          
+          console.log('🔍 Checking for new tasks:', {
+            currentTasks: fetchedTasks.length,
+            previousTasks: previousTasks.length,
+            currentTaskIds: Array.from(currentTaskIds),
+            previousTaskIds: Array.from(previousTaskIds)
+          });
+          
+          const newTasks = fetchedTasks.filter((task: Task) => {
+            const taskId = String(task.id || task._id || '');
+            const userId = String(user.id || '');
+            const taskAssignedId = String(task.assignedToId || '');
+            
+            const isNewTask = !previousTaskIds.has(taskId);
+            const isAssignedToMe = taskAssignedId === userId || taskAssignedId === String(userId);
+            const isNotEmployeeCreated = task.isEmployeeCreated !== true; // Must be false or undefined
+            const hasCreatorInfo = !!(task.assignedByName || task.assignedById);
+            // Make sure it's assigned by someone else (Director/Project Head), not by the employee themselves
+            const isAssignedByManager = task.assignedById && String(task.assignedById) !== userId;
+            
+            const shouldNotify = isNewTask && isAssignedToMe && isNotEmployeeCreated && hasCreatorInfo && isAssignedByManager;
+            
+            if (shouldNotify) {
+              console.log('✅ NEW TASK DETECTED FOR NOTIFICATION:', {
+                taskId,
+                taskTitle: task.title,
+                assignedByName: task.assignedByName,
+                assignedById: task.assignedById,
+                isEmployeeCreated: task.isEmployeeCreated,
+                assignedToId: task.assignedToId,
+                userId: user.id,
+                isNewTask,
+                isAssignedToMe,
+                isNotEmployeeCreated,
+                hasCreatorInfo,
+                isAssignedByManager
+              });
+            } else if (isNewTask && isAssignedToMe) {
+              console.log('⚠️ New task but not notifying:', {
+                taskId,
+                taskTitle: task.title,
+                isNotEmployeeCreated,
+                hasCreatorInfo,
+                isAssignedByManager
+              });
+            }
+            
+            return shouldNotify;
+          });
+          
+          console.log('📊 Notification check results:', {
+            totalTasks: fetchedTasks.length,
+            previousTasks: previousTasks.length,
+            newTasksFound: newTasks.length,
+            newTasks: newTasks.map((t: Task) => ({ id: t.id || t._id, title: t.title, assignedByName: t.assignedByName }))
+          });
+
+          // Show notifications for new tasks
+          newTasks.forEach((task: Task) => {
+            const creatorName = task.assignedByName || 'Director/Project Head';
+            
+            // Find creator role (try to find in users array, but also check task properties)
+            let creatorRole = 'Manager';
+            if (users.length > 0) {
+              const creator = users.find((u: User) => {
+                const userId = u.id || (u as any)._id || '';
+                const taskAssignedId = task.assignedById || '';
+                return (userId === taskAssignedId || String(userId) === String(taskAssignedId)) && 
+                       (u.role === 'Director' || u.role === 'Project Head');
+              });
+              creatorRole = creator?.role || 'Manager';
+            } else {
+              // Fallback: if users array not loaded yet, check if task has assignedByName that suggests Director/Project Head
+              // For now, default to showing notification anyway
+              creatorRole = 'Manager';
+            }
+            
+            const roleLabel = creatorRole === 'Director' ? 'Director' : creatorRole === 'Project Head' ? 'Project Head' : 'Manager';
+            const message = `${roleLabel} ${creatorName} assigned you a new task: "${task.title}"`;
+            
+            console.log('🔔 Showing notification for new task:', message);
+            
+            // Add to notifications list
+            const notificationId = `task-${task.id || task._id}-${Date.now()}`;
+            const newNotification: Notification = {
+              id: notificationId,
+              type: 'task',
+              message,
+              taskId: task.id || task._id,
+              taskTitle: task.title,
+              creatorName,
+              creatorRole: roleLabel,
+              timestamp: Date.now(),
+              read: false
+            };
+            
+            setNotifications(prev => {
+              // Check if notification already exists to avoid duplicates
+              const exists = prev.some(n => n.taskId === newNotification.taskId && n.type === 'task' && n.creatorName === newNotification.creatorName);
+              if (exists) {
+                console.log('Task notification already exists, skipping:', newNotification.taskId);
+                return prev;
+              }
+              console.log('✅ Adding new task notification:', newNotification);
+              const updated = [newNotification, ...prev];
+              console.log('📊 Total notifications after adding:', updated.length, updated);
+              return updated;
+            });
+            
+            // Also show popup notification
+            setNotificationMessage(message);
+            setShowNotification(true);
+            setTimeout(() => {
+              setShowNotification(false);
+            }, 5000);
+          });
+        }
+
+        // Check for new comments on existing tasks
+        const newComments: Array<{task: Task, comment: any}> = [];
+        fetchedTasks.forEach((task: Task) => {
+          const taskId = task.id || task._id || '';
+          const currentCommentCount = task.comments?.length || 0;
+          const previousCommentCount = previousCommentCounts[taskId] || 0;
+          
+          // Check for new comments if count increased OR if we're tracking this task
+          if (currentCommentCount > previousCommentCount && task.comments) {
+            // Find new comments (check if they're from Director/Project Head)
+            const newCommentList = task.comments.slice(previousCommentCount);
+            console.log(`📝 Checking ${newCommentList.length} new comments on task "${task.title}"`);
+            
+            newCommentList.forEach((comment: any) => {
+              // Check if comment is from Director or Project Head
+              const commentAuthorId = comment.userId || comment.assignedById || comment.createdBy || '';
+              const commentUserName = comment.userName || comment.name || '';
+              
+              console.log('🔍 Checking comment:', {
+                commentId: comment._id || comment.id,
+                commentAuthorId,
+                commentUserName,
+                commentContent: comment.content || comment.text || comment.comment || comment.message || 'N/A',
+                usersArrayLength: users.length
+              });
+              
+              // Try to find author in users array by ID first
+              let commentAuthor = users.find((u: User) => {
+                const userId = u.id || (u as any)._id || '';
+                const matchesId = userId === commentAuthorId || String(userId) === String(commentAuthorId);
+                const isManager = u.role === 'Director' || u.role === 'Project Head';
+                return matchesId && isManager;
+              });
+              
+              // If not found by ID, try to find by name
+              if (!commentAuthor && commentUserName) {
+                commentAuthor = users.find((u: User) => {
+                  const userName = u.name || '';
+                  const matchesName = userName === commentUserName || userName.toLowerCase() === commentUserName.toLowerCase();
+                  const isManager = u.role === 'Director' || u.role === 'Project Head';
+                  return matchesName && isManager;
+                });
+              }
+              
+              if (commentAuthor) {
+                console.log('✅ Found comment author in users:', commentAuthor.name, commentAuthor.role);
+                newComments.push({ task, comment });
+              } else {
+                console.log('❌ Comment not from Director/Project Head:', {
+                  commentAuthorId,
+                  commentUserName,
+                  availableUsers: users.map(u => ({ id: u.id, name: u.name, role: u.role }))
+                });
+              }
+            });
+          }
+        });
+
+        // Show notifications for new comments
+        newComments.forEach(({ task, comment }: {task: Task, comment: any}) => {
+          let commentAuthor = users.find((u: User) => {
+            const userId = u.id || (u as any)._id || '';
+            const commentAuthorId = comment.userId || comment.assignedById || comment.createdBy || '';
+            return (userId === commentAuthorId || String(userId) === String(commentAuthorId)) && 
+                   (u.role === 'Director' || u.role === 'Project Head');
+          });
+          
+          // If author not found but comment has role info, use that
+          let authorName = '';
+          let authorRole = '';
+          
+          if (commentAuthor) {
+            authorName = commentAuthor.name;
+            authorRole = commentAuthor.role === 'Director' ? 'Director' : 'Project Head';
+          } else if (comment._authorName && comment._authorRole) {
+            // Use temporary author info from comment
+            authorName = comment._authorName;
+            authorRole = comment._authorRole;
+          } else if (comment.userName && (comment.role === 'Director' || comment.role === 'Project Head')) {
+            authorName = comment.userName;
+            authorRole = comment.role;
+          } else {
+            // Try to find by name
+            const commentName = comment.userName || comment.name || '';
+            commentAuthor = users.find((u: User) => {
+              const userName = u.name || '';
+              return userName === commentName && (u.role === 'Director' || u.role === 'Project Head');
+            });
+            if (commentAuthor) {
+              authorName = commentAuthor.name;
+              authorRole = commentAuthor.role === 'Director' ? 'Director' : 'Project Head';
+            }
+          }
+          
+          if (authorName && authorRole) {
+            const message = `${authorRole} ${authorName} commented on task: "${task.title}"`;
+            
+            console.log('🔔 New comment notification:', message, 'Comment:', comment);
+            
+            // Add to notifications list
+            const notificationId = `comment-${task.id || task._id}-${comment._id || comment.id || Date.now()}`;
+            const newNotification: Notification = {
+              id: notificationId,
+              type: 'comment',
+              message,
+              taskId: task.id || task._id,
+              taskTitle: task.title,
+              creatorName: authorName,
+              creatorRole: authorRole,
+              timestamp: Date.now(),
+              read: false
+            };
+            
+            setNotifications(prev => {
+              // Check if notification already exists to avoid duplicates
+              const exists = prev.some(n => n.id === notificationId);
+              if (exists) {
+                console.log('Notification already exists, skipping:', notificationId);
+                return prev;
+              }
+              console.log('Adding new notification:', newNotification);
+              return [newNotification, ...prev];
+            });
+            
+            // Also show popup notification
+            setNotificationMessage(message);
+            setShowNotification(true);
+            setTimeout(() => {
+              setShowNotification(false);
+            }, 5000);
+          } else {
+            console.log('Comment author not found or not Director/Project Head:', comment);
+          }
+        });
+
+        // Update previous state
+        setPreviousTasks(fetchedTasks);
+        const newCommentCounts: Record<string, number> = {};
+        fetchedTasks.forEach((task: Task) => {
+          const taskId = task.id || task._id || '';
+          newCommentCounts[taskId] = task.comments?.length || 0;
+        });
+        setPreviousCommentCounts(newCommentCounts);
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    };
+
+    // Initialize previousTasks after a delay to avoid showing notifications for existing tasks
+    // This ensures we only show notifications for tasks/comments created AFTER the user logs in
+    const initialTimeout = setTimeout(async () => {
+      try {
+        const initialTasks = await taskApi.getTasksByUser(user.id, 'Employee');
+        // Initialize previousTasks with current tasks (so we only detect NEW tasks after this point)
+        setPreviousTasks(initialTasks);
+        const initialCommentCounts: Record<string, number> = {};
+        initialTasks.forEach((task: Task) => {
+          const taskId = task.id || task._id || '';
+          initialCommentCounts[taskId] = task.comments?.length || 0;
+        });
+        setPreviousCommentCounts(initialCommentCounts);
+        console.log('📋 Initialized notifications tracking with', initialTasks.length, 'existing tasks');
+        
+        // Now start checking for updates after a short delay
+        setTimeout(() => {
+          checkForUpdates();
+        }, 2000);
+      } catch (error) {
+        console.error('Error initializing notifications:', error);
+      }
+    }, 5000); // Wait 5 seconds after page load before initializing
+
+    // Poll every 8 seconds for faster updates (only after initialization)
+    const pollInterval = setInterval(() => {
+      if (previousTasks.length > 0) {
+        checkForUpdates();
+      }
+    }, 8000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(pollInterval);
+    };
+  }, [isEmployee, user, users, previousTasks, previousCommentCounts]);
+
   // Refresh task data when modal opens and poll for updates
   useEffect(() => {
     if (isTaskModalOpen && selectedTask) {
@@ -198,6 +598,9 @@ const EmployeeDashboard: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const usersData = await getUsersFromEmployees();
+      console.log('Fetched users for filtering:', usersData.length, 'users');
+      console.log('Users with Director role:', usersData.filter(u => u.role === 'Director').length);
+      console.log('Users with Project Head role:', usersData.filter(u => u.role === 'Project Head').length);
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -834,12 +1237,72 @@ const EmployeeDashboard: React.FC = () => {
     if (isEmployee && taskSourceFilter !== 'all') {
       filtered = filtered.filter(task => {
         if (taskSourceFilter === 'director') {
-          // Tasks assigned by Director - check if assignedById belongs to a director
-          const assignedByUser = users.find(u => u.id === task.assignedById);
-          return assignedByUser?.role === 'Director';
+          // Tasks assigned by Director
+          const taskAssignedId = task.assignedById || '';
+          const taskAssignedByName = task.assignedByName || '';
+          
+          // First, exclude employee-created tasks
+          if (task.isEmployeeCreated === true) {
+            return false;
+          }
+          
+          // Exclude tasks assigned by current employee
+          if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) {
+            return false;
+          }
+          
+          // Try to find in users list with multiple ID format checks
+          const assignedByUser = users.find(u => {
+            const userId = u.id || (u as any)._id || '';
+            return userId === taskAssignedId || 
+                   String(userId) === String(taskAssignedId) ||
+                   String(userId) === taskAssignedId ||
+                   userId === String(taskAssignedId);
+          });
+          
+          // If found in users list, check role
+          if (assignedByUser) {
+            return assignedByUser.role === 'Director';
+          }
+          
+          // Fallback: If task is not employee-created and assignedById doesn't match current employee,
+          // check if it's a Project Head task. If not, it's likely a Director task.
+          const isProjectHeadTask = users.some(u => {
+            const userId = u.id || (u as any)._id || '';
+            return (userId === taskAssignedId || 
+                    String(userId) === String(taskAssignedId) ||
+                    String(userId) === taskAssignedId ||
+                    userId === String(taskAssignedId)) && 
+                   u.role === 'Project Head';
+          });
+          
+          // If it's not a Project Head task and not employee-created, it's likely a Director task
+          if (!isProjectHeadTask && taskAssignedId && taskAssignedId !== user?.id) {
+            return true;
+          }
+          
+          return false;
+        } else if (taskSourceFilter === 'projectHead') {
+          // Tasks assigned by Project Head - check if assignedById belongs to a Project Head
+          const taskAssignedId = task.assignedById || '';
+          if (!taskAssignedId) return false;
+          
+          const assignedByUser = users.find(u => {
+            const userId = u.id || (u as any)._id || '';
+            return userId === taskAssignedId || 
+                   String(userId) === String(taskAssignedId) ||
+                   String(userId) === taskAssignedId ||
+                   userId === String(taskAssignedId);
+          });
+          
+          if (assignedByUser) {
+            return assignedByUser.role === 'Project Head';
+          }
+          
+          return false;
         } else if (taskSourceFilter === 'self') {
           // Tasks added by staff themselves - check if assignedById equals current employee's ID
-          return task.assignedById === user?.id;
+          return task.assignedById === user?.id || task.isEmployeeCreated === true;
         }
         return true;
       });
@@ -912,33 +1375,58 @@ const EmployeeDashboard: React.FC = () => {
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      height: '100vh',
-      width: '100%'
-    }}>
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isEmployee={true} />
+    <>
+      {/* Add CSS animation for notification */}
+      <style>{`
+        @keyframes slideInRight {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      <div style={{
+        display: 'flex',
+        height: '100vh',
+        width: '100%'
+      }}>
+        <Sidebar 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
+          isEmployee={true} 
+          unreadNotificationCount={notifications.filter(n => !n.read).length}
+        />
       
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        overflowY: activeTab === 'notifications' ? 'hidden' : 'auto',
         overflowX: 'hidden',
         marginLeft: '256px',
         width: 'calc(100% - 256px)',
         height: '100vh'
       }}>
-        <Header user={user} />
+        {activeTab !== 'notifications' && <Header user={user} />}
         
         <main style={{
           flex: 1,
           overflowX: 'hidden',
-          overflowY: 'visible',
-          padding: '32px',
-          backgroundColor: '#f8fafc',
+          overflowY: activeTab === 'notifications' ? 'hidden' : 'visible',
+          padding: activeTab === 'notifications' ? '0' : '32px',
+          paddingTop: activeTab === 'notifications' ? '0' : '32px',
+          paddingBottom: activeTab === 'notifications' ? '0' : '32px',
+          paddingLeft: activeTab === 'notifications' ? '0' : '32px',
+          paddingRight: activeTab === 'notifications' ? '0' : '32px',
+          backgroundColor: activeTab === 'notifications' ? '#ffffff' : '#f8fafc',
           minHeight: 'auto',
-          width: '100%'
+          width: '100%',
+          marginTop: activeTab === 'notifications' ? '0' : 'auto',
+          height: activeTab === 'notifications' ? '100vh' : 'auto'
         }}>
           {/* Success Notification */}
           {showNotification && (
@@ -946,23 +1434,35 @@ const EmployeeDashboard: React.FC = () => {
               position: 'fixed',
               top: '80px',
               right: '24px',
-              zIndex: 50,
-              backgroundColor: '#10b981',
+              zIndex: 9999,
+              backgroundColor: '#3b82f6',
               color: '#ffffff',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              padding: '16px 24px',
+              borderRadius: '12px',
+              boxShadow: '0 20px 25px -5px rgba(59, 130, 246, 0.3), 0 10px 10px -5px rgba(59, 130, 246, 0.2)',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              transform: 'translateY(0)',
-              transition: 'all 0.3s ease-out',
-              animation: 'bounce 1s infinite'
+              gap: '12px',
+              minWidth: '350px',
+              maxWidth: '600px',
+              animation: 'slideInRight 0.4s ease-out',
+              border: '2px solid rgba(255, 255, 255, 0.2)'
             }}>
-              <svg style={{ width: '20px', height: '20px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>{notificationMessage}</span>
+              <div style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5' }}>{notificationMessage}</span>
               <button
                 onClick={() => setShowNotification(false)}
                 style={{
@@ -1703,7 +2203,13 @@ const EmployeeDashboard: React.FC = () => {
                                       </select>
                                     ) : (
                                       <span
-                                        onClick={() => handleWorkDoneEdit(task)}
+                                        onClick={() => {
+                                          // Employees can only edit workDone for tasks they created
+                                          if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                            return; // Don't allow editing workDone for tasks assigned by Directors/Project Heads
+                                          }
+                                          handleWorkDoneEdit(task);
+                                        }}
                                         style={{
                                           display: 'inline-flex',
                                           alignItems: 'center',
@@ -1711,20 +2217,27 @@ const EmployeeDashboard: React.FC = () => {
                           borderRadius: '8px',
                                           fontSize: '13px',
                                           fontWeight: '600',
-                                          backgroundColor: '#e0e7ff',
-                                          color: '#4f46e5',
-                                          cursor: 'pointer',
+                                          backgroundColor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#f3f4f6' : '#e0e7ff',
+                                          color: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#9ca3af' : '#4f46e5',
+                                          cursor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? 'not-allowed' : 'pointer',
                           transition: 'all 0.2s ease'
                         }}
                         onMouseOver={(e) => {
+                                          if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                            return; // Don't change style for non-editable tasks
+                                          }
                                           e.currentTarget.style.backgroundColor = '#c7d2fe';
                                           e.currentTarget.style.transform = 'scale(1.05)';
                         }}
                         onMouseOut={(e) => {
+                                          if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                            return;
+                                          }
                                           e.currentTarget.style.backgroundColor = '#e0e7ff';
                                           e.currentTarget.style.transform = 'scale(1)';
                                         }}
-                                        title="Click to edit Work Done (%)"
+                                        title={(isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? "Cannot edit tasks assigned by Directors/Project Heads" : "Click to edit Work Done (%)"}
                                       >
                                         {task.workDone || 0}%
                                       </span>
@@ -2072,6 +2585,17 @@ const EmployeeDashboard: React.FC = () => {
                               letterSpacing: '-0.3px',
                               borderBottom: '2px solid #e5e7eb'
                             }}>
+                              Created by
+                            </th>
+                            <th style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#374151',
+                              letterSpacing: '-0.3px',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
                               Actions
                             </th>
                           </tr>
@@ -2216,7 +2740,13 @@ const EmployeeDashboard: React.FC = () => {
                                     </select>
                                   ) : (
                                     <span
-                                      onClick={() => handleWorkDoneEdit(task)}
+                                      onClick={() => {
+                                        // Employees can only edit workDone for tasks they created
+                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                          return; // Don't allow editing workDone for tasks assigned by Directors/Project Heads
+                                        }
+                                        handleWorkDoneEdit(task);
+                                      }}
                                       style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
@@ -2224,16 +2754,23 @@ const EmployeeDashboard: React.FC = () => {
                                         borderRadius: '8px',
                                         fontSize: '13px',
                                         fontWeight: '600',
-                                        backgroundColor: '#e0e7ff',
-                                        color: '#4f46e5',
-                                        cursor: 'pointer',
+                                        backgroundColor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#f3f4f6' : '#e0e7ff',
+                                        color: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#9ca3af' : '#4f46e5',
+                                        cursor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s ease'
                                       }}
                                       onMouseOver={(e) => {
+                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                          return; // Don't change style for non-editable tasks
+                                        }
                                         e.currentTarget.style.backgroundColor = '#c7d2fe';
                                         e.currentTarget.style.transform = 'scale(1.05)';
                                       }}
                                       onMouseOut={(e) => {
+                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                          e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                          return;
+                                        }
                                         e.currentTarget.style.backgroundColor = '#e0e7ff';
                                         e.currentTarget.style.transform = 'scale(1)';
                                       }}
@@ -2306,6 +2843,16 @@ const EmployeeDashboard: React.FC = () => {
                           </div>
                                     )}
                         </div>
+                                </td>
+                                {/* Created by */}
+                                <td style={{ padding: '20px' }}>
+                                  <div style={{
+                                    fontSize: '13px',
+                                    fontWeight: '500',
+                                    color: '#374151'
+                                  }}>
+                                    {task.assignedByName || 'N/A'}
+                                  </div>
                                 </td>
                                 {/* Actions */}
                                 <td style={{
@@ -2591,11 +3138,65 @@ const EmployeeDashboard: React.FC = () => {
                           if (isEmployee && taskSourceFilter !== 'all') {
                             if (taskSourceFilter === 'director') {
                               // Tasks assigned by Director
-                              const assignedByUser = users.find(u => u.id === task.assignedById);
-                              if (assignedByUser?.role !== 'Director') return false;
+                              const taskAssignedId = task.assignedById || '';
+                              
+                              // Exclude employee-created tasks
+                              if (task.isEmployeeCreated === true) return false;
+                              
+                              // Exclude tasks assigned by current employee
+                              if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
+                              
+                              // Try to find in users list
+                              const assignedByUser = users.find(u => {
+                                const userId = u.id || (u as any)._id || '';
+                                return userId === taskAssignedId || 
+                                       String(userId) === String(taskAssignedId) ||
+                                       String(userId) === taskAssignedId ||
+                                       userId === String(taskAssignedId);
+                              });
+                              
+                              // If found, check role
+                              if (assignedByUser) {
+                                if (assignedByUser.role !== 'Director') return false;
+                              } else {
+                                // Fallback: Check if it's a Project Head task
+                                const isProjectHeadTask = users.some(u => {
+                                  const userId = u.id || (u as any)._id || '';
+                                  return (userId === taskAssignedId || 
+                                          String(userId) === String(taskAssignedId) ||
+                                          String(userId) === taskAssignedId ||
+                                          userId === String(taskAssignedId)) && 
+                                         u.role === 'Project Head';
+                                });
+                                
+                                // If it's a Project Head task, exclude it
+                                if (isProjectHeadTask) return false;
+                                
+                                // If not Project Head and not employee-created, it's likely a Director task
+                                if (!taskAssignedId || taskAssignedId === user?.id) return false;
+                              }
+                            } else if (taskSourceFilter === 'projectHead') {
+                              // Tasks assigned by Project Head
+                              const taskAssignedId = task.assignedById || '';
+                              
+                              // Exclude employee-created tasks
+                              if (task.isEmployeeCreated === true) return false;
+                              
+                              // Exclude tasks assigned by current employee
+                              if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
+                              
+                              const assignedByUser = users.find(u => {
+                                const userId = u.id || (u as any)._id || '';
+                                return userId === taskAssignedId || 
+                                       String(userId) === String(taskAssignedId) ||
+                                       String(userId) === taskAssignedId ||
+                                       userId === String(taskAssignedId);
+                              });
+                              
+                              if (!assignedByUser || assignedByUser.role !== 'Project Head') return false;
                             } else if (taskSourceFilter === 'self') {
                               // Tasks added by staff themselves
-                              if (task.assignedById !== user?.id) return false;
+                              if (task.assignedById !== user?.id && !task.isEmployeeCreated) return false;
                             }
                           }
                           
@@ -2781,6 +3382,34 @@ const EmployeeDashboard: React.FC = () => {
                         }}
                       >
                         Assigned by Director
+                      </button>
+                      <button
+                        onClick={() => setTaskSourceFilter('projectHead')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: taskSourceFilter === 'projectHead' ? '#9333ea' : '#ffffff',
+                          color: taskSourceFilter === 'projectHead' ? '#ffffff' : '#7c3aed',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          if (taskSourceFilter !== 'projectHead') {
+                            e.currentTarget.style.backgroundColor = '#faf5ff';
+                            e.currentTarget.style.borderColor = '#7c3aed';
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (taskSourceFilter !== 'projectHead') {
+                            e.currentTarget.style.backgroundColor = '#ffffff';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                          }
+                        }}
+                      >
+                        Assigned by Project Head
                       </button>
                       <button
                         onClick={() => setTaskSourceFilter('self')}
@@ -3181,6 +3810,16 @@ const EmployeeDashboard: React.FC = () => {
                                     {new Date(task.reminderDate).toLocaleDateString()}
                                   </div>
                                 )}
+                              </div>
+                            </td>
+                            {/* Created by */}
+                            <td style={{ padding: '20px' }}>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                color: '#374151'
+                              }}>
+                                {task.assignedByName || 'N/A'}
                               </div>
                             </td>
                             {/* Actions */}
@@ -3628,7 +4267,8 @@ const EmployeeDashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

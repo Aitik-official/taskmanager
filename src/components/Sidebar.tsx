@@ -1,14 +1,16 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, CheckSquare, FolderOpen, Users, LogOut, User, Briefcase, FileCheck } from 'lucide-react';
+import { Home, CheckSquare, FolderOpen, Users, LogOut, User, Briefcase, FileCheck, Bell } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals';
-  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals') => void;
+  activeTab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals' | 'notifications';
+  onTabChange: (tab: 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals' | 'notifications') => void;
   isEmployee?: boolean;
+  isDirector?: boolean;
+  unreadNotificationCount?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = false }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = false, isDirector = false, unreadNotificationCount = 0 }) => {
   const { logout, user } = useAuth();
 
   // Different tabs for employees vs directors/project heads
@@ -16,13 +18,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
     ? [
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+        { id: 'notifications', label: 'Notifications', icon: Bell },
       ]
     : [
         { id: 'overview', label: 'Dashboard', icon: Home },
         { id: 'tasks', label: 'Tasks', icon: CheckSquare },
         { id: 'projects', label: 'Projects', icon: FolderOpen },
         { id: 'employees', label: 'Employees', icon: Users },
-        { id: 'approvals', label: 'Approvals', icon: FileCheck },
+        ...(isDirector ? [{ id: 'approvals', label: 'Approvals', icon: FileCheck }] : []),
         { id: 'profile', label: 'Profile', icon: User },
       ];
 
@@ -73,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
             return (
               <button
                 key={tab.id}
-                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals')}
+                onClick={() => onTabChange(tab.id as 'overview' | 'tasks' | 'projects' | 'employees' | 'profile' | 'independent-work' | 'approvals' | 'notifications')}
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -86,7 +89,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
                   color: isActive ? '#ffffff' : '#cbd5e1',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  textAlign: 'left'
+                  textAlign: 'left',
+                  position: 'relative'
                 }}
                 onMouseOver={(e) => {
                   if (!isActive) {
@@ -103,6 +107,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
               >
                 <Icon size={20} />
                 <span style={{ fontWeight: '500', fontSize: '14px' }}>{tab.label}</span>
+                {tab.id === 'notifications' && unreadNotificationCount > 0 && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    borderRadius: '10px',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    minWidth: '20px',
+                    textAlign: 'center'
+                  }}>
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </span>
+                )}
               </button>
             );
           })}

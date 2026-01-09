@@ -84,7 +84,7 @@ const Dashboard: React.FC = () => {
   const [taskSearchTerm, setTaskSearchTerm] = useState('');
   const [taskStaffFilter, setTaskStaffFilter] = useState<string>('all');
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Red Flag'>('all');
-  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'employee'>('all');
+  const [taskSourceFilter, setTaskSourceFilter] = useState<'all' | 'director' | 'projectHead' | 'employee'>('all');
   const [taskDateRangeStart, setTaskDateRangeStart] = useState('');
   const [taskDateRangeEnd, setTaskDateRangeEnd] = useState('');
   const [taskCurrentPage, setTaskCurrentPage] = useState(1);
@@ -905,40 +905,26 @@ const Dashboard: React.FC = () => {
     try {
       const taskId = updatedTask.id || updatedTask._id;
       
-      // If this is a comment update, we don't need to call updateTask
-      // since the comment was already added via the comment API
-      if (updatedTask.comments && updatedTask.comments.length > 0) {
-        console.log('Detected comment update, reloading tasks...');
-        // Just reload tasks to get the latest data including comments
-        await loadTasks();
-        
-        // Update selectedTask with latest data if modal is still open
-        if (isTaskModalOpen && taskId) {
-          const latestTask = await fetchLatestTask(taskId);
-          if (latestTask) {
-            setSelectedTask(latestTask);
-          }
-        }
-      } else {
-        console.log('Regular task update, calling updateTask API...');
-        // For other task updates, call the update API
-        if (!taskId) {
-          console.error('No task ID available for update:', updatedTask);
-          return;
-        }
-        await taskApi.updateTask(taskId, updatedTask);
-        await loadTasks();
-        
-        // Update selectedTask with latest data if modal is still open
-        if (isTaskModalOpen) {
-          const latestTask = await fetchLatestTask(taskId);
-          if (latestTask) {
-            setSelectedTask(latestTask);
-          }
+      if (!taskId) {
+        console.error('No task ID available for update:', updatedTask);
+        return;
+      }
+      
+      // Always call the update API to save task changes (title, description, etc.)
+      console.log('Calling updateTask API...');
+      await taskApi.updateTask(taskId, updatedTask);
+      await loadTasks();
+      
+      // Update selectedTask with latest data if modal is still open
+      if (isTaskModalOpen) {
+        const latestTask = await fetchLatestTask(taskId);
+        if (latestTask) {
+          setSelectedTask(latestTask);
         }
       }
     } catch (error: any) {
       console.error('Error updating task:', error);
+      alert(`Error updating task: ${error?.response?.data?.message || error?.message || 'Unknown error occurred'}`);
     }
   };
 
@@ -993,10 +979,8 @@ const Dashboard: React.FC = () => {
                String(taskAssignedId) === String(userId);
       });
     } else if (isProjectHead) {
-      // For project heads, show tasks from their projects
-      const userProjects = projects.filter(project => project.assignedEmployeeId === user?.id);
-      const projectIds = userProjects.map(project => project.id);
-      filtered = tasks.filter(task => projectIds.includes(task.projectId));
+      // For project heads, show all tasks (same as director) so they can see tasks they created
+      filtered = tasks;
     } else if (isDirector) {
       // For directors, show all tasks
       filtered = tasks;
@@ -1045,7 +1029,36 @@ const Dashboard: React.FC = () => {
       filtered = filtered.filter(task => {
         if (taskSourceFilter === 'director') {
           // Tasks created by Director - exclude tasks created by employees from employee dashboard
-          return !task.isEmployeeCreated;
+          // Also exclude tasks created by Project Heads
+          if (task.isEmployeeCreated === true) return false;
+          
+          // Check if assignedById belongs to a Project Head
+          const taskAssignedId = task.assignedById || '';
+          const isProjectHeadTask = employees.some(emp => {
+            const empId = emp.id || (emp as any)._id || '';
+            return (empId === taskAssignedId || 
+                    String(empId) === String(taskAssignedId) ||
+                    String(empId) === taskAssignedId ||
+                    empId === String(taskAssignedId)) && 
+                   emp.role === 'Project Head';
+          });
+          
+          return !isProjectHeadTask; // Director tasks are not Project Head tasks
+        } else if (taskSourceFilter === 'projectHead') {
+          // Tasks created by Project Head
+          if (task.isEmployeeCreated === true) return false;
+          
+          const taskAssignedId = task.assignedById || '';
+          const isProjectHeadTask = employees.some(emp => {
+            const empId = emp.id || (emp as any)._id || '';
+            return (empId === taskAssignedId || 
+                    String(empId) === String(taskAssignedId) ||
+                    String(empId) === taskAssignedId ||
+                    empId === String(taskAssignedId)) && 
+                   emp.role === 'Project Head';
+          });
+          
+          return isProjectHeadTask;
         } else if (taskSourceFilter === 'employee') {
           // Tasks created by Employee - only show tasks created by employees from employee dashboard
           return task.isEmployeeCreated === true;
@@ -1262,7 +1275,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isEmployee={isEmployee} />
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isEmployee={isEmployee} isDirector={isDirector} />
       
       <div style={{
         flex: 1,
@@ -2221,6 +2234,15 @@ const Dashboard: React.FC = () => {
                                 color: '#6b7280',
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.5px'
+                              }}>Created by</th>
+                              <th style={{
+                                textAlign: 'left',
+                                padding: '12px 16px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
                               }}>Actions</th>
                             </tr>
                           </thead>
@@ -2401,6 +2423,16 @@ const Dashboard: React.FC = () => {
                                       )}
                                     </div>
                                   </td>
+                                  {/* Created by */}
+                                  <td style={{ padding: '16px' }}>
+                                    <div style={{
+                                      fontSize: '13px',
+                                      fontWeight: '500',
+                                      color: '#374151'
+                                    }}>
+                                      {task.assignedByName || 'N/A'}
+                                    </div>
+                                  </td>
                                   {/* Actions */}
                                   <td style={{
                                     padding: '16px',
@@ -2443,7 +2475,7 @@ const Dashboard: React.FC = () => {
                                         <Eye size={14} />
                                         View
                                       </button>
-                                      {isDirector && (
+                                      {(isDirector || isProjectHead) && (
                                         <>
                                           {task.status !== 'Completed' && (
                                             <button
@@ -2479,56 +2511,58 @@ const Dashboard: React.FC = () => {
                                               Complete
                                             </button>
                                           )}
-                                          <button
-                                            onClick={async () => {
-                                              if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
-                                                try {
-                                                  const taskId = String(task.id || task._id || '').trim();
-                                                  if (!taskId) {
-                                                    alert('Error: Task ID is missing. Cannot delete task.');
-                                                    return;
+                                          {(isDirector || isProjectHead) && (
+                                            <button
+                                              onClick={async () => {
+                                                if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
+                                                  try {
+                                                    const taskId = String(task.id || task._id || '').trim();
+                                                    if (!taskId) {
+                                                      alert('Error: Task ID is missing. Cannot delete task.');
+                                                      return;
+                                                    }
+                                                    console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
+                                                    const response = await taskApi.deleteTask(taskId);
+                                                    console.log('Delete response:', response);
+                                                    await loadTasks();
+                                                  } catch (error: any) {
+                                                    console.error('Error deleting task:', error);
+                                                    console.error('Error response:', error?.response);
+                                                    const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                                                    alert(`Error deleting task: ${errorMessage}`);
                                                   }
-                                                  console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
-                                                  const response = await taskApi.deleteTask(taskId);
-                                                  console.log('Delete response:', response);
-                                                  await loadTasks();
-                                                } catch (error: any) {
-                                                  console.error('Error deleting task:', error);
-                                                  console.error('Error response:', error?.response);
-                                                  const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
-                                                  alert(`Error deleting task: ${errorMessage}`);
                                                 }
-                                              }
-                                            }}
-                                            style={{
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: '6px',
-                                              padding: '8px 14px',
-                                              backgroundColor: '#fee2e2',
-                                              border: 'none',
-                                              borderRadius: '8px',
-                                              color: '#dc2626',
-                                              fontSize: '12px',
-                                              fontWeight: '600',
-                                              cursor: 'pointer',
-                                              transition: 'all 0.2s ease',
-                                              boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
-                                            }}
-                                            onMouseOver={(e) => {
-                                              e.currentTarget.style.backgroundColor = '#fecaca';
-                                              e.currentTarget.style.transform = 'translateY(-1px)';
-                                              e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
-                                            }}
-                                            onMouseOut={(e) => {
-                                              e.currentTarget.style.backgroundColor = '#fee2e2';
-                                              e.currentTarget.style.transform = 'translateY(0)';
-                                              e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
-                                            }}
-                                          >
-                                            <Trash2 size={14} />
-                                            Delete
-                                          </button>
+                                              }}
+                                              style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '8px 14px',
+                                                backgroundColor: '#fee2e2',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: '#dc2626',
+                                                fontSize: '12px',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
+                                              }}
+                                              onMouseOver={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#fecaca';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
+                                              }}
+                                              onMouseOut={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#fee2e2';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
+                                              }}
+                                            >
+                                              <Trash2 size={14} />
+                                              Delete
+                                            </button>
+                                          )}
                                         </>
                                       )}
                                     </div>
@@ -3647,6 +3681,34 @@ const Dashboard: React.FC = () => {
                       Tasks created by Director
                     </button>
                     <button
+                      onClick={() => setTaskSourceFilter('projectHead')}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: taskSourceFilter === 'projectHead' ? '#9333ea' : '#ffffff',
+                        color: taskSourceFilter === 'projectHead' ? '#ffffff' : '#7c3aed',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        if (taskSourceFilter !== 'projectHead') {
+                          e.currentTarget.style.backgroundColor = '#faf5ff';
+                          e.currentTarget.style.borderColor = '#7c3aed';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (taskSourceFilter !== 'projectHead') {
+                          e.currentTarget.style.backgroundColor = '#ffffff';
+                          e.currentTarget.style.borderColor = '#d1d5db';
+                        }
+                      }}
+                    >
+                      Assigned by Project Head
+                    </button>
+                    <button
                       onClick={() => setTaskSourceFilter('employee')}
                       style={{
                         padding: '8px 16px',
@@ -3864,6 +3926,17 @@ const Dashboard: React.FC = () => {
                             letterSpacing: '-0.3px',
                             borderBottom: '2px solid #e5e7eb'
                           }}>
+                            Created by
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
                             Actions
                           </th>
                         </tr>
@@ -4056,6 +4129,16 @@ const Dashboard: React.FC = () => {
                                 )}
                               </div>
                           </td>
+                            {/* Created by */}
+                            <td style={{ padding: '20px' }}>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                color: '#374151'
+                              }}>
+                                {task.assignedByName || 'N/A'}
+                              </div>
+                            </td>
                             <td style={{ padding: '20px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <button
@@ -4092,7 +4175,7 @@ const Dashboard: React.FC = () => {
                                   <Eye size={14} />
                                   View
                               </button>
-                                {isDirector && (
+                                {(isDirector || isProjectHead) && (
                                   <>
                                     {task.status !== 'Completed' && (
                                       <button
@@ -4128,56 +4211,58 @@ const Dashboard: React.FC = () => {
                                         Complete
                                       </button>
                                     )}
-                                    <button
-                                      onClick={async () => {
-                                        if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
-                                          try {
-                                            const taskId = String(task.id || task._id || '').trim();
-                                            if (!taskId) {
-                                              alert('Error: Task ID is missing. Cannot delete task.');
-                                              return;
+                                    {(isDirector || isProjectHead) && (
+                                      <button
+                                        onClick={async () => {
+                                          if (window.confirm(`Are you sure you want to delete the task "${task.title}"?`)) {
+                                            try {
+                                              const taskId = String(task.id || task._id || '').trim();
+                                              if (!taskId) {
+                                                alert('Error: Task ID is missing. Cannot delete task.');
+                                                return;
+                                              }
+                                              console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
+                                              const response = await taskApi.deleteTask(taskId);
+                                              console.log('Delete response:', response);
+                                              await loadTasks();
+                                            } catch (error: any) {
+                                              console.error('Error deleting task:', error);
+                                              console.error('Error response:', error?.response);
+                                              const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                                              alert(`Error deleting task: ${errorMessage}`);
                                             }
-                                            console.log('Deleting task with ID:', taskId, 'Type:', typeof taskId);
-                                            const response = await taskApi.deleteTask(taskId);
-                                            console.log('Delete response:', response);
-                                            await loadTasks();
-                                          } catch (error: any) {
-                                            console.error('Error deleting task:', error);
-                                            console.error('Error response:', error?.response);
-                                            const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error occurred';
-                                            alert(`Error deleting task: ${errorMessage}`);
                                           }
-                                        }
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#fee2e2',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#dc2626',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#fecaca';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#fee2e2';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
-                                      }}
-                                    >
-                                      <Trash2 size={14} />
-                                      Delete
-                                    </button>
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: '#fee2e2',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: '#dc2626',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#fecaca';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#fee2e2';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
+                                        }}
+                                      >
+                                        <Trash2 size={14} />
+                                        Delete
+                                      </button>
+                                    )}
                                   </>
                                 )}
                             </div>
@@ -5069,8 +5154,8 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Approvals Tab - Modern Design */}
-          {activeTab === 'approvals' && (
+          {/* Approvals Tab - Modern Design - Director Only */}
+          {activeTab === 'approvals' && isDirector && (
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
@@ -6178,8 +6263,8 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Approvals Tab - Modern Design (Correct Section) */}
-          {activeTab === 'approvals' && (
+          {/* Approvals Tab - Modern Design (Correct Section) - Director Only */}
+          {activeTab === 'approvals' && isDirector && (
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 

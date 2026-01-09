@@ -70,6 +70,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
 
   useEffect(() => {
+    // Don't reset formData if we're in edit mode and user is typing
+    if (isEditMode) {
+      return;
+    }
+    
     if (task) {
       // Normalize assignedToId to match the format used in select options
       let normalizedAssignedToId = task.assignedToId || '';
@@ -159,7 +164,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
         reminderDate: ''
       });
     }
-  }, [task, isEmployee, user, users]);
+  }, [task?.id || task?._id, isEmployee, user, users.length, isEditMode]);
 
 
   const handleInputChange = (field: keyof Task, value: any) => {
@@ -331,7 +336,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       projectHeadId: projectHeadId || undefined,
       projectHeadName: projectHeadName || undefined,
       priority: (formData.priority || 'Less Urgent') as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom',
-      status: task?.status || 'Pending', // Keep existing status or default to Pending
+      status: (formData.status || task?.status || 'Pending') as 'Pending' | 'In Progress' | 'Completed', // Use formData status if changed, otherwise keep existing
       estimatedHours: task?.estimatedHours || 0, // Keep existing or default to 0
       actualHours: task?.actualHours,
       startDate: task?.startDate || new Date().toISOString().split('T')[0], // Default to today
@@ -532,7 +537,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
     }
   };
 
-  const canEdit = isDirector || (isProjectHead && !task?.isLocked) || (isEmployee && !task?.isLocked);
+  // Employees can only edit tasks they created themselves (not tasks assigned by Directors/Project Heads)
+  // Directors and Project Heads can edit all tasks (if not locked)
+  const canEdit = isDirector || 
+                  (isProjectHead && !task?.isLocked) || 
+                  (isEmployee && !task?.isLocked && (task?.isEmployeeCreated === true || task?.assignedById === user?.id));
 
   return (
     <div style={{
