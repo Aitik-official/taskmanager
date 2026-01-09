@@ -48,11 +48,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
     isLocked: false,
     workDone: 0,
     flagDirectorInputRequired: false,
-    reminderDate: ''
+    reminderDate: '',
+    reminderDates: [],
+    weeklyReminders: []
   });
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
-  
+
   const [newComment, setNewComment] = useState('');
   const [showExtensionForm, setShowExtensionForm] = useState(false);
   const [extensionData, setExtensionData] = useState({
@@ -61,7 +63,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     responseComment: ''
   });
   const [isEditMode, setIsEditMode] = useState(false);
-  
+
   // For director project management
   const [newProjectName, setNewProjectName] = useState('');
   const [showNewProjectInput, setShowNewProjectInput] = useState(false);
@@ -74,35 +76,35 @@ const TaskModal: React.FC<TaskModalProps> = ({
     if (isEditMode) {
       return;
     }
-    
+
     if (task) {
       // Normalize assignedToId to match the format used in select options
       let normalizedAssignedToId = task.assignedToId || '';
       let normalizedAssignedToName = task.assignedToName || '';
-      
+
       if (normalizedAssignedToId && users.length > 0) {
         // Try to find matching user to ensure ID format consistency
         const matchingUser = users.find(u => {
           const userId = u.id || ('_id' in u ? u._id : '') || '';
-          return userId === normalizedAssignedToId || 
-                 (u.id && u.id === normalizedAssignedToId) ||
-                 ('_id' in u && u._id === normalizedAssignedToId);
+          return userId === normalizedAssignedToId ||
+            (u.id && u.id === normalizedAssignedToId) ||
+            ('_id' in u && u._id === normalizedAssignedToId);
         });
         if (matchingUser) {
           normalizedAssignedToId = matchingUser.id || ('_id' in matchingUser ? matchingUser._id : '') || normalizedAssignedToId;
           // Update name if not set or if it doesn't match
           if (!normalizedAssignedToName) {
-            normalizedAssignedToName = 'name' in matchingUser 
-              ? matchingUser.name 
+            normalizedAssignedToName = 'name' in matchingUser
+              ? matchingUser.name
               : `${matchingUser.firstName} ${matchingUser.lastName}`;
           }
         }
       }
-      
+
       // Normalize projectHeadId if present
       let normalizedProjectHeadId = task.projectHeadId || '';
       let normalizedProjectHeadName = task.projectHeadName || '';
-      
+
       if (normalizedProjectHeadId && users.length > 0) {
         const matchingProjectHead = users.find(u => {
           const userId = u.id || ('_id' in u ? u._id : '') || '';
@@ -111,17 +113,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
         if (matchingProjectHead) {
           normalizedProjectHeadId = matchingProjectHead.id || ('_id' in matchingProjectHead ? matchingProjectHead._id : '') || normalizedProjectHeadId;
           if (!normalizedProjectHeadName) {
-            normalizedProjectHeadName = 'name' in matchingProjectHead 
-              ? matchingProjectHead.name 
+            normalizedProjectHeadName = 'name' in matchingProjectHead
+              ? matchingProjectHead.name
               : `${matchingProjectHead.firstName} ${matchingProjectHead.lastName}`;
           }
         }
       }
-      
+
       // Handle multiple assigned employees
       let assignedEmployeeIds: string[] = [];
       let assignedEmployeeNames: string[] = [];
-      
+
       if (task.assignedEmployeeIds && task.assignedEmployeeIds.length > 0) {
         // Use the new multiple assignment format
         assignedEmployeeIds = task.assignedEmployeeIds;
@@ -131,9 +133,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
         assignedEmployeeIds = [normalizedAssignedToId];
         assignedEmployeeNames = [normalizedAssignedToName];
       }
-      
+
       setSelectedEmployeeIds(assignedEmployeeIds);
-      
+
       setFormData(prev => ({
         ...prev,
         ...task,
@@ -144,7 +146,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
         projectHeadId: normalizedProjectHeadId,
         projectHeadName: normalizedProjectHeadName,
         dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
-        reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : ''
+        reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : '',
+        reminderDates: task.reminderDates || [],
+        weeklyReminders: task.weeklyReminders || []
       }));
     } else if (isEmployee && user) {
       // When creating a new task as an employee, pre-fill with employee's own ID
@@ -161,7 +165,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
         isLocked: false,
         workDone: 0,
         flagDirectorInputRequired: false,
-        reminderDate: ''
+        reminderDate: '',
+        reminderDates: [],
+        weeklyReminders: []
       });
     }
   }, [task?.id || task?._id, isEmployee, user, users.length, isEditMode]);
@@ -170,7 +176,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const handleInputChange = (field: keyof Task, value: any) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
-      
+
       // Auto-update related fields when IDs change
       if (field === 'projectId') {
         const project = projects.find(p => p.id === value);
@@ -178,7 +184,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           updated.projectName = project.name;
         }
       }
-      
+
       if (field === 'assignedToId') {
         const user = users.find(u => {
           const userId = u.id || ('_id' in u ? u._id : '') || '';
@@ -186,28 +192,28 @@ const TaskModal: React.FC<TaskModalProps> = ({
         });
         if (user) {
           // Handle both User and Employee types
-          const userName = 'name' in user 
-            ? user.name 
+          const userName = 'name' in user
+            ? user.name
             : `${user.firstName} ${user.lastName}`;
           updated.assignedToName = userName;
         }
       }
-      
+
       if (field === 'projectHeadId') {
         const projectHead = users.find(u => {
           const userId = u.id || ('_id' in u ? u._id : '') || '';
           return userId === value;
         });
         if (projectHead) {
-          const projectHeadName = 'name' in projectHead 
-            ? projectHead.name 
+          const projectHeadName = 'name' in projectHead
+            ? projectHead.name
             : `${projectHead.firstName} ${projectHead.lastName}`;
           updated.projectHeadName = projectHeadName;
         } else {
           updated.projectHeadName = '';
         }
       }
-      
+
       return updated;
     });
   };
@@ -217,21 +223,21 @@ const TaskModal: React.FC<TaskModalProps> = ({
       // Add employee to selection
       const newSelectedIds = [...selectedEmployeeIds, employeeId];
       setSelectedEmployeeIds(newSelectedIds);
-      
+
       // Update names array
       const employee = users.find(u => {
         const userId = u.id || ('_id' in u ? u._id : '') || '';
         return userId === employeeId;
       });
-      
+
       if (employee) {
-        const employeeName = 'name' in employee 
-          ? employee.name 
+        const employeeName = 'name' in employee
+          ? employee.name
           : `${employee.firstName} ${employee.lastName}`;
-        
+
         const currentNames = formData.assignedEmployeeNames || [];
         const newNames = [...currentNames, employeeName];
-        
+
         setFormData(prev => ({
           ...prev,
           assignedEmployeeIds: newSelectedIds,
@@ -245,21 +251,21 @@ const TaskModal: React.FC<TaskModalProps> = ({
       // Remove employee from selection
       const newSelectedIds = selectedEmployeeIds.filter(id => id !== employeeId);
       setSelectedEmployeeIds(newSelectedIds);
-      
+
       // Update names array
       const employee = users.find(u => {
         const userId = u.id || ('_id' in u ? u._id : '') || '';
         return userId === employeeId;
       });
-      
+
       if (employee) {
-        const employeeName = 'name' in employee 
-          ? employee.name 
+        const employeeName = 'name' in employee
+          ? employee.name
           : `${employee.firstName} ${employee.lastName}`;
-        
+
         const currentNames = formData.assignedEmployeeNames || [];
         const newNames = currentNames.filter(name => name !== employeeName);
-        
+
         setFormData(prev => ({
           ...prev,
           assignedEmployeeIds: newSelectedIds,
@@ -274,18 +280,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate that at least one employee is selected
     if (selectedEmployeeIds.length === 0 && !isEmployee) {
       alert('Please select at least one employee to assign this task.');
       return;
     }
-    
+
     // Get assigned employees from selectedEmployeeIds
-    const assignedEmployeeIds = selectedEmployeeIds.length > 0 
-      ? selectedEmployeeIds 
+    const assignedEmployeeIds = selectedEmployeeIds.length > 0
+      ? selectedEmployeeIds
       : (isEmployee && user?.id ? [user.id] : []);
-    
+
     const assignedEmployeeNames: string[] = [];
     assignedEmployeeIds.forEach(id => {
       const foundUser = users.find(u => {
@@ -293,17 +299,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
         return userId === id;
       });
       if (foundUser) {
-        const userName = 'name' in foundUser 
-          ? foundUser.name 
+        const userName = 'name' in foundUser
+          ? foundUser.name
           : `${foundUser.firstName} ${foundUser.lastName}`;
         assignedEmployeeNames.push(userName);
       }
     });
-    
+
     // Get assignedToId from formData, with fallback for employees (backward compatibility)
     const assignedToId = assignedEmployeeIds[0] || (isEmployee ? (user?.id || '') : '');
     const assignedToName = assignedEmployeeNames[0] || (isEmployee && user ? (user.name || user.email || '') : '');
-    
+
     // Get projectHeadId and projectHeadName from formData
     const projectHeadId = formData.projectHeadId || '';
     let projectHeadName = formData.projectHeadName || '';
@@ -313,12 +319,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
         return userId === projectHeadId;
       });
       if (foundProjectHead) {
-        projectHeadName = 'name' in foundProjectHead 
-          ? foundProjectHead.name 
+        projectHeadName = 'name' in foundProjectHead
+          ? foundProjectHead.name
           : `${foundProjectHead.firstName} ${foundProjectHead.lastName}`;
       }
     }
-    
+
     const taskData: Task = {
       id: task?.id || task?._id || Date.now().toString(),
       // Only include _id if we're editing an existing task
@@ -352,11 +358,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
       extensionRequestStatus: task?.extensionRequestStatus || 'Pending',
       workDone: formData.workDone || 0,
       flagDirectorInputRequired: formData.flagDirectorInputRequired || false,
-      reminderDate: formData.reminderDate || undefined
+      reminderDate: formData.reminderDate || undefined,
+      reminderDates: formData.reminderDates || [],
+      weeklyReminders: formData.weeklyReminders || []
     };
 
     onSave(taskData);
-    
+
     // If editing, exit edit mode
     if (isEditMode) {
       setIsEditMode(false);
@@ -365,42 +373,43 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const addComment = async () => {
     if (!newComment.trim() || !task) return;
-    
+
     // Use _id if id is not available (MongoDB uses _id)
     const taskId = task.id || task._id;
-    
+
     if (!taskId) {
       console.error('No task ID available:', task);
       return;
     }
-    
+
     console.log('Adding comment to task:', taskId);
     console.log('Current task comments:', task.comments);
-    
+
     try {
       // Add comment to database
       const updatedTask = await taskApi.addComment(
         taskId as string,
         newComment,
         user?.id || 'current-user',
-        user?.name || 'Current User'
+        user?.name || 'Current User',
+        user?.role // Pass user role for notifications
       );
-      
+
       console.log('Comment added to database:', updatedTask);
       console.log('Updated task comments:', updatedTask.comments);
-      
+
       // Update the local task state to show the comment immediately
       const updatedLocalTask = {
         ...task,
         comments: updatedTask.comments
       };
-      
+
       console.log('Calling onSave with updated task:', updatedLocalTask);
-      
+
       // Call onSave with the updated task to refresh the parent component
       onSave(updatedLocalTask);
       setNewComment('');
-      
+
     } catch (error: any) {
       console.error('Error adding comment:', error);
       // Fallback to local update if API fails
@@ -426,7 +435,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleExtensionRequest = () => {
     if (!extensionData.newDeadline || !extensionData.reason || !task) return;
-    
+
     const updatedTask = {
       ...task,
       newDeadlineProposal: extensionData.newDeadline,
@@ -434,7 +443,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       extensionRequestStatus: 'Pending' as const,
       extensionRequestDate: new Date().toISOString()
     };
-    
+
     onSave(updatedTask);
     setShowExtensionForm(false);
     setExtensionData({ newDeadline: '', reason: '', responseComment: '' });
@@ -442,28 +451,28 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleExtensionResponse = async (status: 'Approved' | 'Rejected') => {
     if (!task || !extensionData.responseComment) return;
-    
+
     try {
       const taskId = task.id || task._id;
       if (!taskId) {
         console.error('No task ID available for extension response:', task);
         return;
       }
-      
+
       await taskApi.updateExtensionStatus(
         taskId,
         status,
         extensionData.responseComment,
         user?.name || 'Admin'
       );
-      
+
       // Reload the task data
       const updatedTask = {
         ...task,
         extensionRequestStatus: status,
         extensionResponseComment: extensionData.responseComment
       };
-      
+
       onSave(updatedTask);
       setExtensionData(prev => ({ ...prev, responseComment: '' }));
     } catch (error: any) {
@@ -473,13 +482,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
-    
+
     // Ensure we have required fields
     if (!user?.id) {
       alert('Error: User ID not found. Please log out and log in again.');
       return;
     }
-    
+
     try {
       const newProject: Omit<Project, 'id' | '_id'> = {
         name: newProjectName.trim(),
@@ -490,16 +499,16 @@ const TaskModal: React.FC<TaskModalProps> = ({
         startDate: new Date().toISOString().split('T')[0],
         progress: 0
       };
-      
+
       await createProject(newProject);
       setNewProjectName('');
       setShowNewProjectInput(false);
-      
+
       // Refresh projects list
       if (onProjectsChange) {
         onProjectsChange();
       }
-      
+
       // Auto-select the newly created project
       setTimeout(async () => {
         const updatedProjects = await fetch('/api/projects').then(res => res.json());
@@ -518,15 +527,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
     if (!confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       await deleteProject(projectId);
-      
+
       // If the deleted project was selected, clear the selection
       if (formData.projectId === projectId) {
         handleInputChange('projectId', '');
       }
-      
+
       // Refresh projects list
       if (onProjectsChange) {
         onProjectsChange();
@@ -539,9 +548,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   // Employees can only edit tasks they created themselves (not tasks assigned by Directors/Project Heads)
   // Directors and Project Heads can edit all tasks (if not locked)
-  const canEdit = isDirector || 
-                  (isProjectHead && !task?.isLocked) || 
-                  (isEmployee && !task?.isLocked && (task?.isEmployeeCreated === true || task?.assignedById === user?.id));
+  const canEdit = isDirector ||
+    (isProjectHead && !task?.isLocked) ||
+    (isEmployee && !task?.isLocked && (task?.isEmployeeCreated === true || task?.assignedById === user?.id));
 
   return (
     <div style={{
@@ -625,13 +634,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   fontSize: '14px',
                   fontWeight: '500',
                   backgroundColor: task.priority === 'Urgent' ? '#fecaca' :
-                                  task.priority === 'Less Urgent' ? '#fef3c7' :
-                                  task.priority === 'Free Time' ? '#dcfce7' :
-                                  '#f3f4f6',
+                    task.priority === 'Less Urgent' ? '#fef3c7' :
+                      task.priority === 'Free Time' ? '#dcfce7' :
+                        '#f3f4f6',
                   color: task.priority === 'Urgent' ? '#dc2626' :
-                         task.priority === 'Less Urgent' ? '#92400e' :
-                         task.priority === 'Free Time' ? '#166534' :
-                         '#374151'
+                    task.priority === 'Less Urgent' ? '#92400e' :
+                      task.priority === 'Free Time' ? '#166534' :
+                        '#374151'
                 }}>
                   {task.priority} Priority
                 </span>
@@ -641,13 +650,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   fontSize: '14px',
                   fontWeight: '500',
                   backgroundColor: task.status === 'Completed' ? '#dcfce7' :
-                                  task.status === 'In Progress' ? '#fef3c7' :
-                                  task.status === 'Pending' ? '#dbeafe' :
-                                  '#fecaca',
+                    task.status === 'In Progress' ? '#fef3c7' :
+                      task.status === 'Pending' ? '#dbeafe' :
+                        '#fecaca',
                   color: task.status === 'Completed' ? '#166534' :
-                         task.status === 'In Progress' ? '#92400e' :
-                         task.status === 'Pending' ? '#1e40af' :
-                         '#dc2626'
+                    task.status === 'In Progress' ? '#92400e' :
+                      task.status === 'Pending' ? '#1e40af' :
+                        '#dc2626'
                 }}>
                   {task.status}
                 </span>
@@ -821,8 +830,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
                     placeholder="Write your comment here..."
                     rows={3}
                     style={{
@@ -843,10 +852,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       e.currentTarget.style.borderColor = '#d1d5db';
                       e.currentTarget.style.boxShadow = 'none';
                     }}
-                />
-                <button
-                  type="button"
-                  onClick={addComment}
+                  />
+                  <button
+                    type="button"
+                    onClick={addComment}
                     disabled={!newComment.trim()}
                     style={{
                       padding: '8px 16px',
@@ -870,9 +879,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         e.currentTarget.style.backgroundColor = '#2563eb';
                       }
                     }}
-                >
+                  >
                     Add Comment
-                </button>
+                  </button>
                 </div>
               </div>
             </div>
@@ -884,7 +893,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
                   Request Extension
                 </h4>
-                
+
                 {!showExtensionForm ? (
                   <button
                     type="button"
@@ -907,7 +916,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         required
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Reason for Extension
@@ -921,7 +930,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         required
                       />
                     </div>
-                    
+
                     <div className="flex space-x-2">
                       <button
                         type="button"
@@ -975,9 +984,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
               >
                 Close
               </button>
-              
-              
-              
+
+
+
               {canEdit && (
                 <button
                   type="button"
@@ -1060,1693 +1069,6 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 Cancel Edit
               </button>
             </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px'
-          }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-                Priority *
-              </label>
-                <select
-                value={formData.priority}
-                onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    backgroundColor: '#ffffff'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                <option value="Urgent">Urgent</option>
-                <option value="Less Urgent">Less Urgent</option>
-                <option value="Free Time">Free Time</option>
-                {isEmployee && <option value="Custom">Custom</option>}
-                </select>
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-                Status *
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => handleInputChange('status', e.target.value as 'Pending' | 'Completed' | 'In Progress')}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  backgroundColor: '#ffffff'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              >
-                <option value="Pending">Pending</option>
-                <option value="Completed">Completed</option>
-                <option value="In Progress">In Progress</option>
-                </select>
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-                Project Name
-              </label>
-              {isDirector ? (
-                <div style={{ position: 'relative' }}>
-                  {/* Custom Dropdown Button */}
-                  <div
-                    onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      paddingRight: '40px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      backgroundColor: '#ffffff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      minHeight: '38px'
-                    }}
-                  >
-                    <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
-                      {formData.projectId 
-                        ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
-                        : 'No Project (Optional)'}
-                    </span>
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      style={{
-                        transform: isProjectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease'
-                      }}
-                    >
-                      <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  
-                  {/* Custom Dropdown Menu */}
-                  {isProjectDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        zIndex: 1000,
-                        maxHeight: '300px',
-                        overflowY: 'auto'
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* No Project Option */}
-                      <div
-                        onClick={() => {
-                          handleInputChange('projectId', '');
-                          setIsProjectDropdownOpen(false);
-                        }}
-                        style={{
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          backgroundColor: formData.projectId === '' ? '#f3f4f6' : 'transparent',
-                          borderBottom: '1px solid #e5e7eb'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (formData.projectId !== '') {
-                            e.currentTarget.style.backgroundColor = '#f9fafb';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (formData.projectId !== '') {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
-                      </div>
-                      
-                      {/* Project List with Delete Buttons - Only show Current projects */}
-                      {projects.filter(project => project.status === 'Current').map(project => {
-                        const projectId = project.id || project._id || '';
-                        const isSelected = formData.projectId === projectId;
-                        return (
-                          <div
-                            key={projectId}
-                            style={{
-                              padding: '10px 12px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: isSelected ? '#f3f4f6' : 'transparent',
-                              borderBottom: '1px solid #e5e7eb'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor = '#f9fafb';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }
-                            }}
-                          >
-                            <span
-                              onClick={() => {
-                                handleInputChange('projectId', projectId);
-                                setIsProjectDropdownOpen(false);
-                              }}
-                              style={{
-                                flex: 1,
-                                fontSize: '14px',
-                                color: '#374151',
-                                fontWeight: isSelected ? '500' : '400'
-                              }}
-                            >
-                              {project.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteProject(projectId, project.name);
-                                setIsProjectDropdownOpen(false);
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '4px 8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ef4444',
-                                borderRadius: '4px',
-                                marginLeft: '8px'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fee2e2';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
-                              title={`Delete ${project.name}`}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                      
-                      {/* Add New Project Option */}
-                      <div
-                        onClick={() => {
-                          setShowNewProjectInput(true);
-                          setIsProjectDropdownOpen(false);
-                        }}
-                        style={{
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          backgroundColor: '#f9fafb',
-                          borderTop: '1px solid #e5e7eb',
-                          color: '#3b82f6',
-                          fontWeight: '500'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f9fafb';
-                        }}
-                      >
-                        <Plus size={16} />
-                        <span style={{ fontSize: '14px' }}>Add New Project</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Click outside to close dropdown */}
-                  {isProjectDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 999
-                      }}
-                      onClick={() => setIsProjectDropdownOpen(false)}
-                    />
-                  )}
-                  
-                  {/* Add New Project Input */}
-                  {showNewProjectInput && (
-                    <div style={{
-                      marginTop: '8px',
-                      padding: '12px',
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb'
-                    }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="text"
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          placeholder="Enter new project name"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handleCreateProject();
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={handleCreateProject}
-                          disabled={!newProjectName.trim()}
-                          style={{
-                            padding: '8px 16px',
-                            backgroundColor: newProjectName.trim() ? '#3b82f6' : '#9ca3af',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: newProjectName.trim() ? 'pointer' : 'not-allowed',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Plus size={16} />
-                          Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowNewProjectInput(false);
-                            setNewProjectName('');
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            backgroundColor: '#f3f4f6',
-                            color: '#374151',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '14px'
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  {/* Custom Dropdown Button */}
-                  <div
-                    onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      paddingRight: '40px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      backgroundColor: '#ffffff',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      minHeight: '38px'
-                    }}
-                  >
-                    <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
-                      {formData.projectId 
-                        ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
-                        : 'No Project (Optional)'}
-                    </span>
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      style={{
-                        transform: isProjectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease'
-                      }}
-                    >
-                      <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-                  
-                  {/* Custom Dropdown Menu */}
-                  {isProjectDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        zIndex: 1000,
-                        maxHeight: '300px',
-                        overflowY: 'auto'
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* No Project Option */}
-                      <div
-                        onClick={() => {
-                          handleInputChange('projectId', '');
-                          setIsProjectDropdownOpen(false);
-                        }}
-                        style={{
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          backgroundColor: formData.projectId === '' ? '#f3f4f6' : 'transparent',
-                          borderBottom: '1px solid #e5e7eb'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (formData.projectId !== '') {
-                            e.currentTarget.style.backgroundColor = '#f9fafb';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (formData.projectId !== '') {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }
-                        }}
-                      >
-                        <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
-                      </div>
-                      
-                      {/* Project List with Delete Buttons - Only show Current projects */}
-                      {projects.filter(project => project.status === 'Current').map(project => {
-                        const projectId = project.id || project._id || '';
-                        const isSelected = formData.projectId === projectId;
-                        return (
-                          <div
-                            key={projectId}
-                            style={{
-                              padding: '10px 12px',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: isSelected ? '#f3f4f6' : 'transparent',
-                              borderBottom: '1px solid #e5e7eb'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor = '#f9fafb';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }
-                            }}
-                          >
-                            <span
-                              onClick={() => {
-                                handleInputChange('projectId', projectId);
-                                setIsProjectDropdownOpen(false);
-                              }}
-                              style={{
-                                flex: 1,
-                                fontSize: '14px',
-                                color: '#374151',
-                                fontWeight: isSelected ? '500' : '400'
-                              }}
-                            >
-                              {project.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleDeleteProject(projectId, project.name);
-                                setIsProjectDropdownOpen(false);
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '4px 8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ef4444',
-                                borderRadius: '4px',
-                                marginLeft: '8px'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#fee2e2';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
-                              title={`Delete ${project.name}`}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                      
-                      {/* Add New Project Option */}
-                      <div
-                        onClick={() => {
-                          setShowNewProjectInput(true);
-                          setIsProjectDropdownOpen(false);
-                        }}
-                        style={{
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          backgroundColor: '#f9fafb',
-                          borderTop: '1px solid #e5e7eb',
-                          color: '#3b82f6',
-                          fontWeight: '500'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f9fafb';
-                        }}
-                      >
-                        <Plus size={16} />
-                        <span style={{ fontSize: '14px' }}>Add New Project</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Click outside to close dropdown */}
-                  {isProjectDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 999
-                      }}
-                      onClick={() => setIsProjectDropdownOpen(false)}
-                    />
-                  )}
-                  
-                  {/* Add New Project Input */}
-                  {showNewProjectInput && (
-                    <div style={{
-                      marginTop: '8px',
-                      padding: '12px',
-                      backgroundColor: '#f9fafb',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb'
-                    }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          type="text"
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          placeholder="Enter new project name"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            outline: 'none'
-                          }}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handleCreateProject();
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={handleCreateProject}
-                          disabled={!newProjectName.trim()}
-                          style={{
-                            padding: '8px 16px',
-                            backgroundColor: newProjectName.trim() ? '#3b82f6' : '#9ca3af',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: newProjectName.trim() ? 'pointer' : 'not-allowed',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Plus size={16} />
-                          Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowNewProjectInput(false);
-                            setNewProjectName('');
-                          }}
-                          style={{
-                            padding: '8px 12px',
-                            backgroundColor: '#f3f4f6',
-                            color: '#374151',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '14px'
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Assigned Employees Field - Multi-select Dropdown */}
-            <div style={{ position: 'relative' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-                Assigned Employee(s) *
-              </label>
-              <div
-                onClick={() => {
-                  if (!isEmployee) {
-                    setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
-                  cursor: isEmployee ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  minHeight: '40px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isEmployee) {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isEmployee && !isEmployeeDropdownOpen) {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                  }
-                }}
-              >
-                <div style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '6px',
-                  alignItems: 'center'
-                }}>
-                  {selectedEmployeeIds.length === 0 ? (
-                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>
-                      Select Employee(s)
-                    </span>
-                  ) : (
-                    selectedEmployeeIds.map(id => {
-                      const employee = users.find(u => {
-                        const userId = u.id || ('_id' in u ? u._id : '') || '';
-                        return userId === id;
-                      });
-                      if (!employee) return null;
-                      const userName = 'name' in employee 
-                        ? employee.name 
-                        : `${employee.firstName} ${employee.lastName}`;
-                      return (
-                        <span
-                          key={id}
-                          style={{
-                            padding: '4px 8px',
-                            backgroundColor: '#eff6ff',
-                            color: '#1e40af',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '500',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          {userName}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEmployeeSelectionChange(id, false);
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              color: '#1e40af'
-                            }}
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
-                      );
-                    })
-                  )}
-                </div>
-                <ChevronDown 
-                  size={18} 
-                  style={{ 
-                    color: '#6b7280',
-                    transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s ease'
-                  }} 
-                />
-              </div>
-
-              {/* Dropdown Menu */}
-              {isEmployeeDropdownOpen && !isEmployee && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px',
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                    zIndex: 1000,
-                    maxHeight: '250px',
-                    overflowY: 'auto'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {users
-                    .filter(u => {
-                      if (isEmployee) {
-                        const userId = u.id || ('_id' in u ? u._id : '') || '';
-                        return userId === user?.id;
-                      }
-                      if ('role' in u) {
-                        if (u.role === 'Employee') {
-                          if ('status' in u) {
-                            return u.status === 'Active';
-                          }
-                          return true;
-                        }
-                        return false;
-                      }
-                      if ('firstName' in u) {
-                        const employee = u as Employee;
-                        return employee.status ? employee.status === 'Active' : true;
-                      }
-                      return false;
-                    })
-                    .map(u => {
-                      const userId = u.id || ('_id' in u ? u._id : '') || '';
-                      const userName = 'name' in u 
-                        ? u.name 
-                        : `${u.firstName} ${u.lastName}`;
-                      const isChecked = selectedEmployeeIds.includes(userId);
-                      
-                      return (
-                        <label
-                          key={userId}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '10px 12px',
-                            cursor: 'pointer',
-                            backgroundColor: isChecked ? '#eff6ff' : 'transparent',
-                            borderBottom: '1px solid #f3f4f6',
-                            transition: 'background-color 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              handleEmployeeSelectionChange(userId, e.target.checked);
-                            }}
-                            style={{
-                              width: '18px',
-                              height: '18px',
-                              cursor: 'pointer',
-                              accentColor: '#3b82f6'
-                            }}
-                          />
-                          <span style={{
-                            fontSize: '14px',
-                            color: '#111827',
-                            fontWeight: isChecked ? '600' : '500',
-                            flex: 1
-                          }}>
-                            {userName}
-                          </span>
-                          {isChecked && (
-                            <Check size={16} color="#3b82f6" />
-                          )}
-                        </label>
-                      );
-                    })}
-                  {users.filter(u => {
-                    if (isEmployee) {
-                      const userId = u.id || ('_id' in u ? u._id : '') || '';
-                      return userId === user?.id;
-                    }
-                    if ('role' in u && u.role === 'Employee') {
-                      if ('status' in u) return u.status === 'Active';
-                      return true;
-                    }
-                    if ('firstName' in u) {
-                      if ('status' in u) return u.status === 'Active';
-                      return true;
-                    }
-                    return false;
-                  }).length === 0 && (
-                    <div style={{
-                      padding: '16px',
-                      textAlign: 'center',
-                      color: '#6b7280',
-                      fontSize: '14px'
-                    }}>
-                      No active employees available
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Click outside to close dropdown */}
-              {isEmployeeDropdownOpen && (
-                <div
-                  style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 999
-                  }}
-                  onClick={() => setIsEmployeeDropdownOpen(false)}
-                />
-              )}
-
-              {selectedEmployeeIds.length > 0 && (
-                <div style={{
-                  marginTop: '8px',
-                  fontSize: '12px',
-                  color: '#059669',
-                  fontWeight: '500'
-                }}>
-                  {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
-                </div>
-              )}
-            </div>
-
-            {/* Project Head Field - Show for directors */}
-            {isDirector && (
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Project Head
-                </label>
-                <select
-                  value={String(formData.projectHeadId || '')}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    handleInputChange('projectHeadId', newValue);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    fontSize: '14px',
-                    fontFamily: 'inherit',
-                    backgroundColor: '#ffffff',
-                    cursor: 'pointer'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#3b82f6';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value="">Select Project Head (Optional)</option>
-                  {users
-                    .filter(u => {
-                      // Show only Project Heads
-                      if ('role' in u) {
-                        return u.role === 'Project Head';
-                      }
-                      return false;
-                    })
-                    .map(u => {
-                      const userId = u.id || ('_id' in u ? u._id : '') || '';
-                      const userName = 'name' in u 
-                        ? u.name 
-                        : `${u.firstName} ${u.lastName}`;
-                      return (
-                        <option key={userId} value={userId}>
-                          {userName}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
-            )}
-            </div>
-
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                marginBottom: '8px'
-              }}>
-              Task Title *
-              </label>
-              {isEmployee && tasks.length > 0 && (
-                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    onClick={() => setTaskTitleMode('select')}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
-                      color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Select from Tasks
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTaskTitleMode('manual')}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
-                      color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    Add New Title
-                  </button>
-                </div>
-              )}
-              {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
-              <select
-                  value={formData.title}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                    backgroundColor: '#ffffff'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              >
-                  <option value="">Select a task</option>
-                  {tasks.map(t => (
-                    <option key={t.id || t._id} value={t.title}>
-                      {t.title}
-                  </option>
-                ))}
-              </select>
-              ) : (
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                disabled={false}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              />
-              )}
-            </div>
-
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '8px'
-                  }}>
-              Description / Remarks *
-                  </label>
-                  <textarea
-              value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    placeholder="Daily comments on work done"
-                    rows={4}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      resize: 'vertical'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-              required
-                  />
-                </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '24px'
-          }}>
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '8px'
-                  }}>
-                    Work Done (%)
-                  </label>
-                  <select
-                    value={formData.workDone || 0}
-                    onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      backgroundColor: '#ffffff'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
-                      <option key={percent} value={percent}>
-                        {percent}%
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                cursor: 'pointer',
-                marginBottom: '8px'
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={formData.flagDirectorInputRequired || false}
-                      onChange={(e) => handleInputChange('flagDirectorInputRequired', e.target.checked)}
-                      style={{
-                        width: '18px',
-                        height: '18px',
-                        cursor: 'pointer'
-                      }}
-                    />
-                    <span>Flag (Director Input Required)</span>
-                  </label>
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#6b7280',
-                    marginTop: '4px',
-                    margin: 0
-                  }}>
-                    Used when staff needs clarification, approval, or input
-                  </p>
-                </div>
-          </div>
-
-          {/* Reminder Date Field */}
-          <div>
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#374151',
-              marginBottom: '8px'
-            }}>
-              <Bell size={16} color="#6b7280" />
-              Reminder Date
-            </label>
-            <input
-              type="date"
-              value={formData.reminderDate || ''}
-              onChange={(e) => handleInputChange('reminderDate', e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #d1d5db',
-                borderRadius: '8px',
-                outline: 'none',
-                fontSize: '14px',
-                fontFamily: 'inherit',
-                backgroundColor: '#ffffff'
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = '#3b82f6';
-                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#d1d5db';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            />
-            <p style={{
-              fontSize: '12px',
-              color: '#6b7280',
-              marginTop: '4px',
-              margin: 0
-            }}>
-              Select a date to send a reminder to the assigned employee about this task
-            </p>
-          </div>
-
-          {/* Comments Section */}
-          {task && (
-            <div style={{
-              borderTop: '1px solid #e5e7eb',
-              paddingTop: '24px'
-            }}>
-              <h3 style={{
-                fontSize: '18px',
-                fontWeight: '500',
-                color: '#111827',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <MessageSquare size={20} style={{ marginRight: '8px' }} />
-                Comments
-                </div>
-                <span style={{
-                  fontSize: '14px',
-                  color: '#6b7280',
-                  backgroundColor: '#f3f4f6',
-                  padding: '4px 8px',
-                  borderRadius: '9999px'
-                }}>
-                  {((task as Task).comments || []).length} comment{((task as Task).comments || []).length !== 1 ? 's' : ''}
-                </span>
-              </h3>
-              
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                marginBottom: '16px',
-                maxHeight: '160px',
-                overflowY: 'auto'
-              }}>
-                {((task as Task).comments || []).length > 0 ? (
-                  ((task as Task).comments || []).map((comment) => (
-                    <div key={comment.id || comment._id} style={{
-                      backgroundColor: '#f9fafb',
-                      padding: '12px',
-                      borderRadius: '8px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '4px'
-                      }}>
-                        <span style={{
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          color: '#111827'
-                        }}>
-                          {comment.userName}
-                        </span>
-                        <span style={{
-                          fontSize: '12px',
-                          color: '#6b7280'
-                        }}>
-                        {new Date(comment.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                      <p style={{
-                        fontSize: '14px',
-                        color: '#374151',
-                        margin: 0
-                      }}>
-                        {comment.content}
-                      </p>
-                  </div>
-                  ))
-                ) : (
-                  <p style={{
-                    color: '#6b7280',
-                    fontSize: '14px',
-                    textAlign: 'center',
-                    padding: '16px 0',
-                    margin: 0
-                  }}>
-                    No comments yet.
-                  </p>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                  <strong>Commenting as:</strong> {user?.name || 'Current User'}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Write your comment here..."
-                    rows={3}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      resize: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                />
-                <button
-                  type="button"
-                  onClick={addComment}
-                    disabled={!newComment.trim()}
-                    style={{
-                      padding: '8px 16px',
-                      backgroundColor: !newComment.trim() ? '#9ca3af' : '#2563eb',
-                      color: '#ffffff',
-                      borderRadius: '8px',
-                      border: 'none',
-                      cursor: !newComment.trim() ? 'not-allowed' : 'pointer',
-                      transition: 'background-color 0.2s ease',
-                      alignSelf: 'flex-end',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}
-                    onMouseOver={(e) => {
-                      if (newComment.trim()) {
-                        e.currentTarget.style.backgroundColor = '#1d4ed8';
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (newComment.trim()) {
-                        e.currentTarget.style.backgroundColor = '#2563eb';
-                      }
-                    }}
-                >
-                    Add Comment
-                </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Extension Request Section */}
-          {task && isEmployee && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
-                Request Extension
-              </h3>
-              
-              
-              {!((task as Task).newDeadlineProposal) ? (
-                <>
-              {!showExtensionForm ? (
-                <button
-                  type="button"
-                  onClick={() => setShowExtensionForm(true)}
-                  className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-                >
-                  Request New Deadline
-                </button>
-              ) : (
-                <div className="space-y-4 p-4 bg-orange-50 rounded-lg">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      New Proposed Deadline
-                    </label>
-                    <input
-                      type="date"
-                      value={extensionData.newDeadline}
-                      onChange={(e) => setExtensionData(prev => ({ ...prev, newDeadline: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reason for Extension
-                    </label>
-                    <textarea
-                      value={extensionData.reason}
-                      onChange={(e) => setExtensionData(prev => ({ ...prev, reason: e.target.value }))}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Please provide a valid reason for the extension request..."
-                      required
-                    />
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <button
-                      type="button"
-                      onClick={handleExtensionRequest}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                    >
-                      Submit Request
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowExtensionForm(false)}
-                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-                </>
-              ) : (
-                <p className="text-gray-600">Extension already requested for this task.</p>
-              )}
-            </div>
-          )}
-
-          {/* Extension Request Status Section for Employees */}
-          {task && (task as Task).newDeadlineProposal && isEmployee && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
-                Extension Request Status
-              </h3>
-              
-              <div className="bg-blue-50 rounded-lg p-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
-                    </label>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      (task as Task).extensionRequestStatus === 'Approved' ? 'bg-green-100 text-green-800' :
-                      (task as Task).extensionRequestStatus === 'Rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {(task as Task).extensionRequestStatus || 'Pending'}
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Proposed Deadline
-                    </label>
-                    <span className="text-sm font-medium">
-                      {new Date((task as Task).newDeadlineProposal!).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Reason
-                  </label>
-                  <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                    {(task as Task).reasonForExtension}
-                  </p>
-                </div>
-                
-                {(task as Task).extensionRequestStatus !== 'Pending' && (task as Task).extensionResponseComment && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Response from Management
-                    </label>
-                    <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                      {(task as Task).extensionResponseComment}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Extension Request Status Section for Directors/Project Heads */}
-          {task && (task as Task).newDeadlineProposal && (isDirector || isProjectHead) && (
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
-                Extension Request Review
-              </h3>
-              
-              <div className="bg-blue-50 rounded-lg p-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Current Status
-                    </label>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      (task as Task).extensionRequestStatus === 'Approved' ? 'bg-green-100 text-green-800' :
-                      (task as Task).extensionRequestStatus === 'Rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {(task as Task).extensionRequestStatus || 'Pending'}
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Proposed Deadline
-                    </label>
-                    <span className="text-sm font-medium">
-                      {new Date((task as Task).newDeadlineProposal!).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Extension
-                  </label>
-                  <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                    {(task as Task).reasonForExtension}
-                  </p>
-                </div>
-                
-                {(task as Task).extensionRequestStatus === 'Pending' && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Response Comment
-                      </label>
-                      <textarea
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Add your response to the extension request..."
-                        onChange={(e) => setExtensionData(prev => ({ ...prev, responseComment: e.target.value }))}
-                      />
-                    </div>
-                    
-                    <div className="flex space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => handleExtensionResponse('Approved')}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        Approve Extension
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExtensionResponse('Rejected')}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        Reject Extension
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {(task as Task).extensionRequestStatus !== 'Pending' && (task as Task).extensionResponseComment && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Response
-                    </label>
-                    <p className="text-sm text-gray-700 bg-white p-3 rounded border">
-                      {(task as Task).extensionResponseComment}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '12px',
-            paddingTop: '24px',
-            borderTop: '1px solid #e5e7eb'
-          }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '8px 16px',
-                color: '#374151',
-                backgroundColor: '#f3f4f6',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = '#e5e7eb';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = '#f3f4f6';
-              }}
-            >
-              Cancel
-            </button>
-            {canEdit && (
-              <button
-                type="submit"
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#1d4ed8';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb';
-                }}
-              >
-                <Save size={16} />
-                {task ? 'Update Task' : 'Create Task'}
-              </button>
-            )}
-          </div>
-        </form>
-        ) : (
-          // Create New Task Form
-          <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -2762,49 +1084,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 }}>
                   Priority *
                 </label>
-                  <select
+                <select
                   value={formData.priority}
                   onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      backgroundColor: '#ffffff'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                    required
-                  >
-                  <option value="Urgent">Urgent</option>
-                  <option value="Less Urgent">Less Urgent</option>
-                  <option value="Free Time">Free Time</option>
-                  {isEmployee && <option value="Custom">Custom</option>}
-                  </select>
-              </div>
-
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Status *
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleInputChange('status', e.target.value as 'Pending' | 'Completed' | 'In Progress')}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -2825,11 +1107,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   required
                 >
-                  <option value="Pending">Pending</option>
-                  <option value="Completed">Completed</option>
-                  <option value="In Progress">In Progress</option>
-                  </select>
+                  <option value="Urgent">Urgent</option>
+                  <option value="Less Urgent">Less Urgent</option>
+                  <option value="Free Time">Free Time</option>
+                  {isEmployee && <option value="Custom">Custom</option>}
+                </select>
               </div>
+
+
 
               <div>
                 <label style={{
@@ -2863,7 +1148,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       }}
                     >
                       <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
-                        {formData.projectId 
+                        {formData.projectId
                           ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
                           : 'No Project (Optional)'}
                       </span>
@@ -2877,10 +1162,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           transition: 'transform 0.2s ease'
                         }}
                       >
-                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
-                    
+
                     {/* Custom Dropdown Menu */}
                     {isProjectDropdownOpen && (
                       <div
@@ -2928,7 +1213,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         >
                           <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                         </div>
-                        
+
                         {/* Project List with Delete Buttons - Only show Current projects */}
                         {projects.filter(project => project.status === 'Current').map(project => {
                           const projectId = project.id || project._id || '';
@@ -3003,7 +1288,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                             </div>
                           );
                         })}
-                        
+
                         {/* Add New Project Option */}
                         <div
                           onClick={() => {
@@ -3033,7 +1318,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Click outside to close dropdown */}
                     {isProjectDropdownOpen && (
                       <div
@@ -3048,7 +1333,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         onClick={() => setIsProjectDropdownOpen(false)}
                       />
                     )}
-                    
+
                     {/* Add New Project Input */}
                     {showNewProjectInput && (
                       <div style={{
@@ -3127,14 +1412,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     {/* Custom Dropdown Button */}
                     <div
                       onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
                         paddingRight: '40px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
                         backgroundColor: '#ffffff',
                         cursor: 'pointer',
                         display: 'flex',
@@ -3144,7 +1429,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                       }}
                     >
                       <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
-                        {formData.projectId 
+                        {formData.projectId
                           ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
                           : 'No Project (Optional)'}
                       </span>
@@ -3158,10 +1443,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           transition: 'transform 0.2s ease'
                         }}
                       >
-                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
-                    
+
                     {/* Custom Dropdown Menu */}
                     {isProjectDropdownOpen && (
                       <div
@@ -3186,7 +1471,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           onClick={() => {
                             handleInputChange('projectId', '');
                             setIsProjectDropdownOpen(false);
-                    }}
+                          }}
                           style={{
                             padding: '10px 12px',
                             cursor: 'pointer',
@@ -3205,11 +1490,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
                             if (formData.projectId !== '') {
                               e.currentTarget.style.backgroundColor = 'transparent';
                             }
-                    }}
-                  >
+                          }}
+                        >
                           <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
                         </div>
-                        
+
                         {/* Project List with Delete Buttons - Only show Current projects */}
                         {projects.filter(project => project.status === 'Current').map(project => {
                           const projectId = project.id || project._id || '';
@@ -3284,7 +1569,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                             </div>
                           );
                         })}
-                        
+
                         {/* Add New Project Option */}
                         <div
                           onClick={() => {
@@ -3314,7 +1599,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Click outside to close dropdown */}
                     {isProjectDropdownOpen && (
                       <div
@@ -3329,7 +1614,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         onClick={() => setIsProjectDropdownOpen(false)}
                       />
                     )}
-                    
+
                     {/* Add New Project Input */}
                     {showNewProjectInput && (
                       <div style={{
@@ -3407,228 +1692,228 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </div>
 
               {/* Assigned Employees Field - Multi-select Dropdown */}
-                <div style={{ position: 'relative' }}>
-                  <label style={{
-                    display: 'block',
+              <div style={{ position: 'relative' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Assigned Employee(s) *
+                </label>
+                <div
+                  onClick={() => {
+                    if (!isEmployee) {
+                      setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
                     fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '8px'
+                    fontFamily: 'inherit',
+                    backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
+                    cursor: isEmployee ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: '40px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isEmployee) {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isEmployee && !isEmployeeDropdownOpen) {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
+                  }}
+                >
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    alignItems: 'center'
                   }}>
-                    Assigned Employee(s) *
-                  </label>
-                  <div
-                    onClick={() => {
-                      if (!isEmployee) {
-                        setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
-                      cursor: isEmployee ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      minHeight: '40px',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isEmployee) {
-                        e.currentTarget.style.borderColor = '#3b82f6';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isEmployee && !isEmployeeDropdownOpen) {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                      }
-                    }}
-                  >
-                    <div style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '6px',
-                      alignItems: 'center'
-                    }}>
-                      {selectedEmployeeIds.length === 0 ? (
-                        <span style={{ color: '#9ca3af', fontSize: '14px' }}>
-                          Select Employee(s)
-                        </span>
-                      ) : (
-                        selectedEmployeeIds.map(id => {
-                          const employee = users.find(u => {
-                            const userId = u.id || ('_id' in u ? u._id : '') || '';
-                            return userId === id;
-                          });
-                          if (!employee) return null;
-                          const userName = 'name' in employee 
-                            ? employee.name 
-                            : `${employee.firstName} ${employee.lastName}`;
-                          return (
-                            <span
-                              key={id}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: '#eff6ff',
-                                color: '#1e40af',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: '500',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              {userName}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEmployeeSelectionChange(id, false);
-                                }}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  color: '#1e40af'
-                                }}
-                              >
-                                <X size={12} />
-                              </button>
-                            </span>
-                          );
-                        })
-                      )}
-                    </div>
-                    <ChevronDown 
-                      size={18} 
-                      style={{ 
-                        color: '#6b7280',
-                        transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s ease'
-                      }} 
-                    />
-                  </div>
-
-                  {/* Dropdown Menu */}
-                  {isEmployeeDropdownOpen && !isEmployee && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                        zIndex: 1000,
-                        maxHeight: '250px',
-                        overflowY: 'auto'
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {users
-                        .filter(u => {
-                          if (isEmployee) {
-                            const userId = u.id || ('_id' in u ? u._id : '') || '';
-                            return userId === user?.id;
-                          }
-                          if ('role' in u) {
-                            if (u.role === 'Employee') {
-                              if ('status' in u) {
-                                return u.status === 'Active';
-                              }
-                              return true;
-                            }
-                            return false;
-                          }
-                          if ('firstName' in u) {
-                            const employee = u as Employee;
-                            return employee.status ? employee.status === 'Active' : true;
-                          }
-                          return false;
-                        })
-                        .map(u => {
+                    {selectedEmployeeIds.length === 0 ? (
+                      <span style={{ color: '#9ca3af', fontSize: '14px' }}>
+                        Select Employee(s)
+                      </span>
+                    ) : (
+                      selectedEmployeeIds.map(id => {
+                        const employee = users.find(u => {
                           const userId = u.id || ('_id' in u ? u._id : '') || '';
-                          const userName = 'name' in u 
-                            ? u.name 
-                            : `${u.firstName} ${u.lastName}`;
-                          const isChecked = selectedEmployeeIds.includes(userId);
-                          
-                          return (
-                            <label
-                              key={userId}
+                          return userId === id;
+                        });
+                        if (!employee) return null;
+                        const userName = 'name' in employee
+                          ? employee.name
+                          : `${employee.firstName} ${employee.lastName}`;
+                        return (
+                          <span
+                            key={id}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#eff6ff',
+                              color: '#1e40af',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {userName}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEmployeeSelectionChange(id, false);
+                              }}
                               style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '10px',
-                                padding: '10px 12px',
-                                cursor: 'pointer',
-                                backgroundColor: isChecked ? '#eff6ff' : 'transparent',
-                                borderBottom: '1px solid #f3f4f6',
-                                transition: 'background-color 0.2s ease'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
+                                color: '#1e40af'
                               }}
                             >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  handleEmployeeSelectionChange(userId, e.target.checked);
-                                }}
-                                style={{
-                                  width: '18px',
-                                  height: '18px',
-                                  cursor: 'pointer',
-                                  accentColor: '#3b82f6'
-                                }}
-                              />
-                              <span style={{
-                                fontSize: '14px',
-                                color: '#111827',
-                                fontWeight: isChecked ? '600' : '500',
-                                flex: 1
-                              }}>
-                                {userName}
-                              </span>
-                              {isChecked && (
-                                <Check size={16} color="#3b82f6" />
-                              )}
-                            </label>
-                          );
-                        })}
-                      {users.filter(u => {
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                  <ChevronDown
+                    size={18}
+                    style={{
+                      color: '#6b7280',
+                      transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }}
+                  />
+                </div>
+
+                {/* Dropdown Menu */}
+                {isEmployeeDropdownOpen && !isEmployee && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 1000,
+                      maxHeight: '250px',
+                      overflowY: 'auto'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {users
+                      .filter(u => {
                         if (isEmployee) {
                           const userId = u.id || ('_id' in u ? u._id : '') || '';
                           return userId === user?.id;
                         }
-                        if ('role' in u && u.role === 'Employee') {
-                          if ('status' in u) return u.status === 'Active';
-                          return true;
+                        if ('role' in u) {
+                          if (u.role === 'Employee') {
+                            if ('status' in u) {
+                              return u.status === 'Active';
+                            }
+                            return true;
+                          }
+                          return false;
                         }
                         if ('firstName' in u) {
-                          if ('status' in u) return u.status === 'Active';
-                          return true;
+                          const employee = u as Employee;
+                          return employee.status ? employee.status === 'Active' : true;
                         }
                         return false;
-                      }).length === 0 && (
+                      })
+                      .map(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        const userName = 'name' in u
+                          ? u.name
+                          : `${u.firstName} ${u.lastName}`;
+                        const isChecked = selectedEmployeeIds.includes(userId);
+
+                        return (
+                          <label
+                            key={userId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              cursor: 'pointer',
+                              backgroundColor: isChecked ? '#eff6ff' : 'transparent',
+                              borderBottom: '1px solid #f3f4f6',
+                              transition: 'background-color 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                handleEmployeeSelectionChange(userId, e.target.checked);
+                              }}
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                accentColor: '#3b82f6'
+                              }}
+                            />
+                            <span style={{
+                              fontSize: '14px',
+                              color: '#111827',
+                              fontWeight: isChecked ? '600' : '500',
+                              flex: 1
+                            }}>
+                              {userName}
+                            </span>
+                            {isChecked && (
+                              <Check size={16} color="#3b82f6" />
+                            )}
+                          </label>
+                        );
+                      })}
+                    {users.filter(u => {
+                      if (isEmployee) {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        return userId === user?.id;
+                      }
+                      if ('role' in u && u.role === 'Employee') {
+                        if ('status' in u) return u.status === 'Active';
+                        return true;
+                      }
+                      if ('firstName' in u) {
+                        if ('status' in u) return u.status === 'Active';
+                        return true;
+                      }
+                      return false;
+                    }).length === 0 && (
                         <div style={{
                           padding: '16px',
                           textAlign: 'center',
@@ -3638,151 +1923,151 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           No active employees available
                         </div>
                       )}
-                    </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Click outside to close dropdown */}
-                  {isEmployeeDropdownOpen && (
-                    <div
-                      style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 999
-                      }}
-                      onClick={() => setIsEmployeeDropdownOpen(false)}
-                    />
-                  )}
+                {/* Click outside to close dropdown */}
+                {isEmployeeDropdownOpen && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 999
+                    }}
+                    onClick={() => setIsEmployeeDropdownOpen(false)}
+                  />
+                )}
 
-                  {selectedEmployeeIds.length > 0 && (
-                    <div style={{
-                      marginTop: '8px',
-                      fontSize: '12px',
-                      color: '#059669',
-                      fontWeight: '500'
-                    }}>
-                      {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
-                    </div>
-                  )}
-                </div>
-
-                {/* Project Head Field - Show for directors */}
-                {isDirector && (
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '8px'
-                    }}>
-                      Project Head
-                    </label>
-                    <select
-                      value={String(formData.projectHeadId || '')}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        handleInputChange('projectHeadId', newValue);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        outline: 'none',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
-                        backgroundColor: '#ffffff',
-                        cursor: 'pointer'
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = '#3b82f6';
-                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <option value="">Select Project Head (Optional)</option>
-                      {users
-                        .filter(u => {
-                          // Show only Project Heads
-                          if ('role' in u) {
-                            return u.role === 'Project Head';
-                          }
-                          return false;
-                        })
-                        .map(u => {
-                          const userId = u.id || ('_id' in u ? u._id : '') || '';
-                          const userName = 'name' in u 
-                            ? u.name 
-                            : `${u.firstName} ${u.lastName}`;
-                          return (
-                            <option key={userId} value={userId}>
-                              {userName}
-                            </option>
-                          );
-                        })}
-                    </select>
+                {selectedEmployeeIds.length > 0 && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: '#059669',
+                    fontWeight: '500'
+                  }}>
+                    {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
                   </div>
                 )}
               </div>
 
-              <div>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Task Title *
-                </label>
-                {isEmployee && tasks.length > 0 && (
-                  <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => setTaskTitleMode('select')}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
-                        color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Select from Tasks
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTaskTitleMode('manual')}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
-                        color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      Add New Title
-                    </button>
-                  </div>
-                )}
-                {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
+              {/* Project Head Field - Show for directors */}
+              {isDirector && (
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Project Head
+                  </label>
+                  <select
+                    value={String(formData.projectHeadId || '')}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      handleInputChange('projectHeadId', newValue);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <option value="">Select Project Head (Optional)</option>
+                    {users
+                      .filter(u => {
+                        // Show only Project Heads
+                        if ('role' in u) {
+                          return u.role === 'Project Head';
+                        }
+                        return false;
+                      })
+                      .map(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        const userName = 'name' in u
+                          ? u.name
+                          : `${u.firstName} ${u.lastName}`;
+                        return (
+                          <option key={userId} value={userId}>
+                            {userName}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Task Title *
+              </label>
+              {isEmployee && tasks.length > 0 && (
+                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('select')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Select from Tasks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('manual')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Add New Title
+                  </button>
+                </div>
+              )}
+              {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
                 <select
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
@@ -3803,14 +2088,1797 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   required
                 >
-                    <option value="">Select a task</option>
-                    {tasks.map(t => (
-                      <option key={t.id || t._id} value={t.title}>
-                        {t.title}
+                  <option value="">Select a task</option>
+                  {tasks.map(t => (
+                    <option key={t.id || t._id} value={t.title}>
+                      {t.title}
                     </option>
                   ))}
                 </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  disabled={false}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                />
+              )}
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Description / Remarks *
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Daily comments on work done"
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  outline: 'none',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+                required
+              />
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '24px'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Work Done (%)
+                </label>
+                <select
+                  value={formData.workDone || 0}
+                  onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                    <option key={percent} value={percent}>
+                      {percent}%
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  marginBottom: '8px'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.flagDirectorInputRequired || false}
+                    onChange={(e) => handleInputChange('flagDirectorInputRequired', e.target.checked)}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <span>Flag (Director Input Required)</span>
+                </label>
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '4px',
+                  margin: 0
+                }}>
+                  Used when staff needs clarification, approval, or input
+                </p>
+              </div>
+            </div>
+
+            {/* Reminders Section */}
+            <div style={{
+              backgroundColor: '#f9fafb',
+              padding: '20px',
+              borderRadius: '12px',
+              border: '1px solid #e5e7eb',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={20} color="#3b82f6" />
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: 0 }}>Reminders</h3>
+              </div>
+
+              {/* Multiple Reminder Dates */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Specific Reminder Dates
+                </label>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input
+                    type="date"
+                    id="newReminderDate"
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('newReminderDate') as HTMLInputElement;
+                      const date = input.value;
+                      if (date && !formData.reminderDates?.includes(date)) {
+                        const newDates = [...(formData.reminderDates || []), date].sort();
+                        handleInputChange('reminderDates', newDates);
+                        // Also update single reminderDate for backward compatibility
+                        if (!formData.reminderDate || new Date(date) < new Date(formData.reminderDate)) {
+                          handleInputChange('reminderDate', date);
+                        }
+                        input.value = '';
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#3b82f6',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                  >
+                    Add Date
+                  </button>
+                </div>
+
+                {/* Date Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {(formData.reminderDates || []).map((date) => (
+                    <div
+                      key={date}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        backgroundColor: '#eff6ff',
+                        color: '#1e40af',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        border: '1px solid #bfdbfe'
+                      }}
+                    >
+                      {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDates = (formData.reminderDates || []).filter(d => d !== date);
+                          handleInputChange('reminderDates', newDates);
+                          // Update single reminderDate if it was the one deleted
+                          if (formData.reminderDate === date) {
+                            handleInputChange('reminderDate', newDates[0] || '');
+                          }
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: '#1e40af'
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Weekly Recurring Reminders */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '12px'
+                }}>
+                  Weekly Recurring Reminders
+                </label>
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                    const isSelected = formData.weeklyReminders?.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.weeklyReminders || [];
+                          const next = isSelected
+                            ? current.filter(d => d !== day)
+                            : [...current, day];
+                          handleInputChange('weeklyReminders', next);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          border: '1px solid',
+                          backgroundColor: isSelected ? '#3b82f6' : '#ffffff',
+                          color: isSelected ? '#ffffff' : '#374151',
+                          borderColor: isSelected ? '#3b82f6' : '#d1d5db'
+                        }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '8px',
+                  margin: 0
+                }}>
+                  Receive reminders every week on the selected days
+                </p>
+              </div>
+            </div>
+
+            {/* Comments Section */}
+            {task && (
+              <div style={{
+                borderTop: '1px solid #e5e7eb',
+                paddingTop: '24px'
+              }}>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: '500',
+                  color: '#111827',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <MessageSquare size={20} style={{ marginRight: '8px' }} />
+                    Comments
+                  </div>
+                  <span style={{
+                    fontSize: '14px',
+                    color: '#6b7280',
+                    backgroundColor: '#f3f4f6',
+                    padding: '4px 8px',
+                    borderRadius: '9999px'
+                  }}>
+                    {((task as Task).comments || []).length} comment{((task as Task).comments || []).length !== 1 ? 's' : ''}
+                  </span>
+                </h3>
+
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  marginBottom: '16px',
+                  maxHeight: '160px',
+                  overflowY: 'auto'
+                }}>
+                  {((task as Task).comments || []).length > 0 ? (
+                    ((task as Task).comments || []).map((comment) => (
+                      <div key={comment.id || comment._id} style={{
+                        backgroundColor: '#f9fafb',
+                        padding: '12px',
+                        borderRadius: '8px'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '4px'
+                        }}>
+                          <span style={{
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#111827'
+                          }}>
+                            {comment.userName}
+                          </span>
+                          <span style={{
+                            fontSize: '12px',
+                            color: '#6b7280'
+                          }}>
+                            {new Date(comment.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <p style={{
+                          fontSize: '14px',
+                          color: '#374151',
+                          margin: 0
+                        }}>
+                          {comment.content}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{
+                      color: '#6b7280',
+                      fontSize: '14px',
+                      textAlign: 'center',
+                      padding: '16px 0',
+                      margin: 0
+                    }}>
+                      No comments yet.
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                    <strong>Commenting as:</strong> {user?.name || 'Current User'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Write your comment here..."
+                      rows={3}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        resize: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={addComment}
+                      disabled={!newComment.trim()}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: !newComment.trim() ? '#9ca3af' : '#2563eb',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: !newComment.trim() ? 'not-allowed' : 'pointer',
+                        transition: 'background-color 0.2s ease',
+                        alignSelf: 'flex-end',
+                        fontSize: '14px',
+                        fontWeight: '500'
+                      }}
+                      onMouseOver={(e) => {
+                        if (newComment.trim()) {
+                          e.currentTarget.style.backgroundColor = '#1d4ed8';
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (newComment.trim()) {
+                          e.currentTarget.style.backgroundColor = '#2563eb';
+                        }
+                      }}
+                    >
+                      Add Comment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Extension Request Section */}
+            {task && isEmployee && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <AlertTriangle className="h-5 w-5 mr-2 text-orange-600" />
+                  Request Extension
+                </h3>
+
+
+                {!((task as Task).newDeadlineProposal) ? (
+                  <>
+                    {!showExtensionForm ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowExtensionForm(true)}
+                        className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+                      >
+                        Request New Deadline
+                      </button>
+                    ) : (
+                      <div className="space-y-4 p-4 bg-orange-50 rounded-lg">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            New Proposed Deadline
+                          </label>
+                          <input
+                            type="date"
+                            value={extensionData.newDeadline}
+                            onChange={(e) => setExtensionData(prev => ({ ...prev, newDeadline: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Reason for Extension
+                          </label>
+                          <textarea
+                            value={extensionData.reason}
+                            onChange={(e) => setExtensionData(prev => ({ ...prev, reason: e.target.value }))}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Please provide a valid reason for the extension request..."
+                            required
+                          />
+                        </div>
+
+                        <div className="flex space-x-2">
+                          <button
+                            type="button"
+                            onClick={handleExtensionRequest}
+                            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                          >
+                            Submit Request
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowExtensionForm(false)}
+                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
+                  <p className="text-gray-600">Extension already requested for this task.</p>
+                )}
+              </div>
+            )}
+
+            {/* Extension Request Status Section for Employees */}
+            {task && (task as Task).newDeadlineProposal && isEmployee && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
+                  Extension Request Status
+                </h3>
+
+                <div className="bg-blue-50 rounded-lg p-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${(task as Task).extensionRequestStatus === 'Approved' ? 'bg-green-100 text-green-800' :
+                        (task as Task).extensionRequestStatus === 'Rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                        {(task as Task).extensionRequestStatus || 'Pending'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Proposed Deadline
+                      </label>
+                      <span className="text-sm font-medium">
+                        {new Date((task as Task).newDeadlineProposal!).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Reason
+                    </label>
+                    <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                      {(task as Task).reasonForExtension}
+                    </p>
+                  </div>
+
+                  {(task as Task).extensionRequestStatus !== 'Pending' && (task as Task).extensionResponseComment && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Response from Management
+                      </label>
+                      <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                        {(task as Task).extensionResponseComment}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Extension Request Status Section for Directors/Project Heads */}
+            {task && (task as Task).newDeadlineProposal && (isDirector || isProjectHead) && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <AlertTriangle className="h-5 w-5 mr-2 text-blue-600" />
+                  Extension Request Review
+                </h3>
+
+                <div className="bg-blue-50 rounded-lg p-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Status
+                      </label>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${(task as Task).extensionRequestStatus === 'Approved' ? 'bg-green-100 text-green-800' :
+                        (task as Task).extensionRequestStatus === 'Rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                        {(task as Task).extensionRequestStatus || 'Pending'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Proposed Deadline
+                      </label>
+                      <span className="text-sm font-medium">
+                        {new Date((task as Task).newDeadlineProposal!).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reason for Extension
+                    </label>
+                    <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                      {(task as Task).reasonForExtension}
+                    </p>
+                  </div>
+
+                  {(task as Task).extensionRequestStatus === 'Pending' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Response Comment
+                        </label>
+                        <textarea
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Add your response to the extension request..."
+                          onChange={(e) => setExtensionData(prev => ({ ...prev, responseComment: e.target.value }))}
+                        />
+                      </div>
+
+                      <div className="flex space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => handleExtensionResponse('Approved')}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Approve Extension
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExtensionResponse('Rejected')}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          Reject Extension
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(task as Task).extensionRequestStatus !== 'Pending' && (task as Task).extensionResponseComment && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Response
+                      </label>
+                      <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+                        {(task as Task).extensionResponseComment}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              paddingTop: '24px',
+              borderTop: '1px solid #e5e7eb'
+            }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '8px 16px',
+                  color: '#374151',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e5e7eb';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                }}
+              >
+                Cancel
+              </button>
+              {canEdit && (
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1d4ed8';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#2563eb';
+                  }}
+                >
+                  <Save size={16} />
+                  {task ? 'Update Task' : 'Create Task'}
+                </button>
+              )}
+            </div>
+          </form>
+        ) : (
+          // Create New Task Form
+          <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '24px'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Priority *
+                </label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => handleInputChange('priority', e.target.value as 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                >
+                  <option value="Urgent">Urgent</option>
+                  <option value="Less Urgent">Less Urgent</option>
+                  <option value="Free Time">Free Time</option>
+                  {isEmployee && <option value="Custom">Custom</option>}
+                </select>
+              </div>
+
+
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Project Name
+                </label>
+                {isDirector ? (
+                  <div style={{ position: 'relative' }}>
+                    {/* Custom Dropdown Button */}
+                    <div
+                      onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        paddingRight: '40px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        minHeight: '38px'
+                      }}
+                    >
+                      <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
+                        {formData.projectId
+                          ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
+                          : 'No Project (Optional)'}
+                      </span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        style={{
+                          transform: isProjectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease'
+                        }}
+                      >
+                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+
+                    {/* Custom Dropdown Menu */}
+                    {isProjectDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          marginTop: '4px',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                          zIndex: 1000,
+                          maxHeight: '300px',
+                          overflowY: 'auto'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* No Project Option */}
+                        <div
+                          onClick={() => {
+                            handleInputChange('projectId', '');
+                            setIsProjectDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: formData.projectId === '' ? '#f3f4f6' : 'transparent',
+                            borderBottom: '1px solid #e5e7eb'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (formData.projectId !== '') {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (formData.projectId !== '') {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
+                        </div>
+
+                        {/* Project List with Delete Buttons - Only show Current projects */}
+                        {projects.filter(project => project.status === 'Current').map(project => {
+                          const projectId = project.id || project._id || '';
+                          const isSelected = formData.projectId === projectId;
+                          return (
+                            <div
+                              key={projectId}
+                              style={{
+                                padding: '10px 12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: isSelected ? '#f3f4f6' : 'transparent',
+                                borderBottom: '1px solid #e5e7eb'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }
+                              }}
+                            >
+                              <span
+                                onClick={() => {
+                                  handleInputChange('projectId', projectId);
+                                  setIsProjectDropdownOpen(false);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  fontSize: '14px',
+                                  color: '#374151',
+                                  fontWeight: isSelected ? '500' : '400'
+                                }}
+                              >
+                                {project.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteProject(projectId, project.name);
+                                  setIsProjectDropdownOpen(false);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px 8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#ef4444',
+                                  borderRadius: '4px',
+                                  marginLeft: '8px'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={`Delete ${project.name}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Add New Project Option */}
+                        <div
+                          onClick={() => {
+                            setShowNewProjectInput(true);
+                            setIsProjectDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            backgroundColor: '#f9fafb',
+                            borderTop: '1px solid #e5e7eb',
+                            color: '#3b82f6',
+                            fontWeight: '500'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                          }}
+                        >
+                          <Plus size={16} />
+                          <span style={{ fontSize: '14px' }}>Add New Project</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Click outside to close dropdown */}
+                    {isProjectDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 999
+                        }}
+                        onClick={() => setIsProjectDropdownOpen(false)}
+                      />
+                    )}
+
+                    {/* Add New Project Input */}
+                    {showNewProjectInput && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '12px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            placeholder="Enter new project name"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              outline: 'none'
+                            }}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleCreateProject();
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateProject}
+                            disabled={!newProjectName.trim()}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: newProjectName.trim() ? '#3b82f6' : '#9ca3af',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: newProjectName.trim() ? 'pointer' : 'not-allowed',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Plus size={16} />
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewProjectInput(false);
+                              setNewProjectName('');
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              backgroundColor: '#f3f4f6',
+                              color: '#374151',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative' }}>
+                    {/* Custom Dropdown Button */}
+                    <div
+                      onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        paddingRight: '40px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        minHeight: '38px'
+                      }}
+                    >
+                      <span style={{ color: formData.projectId ? '#111827' : '#9ca3af' }}>
+                        {formData.projectId
+                          ? projects.find(p => (p.id || p._id) === formData.projectId)?.name || 'No Project (Optional)'
+                          : 'No Project (Optional)'}
+                      </span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        style={{
+                          transform: isProjectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease'
+                        }}
+                      >
+                        <path d="M3 4.5L6 7.5L9 4.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+
+                    {/* Custom Dropdown Menu */}
+                    {isProjectDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          marginTop: '4px',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                          zIndex: 1000,
+                          maxHeight: '300px',
+                          overflowY: 'auto'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* No Project Option */}
+                        <div
+                          onClick={() => {
+                            handleInputChange('projectId', '');
+                            setIsProjectDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: formData.projectId === '' ? '#f3f4f6' : 'transparent',
+                            borderBottom: '1px solid #e5e7eb'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (formData.projectId !== '') {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (formData.projectId !== '') {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize: '14px', color: '#374151' }}>No Project (Optional)</span>
+                        </div>
+
+                        {/* Project List with Delete Buttons - Only show Current projects */}
+                        {projects.filter(project => project.status === 'Current').map(project => {
+                          const projectId = project.id || project._id || '';
+                          const isSelected = formData.projectId === projectId;
+                          return (
+                            <div
+                              key={projectId}
+                              style={{
+                                padding: '10px 12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: isSelected ? '#f3f4f6' : 'transparent',
+                                borderBottom: '1px solid #e5e7eb'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = '#f9fafb';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }
+                              }}
+                            >
+                              <span
+                                onClick={() => {
+                                  handleInputChange('projectId', projectId);
+                                  setIsProjectDropdownOpen(false);
+                                }}
+                                style={{
+                                  flex: 1,
+                                  fontSize: '14px',
+                                  color: '#374151',
+                                  fontWeight: isSelected ? '500' : '400'
+                                }}
+                              >
+                                {project.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteProject(projectId, project.name);
+                                  setIsProjectDropdownOpen(false);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px 8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#ef4444',
+                                  borderRadius: '4px',
+                                  marginLeft: '8px'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fee2e2';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title={`Delete ${project.name}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Add New Project Option */}
+                        <div
+                          onClick={() => {
+                            setShowNewProjectInput(true);
+                            setIsProjectDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            backgroundColor: '#f9fafb',
+                            borderTop: '1px solid #e5e7eb',
+                            color: '#3b82f6',
+                            fontWeight: '500'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f9fafb';
+                          }}
+                        >
+                          <Plus size={16} />
+                          <span style={{ fontSize: '14px' }}>Add New Project</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Click outside to close dropdown */}
+                    {isProjectDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 999
+                        }}
+                        onClick={() => setIsProjectDropdownOpen(false)}
+                      />
+                    )}
+
+                    {/* Add New Project Input */}
+                    {showNewProjectInput && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '12px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            placeholder="Enter new project name"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '6px',
+                              fontSize: '14px',
+                              outline: 'none'
+                            }}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleCreateProject();
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateProject}
+                            disabled={!newProjectName.trim()}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: newProjectName.trim() ? '#3b82f6' : '#9ca3af',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: newProjectName.trim() ? 'pointer' : 'not-allowed',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Plus size={16} />
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewProjectInput(false);
+                              setNewProjectName('');
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              backgroundColor: '#f3f4f6',
+                              color: '#374151',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '14px'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Assigned Employees Field - Multi-select Dropdown */}
+              <div style={{ position: 'relative' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Assigned Employee(s) *
+                </label>
+                <div
+                  onClick={() => {
+                    if (!isEmployee) {
+                      setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: isEmployee ? '#f3f4f6' : '#ffffff',
+                    cursor: isEmployee ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: '40px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isEmployee) {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isEmployee && !isEmployeeDropdownOpen) {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
+                  }}
+                >
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    alignItems: 'center'
+                  }}>
+                    {selectedEmployeeIds.length === 0 ? (
+                      <span style={{ color: '#9ca3af', fontSize: '14px' }}>
+                        Select Employee(s)
+                      </span>
+                    ) : (
+                      selectedEmployeeIds.map(id => {
+                        const employee = users.find(u => {
+                          const userId = u.id || ('_id' in u ? u._id : '') || '';
+                          return userId === id;
+                        });
+                        if (!employee) return null;
+                        const userName = 'name' in employee
+                          ? employee.name
+                          : `${employee.firstName} ${employee.lastName}`;
+                        return (
+                          <span
+                            key={id}
+                            style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#eff6ff',
+                              color: '#1e40af',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {userName}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEmployeeSelectionChange(id, false);
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#1e40af'
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                  <ChevronDown
+                    size={18}
+                    style={{
+                      color: '#6b7280',
+                      transform: isEmployeeDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }}
+                  />
+                </div>
+
+                {/* Dropdown Menu */}
+                {isEmployeeDropdownOpen && !isEmployee && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 1000,
+                      maxHeight: '250px',
+                      overflowY: 'auto'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {users
+                      .filter(u => {
+                        if (isEmployee) {
+                          const userId = u.id || ('_id' in u ? u._id : '') || '';
+                          return userId === user?.id;
+                        }
+                        if ('role' in u) {
+                          if (u.role === 'Employee') {
+                            if ('status' in u) {
+                              return u.status === 'Active';
+                            }
+                            return true;
+                          }
+                          return false;
+                        }
+                        if ('firstName' in u) {
+                          const employee = u as Employee;
+                          return employee.status ? employee.status === 'Active' : true;
+                        }
+                        return false;
+                      })
+                      .map(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        const userName = 'name' in u
+                          ? u.name
+                          : `${u.firstName} ${u.lastName}`;
+                        const isChecked = selectedEmployeeIds.includes(userId);
+
+                        return (
+                          <label
+                            key={userId}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              cursor: 'pointer',
+                              backgroundColor: isChecked ? '#eff6ff' : 'transparent',
+                              borderBottom: '1px solid #f3f4f6',
+                              transition: 'background-color 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = isChecked ? '#dbeafe' : '#f9fafb';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = isChecked ? '#eff6ff' : 'transparent';
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                handleEmployeeSelectionChange(userId, e.target.checked);
+                              }}
+                              style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                accentColor: '#3b82f6'
+                              }}
+                            />
+                            <span style={{
+                              fontSize: '14px',
+                              color: '#111827',
+                              fontWeight: isChecked ? '600' : '500',
+                              flex: 1
+                            }}>
+                              {userName}
+                            </span>
+                            {isChecked && (
+                              <Check size={16} color="#3b82f6" />
+                            )}
+                          </label>
+                        );
+                      })}
+                    {users.filter(u => {
+                      if (isEmployee) {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        return userId === user?.id;
+                      }
+                      if ('role' in u && u.role === 'Employee') {
+                        if ('status' in u) return u.status === 'Active';
+                        return true;
+                      }
+                      if ('firstName' in u) {
+                        if ('status' in u) return u.status === 'Active';
+                        return true;
+                      }
+                      return false;
+                    }).length === 0 && (
+                        <div style={{
+                          padding: '16px',
+                          textAlign: 'center',
+                          color: '#6b7280',
+                          fontSize: '14px'
+                        }}>
+                          No active employees available
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                {/* Click outside to close dropdown */}
+                {isEmployeeDropdownOpen && (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 999
+                    }}
+                    onClick={() => setIsEmployeeDropdownOpen(false)}
+                  />
+                )}
+
+                {selectedEmployeeIds.length > 0 && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: '#059669',
+                    fontWeight: '500'
+                  }}>
+                    {selectedEmployeeIds.length} employee{selectedEmployeeIds.length !== 1 ? 's' : ''} selected
+                  </div>
+                )}
+              </div>
+
+              {/* Project Head Field - Show for directors */}
+              {isDirector && (
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Project Head
+                  </label>
+                  <select
+                    value={String(formData.projectHeadId || '')}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      handleInputChange('projectHeadId', newValue);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <option value="">Select Project Head (Optional)</option>
+                    {users
+                      .filter(u => {
+                        // Show only Project Heads
+                        if ('role' in u) {
+                          return u.role === 'Project Head';
+                        }
+                        return false;
+                      })
+                      .map(u => {
+                        const userId = u.id || ('_id' in u ? u._id : '') || '';
+                        const userName = 'name' in u
+                          ? u.name
+                          : `${u.firstName} ${u.lastName}`;
+                        return (
+                          <option key={userId} value={userId}>
+                            {userName}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Task Title *
+              </label>
+              {isEmployee && tasks.length > 0 && (
+                <div style={{ marginBottom: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('select')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'select' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'select' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Select from Tasks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskTitleMode('manual')}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: taskTitleMode === 'manual' ? '#3b82f6' : '#f3f4f6',
+                      color: taskTitleMode === 'manual' ? '#ffffff' : '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Add New Title
+                  </button>
+                </div>
+              )}
+              {isEmployee && taskTitleMode === 'select' && tasks.length > 0 ? (
+                <select
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                >
+                  <option value="">Select a task</option>
+                  {tasks.map(t => (
+                    <option key={t.id || t._id} value={t.title}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
                 <input
                   type="text"
                   value={formData.title}
@@ -3834,112 +3902,25 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   }}
                   required
                 />
-                )}
-              </div>
+              )}
+            </div>
 
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '8px'
-                    }}>
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
                 Description / Remarks *
-                    </label>
-                    <textarea
-                value={formData.description}
-                      onChange={(e) => handleInputChange('description', e.target.value)}
-                      placeholder="Daily comments on work done"
-                      rows={4}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        outline: 'none',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
-                        resize: 'vertical'
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = '#3b82f6';
-                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                required
-                    />
-                  </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '24px'
-            }}>
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '8px'
-                    }}>
-                      Work Done (%)
-                    </label>
-                    <select
-                      value={formData.workDone || 0}
-                      onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        outline: 'none',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
-                        backgroundColor: '#ffffff'
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = '#3b82f6';
-                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
-                        <option key={percent} value={percent}>
-                          {percent}%
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  </div>
-
-            {/* Reminder Date Field - Create Form */}
-                  <div>
-                    <label style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                  marginBottom: '8px'
-                    }}>
-                <Bell size={16} color="#6b7280" />
-                Reminder Date
               </label>
-                      <input
-                type="date"
-                value={formData.reminderDate || ''}
-                onChange={(e) => handleInputChange('reminderDate', e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                        style={{
+              <textarea
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Daily comments on work done"
+                rows={4}
+                style={{
                   width: '100%',
                   padding: '8px 12px',
                   border: '1px solid #d1d5db',
@@ -3947,8 +3928,8 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   outline: 'none',
                   fontSize: '14px',
                   fontFamily: 'inherit',
-                  backgroundColor: '#ffffff'
-                        }}
+                  resize: 'vertical'
+                }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = '#3b82f6';
                   e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
@@ -3957,15 +3938,237 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   e.currentTarget.style.borderColor = '#d1d5db';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
+                required
               />
-                    <p style={{
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      marginTop: '4px',
-                      margin: 0
-                    }}>
-                Select a date to send a reminder to the assigned employee about this task
-                    </p>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '24px'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Work Done (%)
+                </label>
+                <select
+                  value={formData.workDone || 0}
+                  onChange={(e) => handleInputChange('workDone', parseInt(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    backgroundColor: '#ffffff'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                    <option key={percent} value={percent}>
+                      {percent}%
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Reminders Section - Create Form */}
+            <div style={{
+              backgroundColor: '#f9fafb',
+              padding: '20px',
+              borderRadius: '12px',
+              border: '1px solid #e5e7eb',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={20} color="#3b82f6" />
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: 0 }}>Reminders</h3>
+              </div>
+
+              {/* Multiple Reminder Dates */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Specific Reminder Dates
+                </label>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input
+                    type="date"
+                    id="newReminderDateCreate"
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('newReminderDateCreate') as HTMLInputElement;
+                      const date = input.value;
+                      if (date && !formData.reminderDates?.includes(date)) {
+                        const newDates = [...(formData.reminderDates || []), date].sort();
+                        handleInputChange('reminderDates', newDates);
+                        // Also update single reminderDate for backward compatibility
+                        if (!formData.reminderDate || new Date(date) < new Date(formData.reminderDate)) {
+                          handleInputChange('reminderDate', date);
+                        }
+                        input.value = '';
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#3b82f6',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                  >
+                    Add Date
+                  </button>
+                </div>
+
+                {/* Date Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {(formData.reminderDates || []).map((date) => (
+                    <div
+                      key={date}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        backgroundColor: '#eff6ff',
+                        color: '#1e40af',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        border: '1px solid #bfdbfe'
+                      }}
+                    >
+                      {new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDates = (formData.reminderDates || []).filter(d => d !== date);
+                          handleInputChange('reminderDates', newDates);
+                          // Update single reminderDate if it was the one deleted
+                          if (formData.reminderDate === date) {
+                            handleInputChange('reminderDate', newDates[0] || '');
+                          }
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: '#1e40af'
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Weekly Recurring Reminders */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '12px'
+                }}>
+                  Weekly Recurring Reminders
+                </label>
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                    const isSelected = formData.weeklyReminders?.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.weeklyReminders || [];
+                          const next = isSelected
+                            ? current.filter(d => d !== day)
+                            : [...current, day];
+                          handleInputChange('weeklyReminders', next);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          border: '1px solid',
+                          backgroundColor: isSelected ? '#3b82f6' : '#ffffff',
+                          color: isSelected ? '#ffffff' : '#374151',
+                          borderColor: isSelected ? '#3b82f6' : '#d1d5db'
+                        }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  marginTop: '8px',
+                  margin: 0
+                }}>
+                  Receive reminders every week on the selected days
+                </p>
+              </div>
             </div>
 
             <div style={{

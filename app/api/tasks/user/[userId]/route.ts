@@ -8,13 +8,19 @@ export async function GET(
 ) {
   try {
     await dbConnect()
-    
+
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
-    
+
     let tasks
     if (role === 'Employee') {
-      tasks = await Task.find({ assignedToId: params.userId }).sort({ createdAt: -1 })
+      tasks = await Task.find({
+        $or: [
+          { assignedToId: params.userId },
+          { assignedEmployeeIds: params.userId },
+          { assignedById: params.userId }
+        ]
+      }).sort({ createdAt: -1 })
     } else if (role === 'Project Head') {
       // For project heads, get tasks from their projects
       tasks = await Task.find().sort({ createdAt: -1 })
@@ -22,7 +28,7 @@ export async function GET(
       // For directors, get all tasks
       tasks = await Task.find().sort({ createdAt: -1 })
     }
-    
+
     // Normalize the data structure
     const normalizedTasks = tasks.map(task => {
       const taskObj = task.toObject()
@@ -35,7 +41,7 @@ export async function GET(
         }))
       }
     })
-    
+
     return NextResponse.json(normalizedTasks)
   } catch (error) {
     return NextResponse.json(

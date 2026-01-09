@@ -57,11 +57,12 @@ export const taskApi = {
   },
 
   // Add comment to task
-  addComment: async (taskId: string, content: string, userId: string, userName: string) => {
+  addComment: async (taskId: string, content: string, userId: string, userName: string, role?: string) => {
     const response = await api.post(`/tasks/${taskId}/comments`, {
       content,
       userId,
-      userName
+      userName,
+      role
     });
     return response.data;
   },
@@ -76,7 +77,7 @@ export const taskApi = {
 
   // Get all completion requests
   getCompletionRequests: async (status?: 'all' | 'Pending' | 'Approved' | 'Rejected') => {
-    const url = status && status !== 'all' 
+    const url = status && status !== 'all'
       ? `/tasks/completion-requests?status=${status}`
       : '/tasks/completion-requests?status=all';
     const response = await api.get(url);

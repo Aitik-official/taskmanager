@@ -21,7 +21,8 @@ export interface ITask extends Document {
     id: string
     taskId: string
     userId: string
-    userName: string
+    username: string
+    role?: string // User role (Director, Project Head, Employee)
     content: string
     timestamp: string
     isVisibleToEmployee: boolean
@@ -41,9 +42,16 @@ export interface ITask extends Document {
   completionResponseDate?: Date
   completionResponseBy?: string
   completionResponseComment?: string
-  isEmployeeCreated?: boolean // Flag to identify tasks created by employees from employee dashboard
+  isEmployeeCreated?: boolean
+  assignedEmployeeIds?: string[]
+  assignedEmployeeNames?: string[]
+  projectHeadId?: string
+  projectHeadName?: string
   workDone?: number // Percentage of work done (0-100)
   flagDirectorInputRequired?: boolean // Flag when staff needs clarification, approval, or input
+  reminderDate?: string
+  reminderDates?: string[]
+  weeklyReminders?: string[]
   createdAt: Date
 }
 
@@ -54,17 +62,19 @@ const taskSchema = new Schema<ITask>({
   projectName: { type: String },
   assignedToId: { type: String, default: '' },
   assignedToName: { type: String, default: '' },
+  assignedEmployeeIds: [{ type: String }],
+  assignedEmployeeNames: [{ type: String }],
   assignedById: { type: String, required: true },
   assignedByName: { type: String, required: true },
-  priority: { 
-    type: String, 
-    enum: ['Urgent', 'Less Urgent', 'Free Time', 'Custom'], 
-    default: 'Less Urgent' 
+  priority: {
+    type: String,
+    enum: ['Urgent', 'Less Urgent', 'Free Time', 'Custom'],
+    default: 'Less Urgent'
   },
-  status: { 
-    type: String, 
-    enum: ['Pending', 'In Progress', 'Completed'], 
-    default: 'Pending' 
+  status: {
+    type: String,
+    enum: ['Pending', 'In Progress', 'Completed'],
+    default: 'Pending'
   },
   estimatedHours: { type: Number, default: 0 },
   actualHours: { type: Number },
@@ -77,6 +87,7 @@ const taskSchema = new Schema<ITask>({
     taskId: { type: String, required: true },
     userId: { type: String, required: true },
     userName: { type: String, required: true },
+    role: { type: String }, // User role
     content: { type: String, required: true },
     timestamp: { type: String, required: true },
     isVisibleToEmployee: { type: Boolean, default: true }
@@ -85,17 +96,17 @@ const taskSchema = new Schema<ITask>({
   ratingComment: String,
   newDeadlineProposal: String,
   reasonForExtension: String,
-  extensionRequestStatus: { 
-    type: String, 
-    enum: ['Pending', 'Approved', 'Rejected'], 
-    default: 'Pending' 
+  extensionRequestStatus: {
+    type: String,
+    enum: ['Pending', 'Approved', 'Rejected'],
+    default: 'Pending'
   },
   extensionRequestDate: { type: Date },
   extensionResponseDate: { type: Date },
   extensionResponseBy: String,
   extensionResponseComment: String,
-  completionRequestStatus: { 
-    type: String, 
+  completionRequestStatus: {
+    type: String,
     enum: ['Pending', 'Approved', 'Rejected'],
     default: undefined
   },
@@ -107,6 +118,9 @@ const taskSchema = new Schema<ITask>({
   isEmployeeCreated: { type: Boolean, default: false }, // Flag to identify tasks created by employees from employee dashboard
   workDone: { type: Number, min: 0, max: 100 }, // Percentage of work done (0-100)
   flagDirectorInputRequired: { type: Boolean, default: false }, // Flag when staff needs clarification, approval, or input
+  reminderDate: { type: String },
+  reminderDates: [{ type: String }],
+  weeklyReminders: [{ type: String }],
   createdAt: { type: Date, default: Date.now }
 })
 

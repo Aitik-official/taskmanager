@@ -14,7 +14,7 @@ import ProjectModal from './ProjectModal';
 import EmployeeList from './EmployeeList';
 import { getProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { taskApi } from '../services/api';
-import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock, Eye, X, CheckSquare, MessageSquare } from 'lucide-react';
+import { AlertTriangle, AlertCircle, CheckCircle, CheckCircle2, Clock, Eye, X, CheckSquare, MessageSquare, Bell } from 'lucide-react';
 import { IndependentWork, IndependentWorkAttachment } from '../types';
 import { createIndependentWork, getIndependentWorkByEmployee, updateIndependentWork, deleteIndependentWork, addComment, getIndependentWorkById } from '../services/independentWorkService';
 
@@ -79,7 +79,7 @@ const EmployeeDashboard: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [taskToComplete, setTaskToComplete] = useState<Task | null>(null);
-  
+
   // Employee priority task counts
   const [employeePriorityStats, setEmployeePriorityStats] = useState({
     urgentTasks: 0,
@@ -87,22 +87,22 @@ const EmployeeDashboard: React.FC = () => {
     freeTimeTasks: 0,
     totalCompletedTasks: 0
   });
-  
+
   // Track selected priority card for showing filtered tasks table
   const [selectedPriorityCard, setSelectedPriorityCard] = useState<'urgent' | 'lessUrgent' | 'freeTime' | 'completed' | null>(null);
-  
+
   // Track which task's workDone is being edited
   const [editingWorkDone, setEditingWorkDone] = useState<string | null>(null);
   const [workDoneValue, setWorkDoneValue] = useState<number>(0);
-  
+
   // Track previous tasks and comments for notifications
   const [previousTasks, setPreviousTasks] = useState<Task[]>([]);
   const [previousCommentCounts, setPreviousCommentCounts] = useState<Record<string, number>>({});
-  
+
   // Notifications state
   interface Notification {
     id: string;
-    type: 'task' | 'comment';
+    type: 'task' | 'comment' | 'reminder';
     message: string;
     taskId?: string;
     taskTitle?: string;
@@ -111,16 +111,16 @@ const EmployeeDashboard: React.FC = () => {
     timestamp: number;
     read: boolean;
   }
-  
+
   // Load notifications from localStorage on mount
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     try {
       const saved = localStorage.getItem('employeeNotifications');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Filter out old notifications (older than 5 minutes)
-        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-        const validNotifications = parsed.filter((n: Notification) => n.timestamp > fiveMinutesAgo);
+        // Filter out old notifications (older than 7 days)
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        const validNotifications = parsed.filter((n: Notification) => n.timestamp > sevenDaysAgo);
         console.log('📥 Loaded notifications from localStorage:', validNotifications.length, 'valid out of', parsed.length);
         return validNotifications;
       }
@@ -129,7 +129,7 @@ const EmployeeDashboard: React.FC = () => {
     }
     return [];
   });
-  
+
   // Save notifications to localStorage whenever they change
   useEffect(() => {
     try {
@@ -140,47 +140,13 @@ const EmployeeDashboard: React.FC = () => {
     }
   }, [notifications]);
 
-  // Auto-remove notifications after 5 minutes
-  useEffect(() => {
-    if (notifications.length === 0) return;
-    
-    const timeouts: NodeJS.Timeout[] = [];
-    const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
-    
-    notifications.forEach((notification) => {
-      const age = Date.now() - notification.timestamp;
-      const remainingTime = fiveMinutes - age;
-      
-      if (remainingTime > 0) {
-        // Set timeout to remove notification after remaining time
-        const timeout = setTimeout(() => {
-          console.log('⏰ Auto-removing notification after 5 minutes:', notification.id, notification.message);
-          setNotifications(prev => {
-            const filtered = prev.filter(n => n.id !== notification.id);
-            console.log('🗑️ Removed notification. Remaining:', filtered.length);
-            return filtered;
-          });
-        }, remainingTime);
-        timeouts.push(timeout);
-        console.log(`⏱️ Notification "${notification.message.substring(0, 30)}..." will be removed in ${Math.round(remainingTime / 1000)} seconds`);
-      } else {
-        // Notification is already older than 5 minutes, remove it immediately
-        console.log('⏰ Removing old notification (>5 minutes):', notification.id);
-        setNotifications(prev => prev.filter(n => n.id !== notification.id));
-      }
-    });
-    
-    // Cleanup timeouts on unmount or when notifications change
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout));
-    };
-  }, [notifications]);
+  // Remove auto-remove logic to keep notifications persistent
 
   const loadTasks = async () => {
     try {
       setLoading(true);
       let fetchedTasks: Task[] = [];
-      
+
       if (user) {
         if (isEmployee) {
           // Employees see only their assigned tasks
@@ -195,9 +161,9 @@ const EmployeeDashboard: React.FC = () => {
       } else {
         fetchedTasks = await taskApi.getAllTasks();
       }
-      
+
       setTasks(fetchedTasks);
-      
+
       // Don't initialize previousTasks here - let the polling logic handle it after initial delay
     } catch (error: any) {
       console.error('Error loading tasks:', error);
@@ -258,34 +224,34 @@ const EmployeeDashboard: React.FC = () => {
     const checkForUpdates = async () => {
       try {
         const fetchedTasks = await taskApi.getTasksByUser(user.id, 'Employee');
-        
+
         // Check for new tasks assigned by Director/Project Head
         // Only check if we have previous tasks to compare against (skip initial load)
         if (previousTasks.length > 0) {
           const currentTaskIds = new Set(fetchedTasks.map((t: Task) => String(t.id || t._id || '')));
           const previousTaskIds = new Set(previousTasks.map((t: Task) => String(t.id || t._id || '')));
-          
+
           console.log('🔍 Checking for new tasks:', {
             currentTasks: fetchedTasks.length,
             previousTasks: previousTasks.length,
             currentTaskIds: Array.from(currentTaskIds),
             previousTaskIds: Array.from(previousTaskIds)
           });
-          
+
           const newTasks = fetchedTasks.filter((task: Task) => {
             const taskId = String(task.id || task._id || '');
             const userId = String(user.id || '');
             const taskAssignedId = String(task.assignedToId || '');
-            
+
             const isNewTask = !previousTaskIds.has(taskId);
             const isAssignedToMe = taskAssignedId === userId || taskAssignedId === String(userId);
             const isNotEmployeeCreated = task.isEmployeeCreated !== true; // Must be false or undefined
             const hasCreatorInfo = !!(task.assignedByName || task.assignedById);
             // Make sure it's assigned by someone else (Director/Project Head), not by the employee themselves
             const isAssignedByManager = task.assignedById && String(task.assignedById) !== userId;
-            
+
             const shouldNotify = isNewTask && isAssignedToMe && isNotEmployeeCreated && hasCreatorInfo && isAssignedByManager;
-            
+
             if (shouldNotify) {
               console.log('✅ NEW TASK DETECTED FOR NOTIFICATION:', {
                 taskId,
@@ -310,10 +276,10 @@ const EmployeeDashboard: React.FC = () => {
                 isAssignedByManager
               });
             }
-            
+
             return shouldNotify;
           });
-          
+
           console.log('📊 Notification check results:', {
             totalTasks: fetchedTasks.length,
             previousTasks: previousTasks.length,
@@ -324,15 +290,15 @@ const EmployeeDashboard: React.FC = () => {
           // Show notifications for new tasks
           newTasks.forEach((task: Task) => {
             const creatorName = task.assignedByName || 'Director/Project Head';
-            
+
             // Find creator role (try to find in users array, but also check task properties)
             let creatorRole = 'Manager';
             if (users.length > 0) {
               const creator = users.find((u: User) => {
                 const userId = u.id || (u as any)._id || '';
                 const taskAssignedId = task.assignedById || '';
-                return (userId === taskAssignedId || String(userId) === String(taskAssignedId)) && 
-                       (u.role === 'Director' || u.role === 'Project Head');
+                return (userId === taskAssignedId || String(userId) === String(taskAssignedId)) &&
+                  (u.role === 'Director' || u.role === 'Project Head');
               });
               creatorRole = creator?.role || 'Manager';
             } else {
@@ -340,12 +306,12 @@ const EmployeeDashboard: React.FC = () => {
               // For now, default to showing notification anyway
               creatorRole = 'Manager';
             }
-            
+
             const roleLabel = creatorRole === 'Director' ? 'Director' : creatorRole === 'Project Head' ? 'Project Head' : 'Manager';
             const message = `${roleLabel} ${creatorName} assigned you a new task: "${task.title}"`;
-            
+
             console.log('🔔 Showing notification for new task:', message);
-            
+
             // Add to notifications list
             const notificationId = `task-${task.id || task._id}-${Date.now()}`;
             const newNotification: Notification = {
@@ -359,7 +325,7 @@ const EmployeeDashboard: React.FC = () => {
               timestamp: Date.now(),
               read: false
             };
-            
+
             setNotifications(prev => {
               // Check if notification already exists to avoid duplicates
               const exists = prev.some(n => n.taskId === newNotification.taskId && n.type === 'task' && n.creatorName === newNotification.creatorName);
@@ -372,7 +338,7 @@ const EmployeeDashboard: React.FC = () => {
               console.log('📊 Total notifications after adding:', updated.length, updated);
               return updated;
             });
-            
+
             // Also show popup notification
             setNotificationMessage(message);
             setShowNotification(true);
@@ -383,23 +349,23 @@ const EmployeeDashboard: React.FC = () => {
         }
 
         // Check for new comments on existing tasks
-        const newComments: Array<{task: Task, comment: any}> = [];
+        const newComments: Array<{ task: Task, comment: any }> = [];
         fetchedTasks.forEach((task: Task) => {
           const taskId = task.id || task._id || '';
           const currentCommentCount = task.comments?.length || 0;
           const previousCommentCount = previousCommentCounts[taskId] || 0;
-          
+
           // Check for new comments if count increased OR if we're tracking this task
           if (currentCommentCount > previousCommentCount && task.comments) {
             // Find new comments (check if they're from Director/Project Head)
             const newCommentList = task.comments.slice(previousCommentCount);
             console.log(`📝 Checking ${newCommentList.length} new comments on task "${task.title}"`);
-            
+
             newCommentList.forEach((comment: any) => {
               // Check if comment is from Director or Project Head
               const commentAuthorId = comment.userId || comment.assignedById || comment.createdBy || '';
               const commentUserName = comment.userName || comment.name || '';
-              
+
               console.log('🔍 Checking comment:', {
                 commentId: comment._id || comment.id,
                 commentAuthorId,
@@ -407,7 +373,7 @@ const EmployeeDashboard: React.FC = () => {
                 commentContent: comment.content || comment.text || comment.comment || comment.message || 'N/A',
                 usersArrayLength: users.length
               });
-              
+
               // Try to find author in users array by ID first
               let commentAuthor = users.find((u: User) => {
                 const userId = u.id || (u as any)._id || '';
@@ -415,7 +381,7 @@ const EmployeeDashboard: React.FC = () => {
                 const isManager = u.role === 'Director' || u.role === 'Project Head';
                 return matchesId && isManager;
               });
-              
+
               // If not found by ID, try to find by name
               if (!commentAuthor && commentUserName) {
                 commentAuthor = users.find((u: User) => {
@@ -425,14 +391,21 @@ const EmployeeDashboard: React.FC = () => {
                   return matchesName && isManager;
                 });
               }
-              
-              if (commentAuthor) {
-                console.log('✅ Found comment author in users:', commentAuthor.name, commentAuthor.role);
+
+              // Check if author is found OR if the comment itself has the role field (new logic)
+              const isManagerRole = comment.role === 'Director' || comment.role === 'Project Head';
+
+              if (commentAuthor || isManagerRole) {
+                console.log('✅ Found new comment from Manager:', {
+                  authorName: commentAuthor?.name || comment.userName,
+                  role: commentAuthor?.role || comment.role
+                });
                 newComments.push({ task, comment });
               } else {
                 console.log('❌ Comment not from Director/Project Head:', {
                   commentAuthorId,
                   commentUserName,
+                  commentRole: comment.role,
                   availableUsers: users.map(u => ({ id: u.id, name: u.name, role: u.role }))
                 });
               }
@@ -441,19 +414,23 @@ const EmployeeDashboard: React.FC = () => {
         });
 
         // Show notifications for new comments
-        newComments.forEach(({ task, comment }: {task: Task, comment: any}) => {
+        newComments.forEach(({ task, comment }: { task: Task, comment: any }) => {
           let commentAuthor = users.find((u: User) => {
             const userId = u.id || (u as any)._id || '';
             const commentAuthorId = comment.userId || comment.assignedById || comment.createdBy || '';
-            return (userId === commentAuthorId || String(userId) === String(commentAuthorId)) && 
-                   (u.role === 'Director' || u.role === 'Project Head');
+            return (userId === commentAuthorId || String(userId) === String(commentAuthorId)) &&
+              (u.role === 'Director' || u.role === 'Project Head');
           });
-          
-          // If author not found but comment has role info, use that
+
+          // If author not found but comment has role info, use that. 
+          // Prioritize the direct 'role' field we added to the schema.
           let authorName = '';
           let authorRole = '';
-          
-          if (commentAuthor) {
+
+          if (comment.role && (comment.role === 'Director' || comment.role === 'Project Head')) {
+            authorName = comment.userName || comment.name || '';
+            authorRole = comment.role;
+          } else if (commentAuthor) {
             authorName = commentAuthor.name;
             authorRole = commentAuthor.role === 'Director' ? 'Director' : 'Project Head';
           } else if (comment._authorName && comment._authorRole) {
@@ -461,10 +438,11 @@ const EmployeeDashboard: React.FC = () => {
             authorName = comment._authorName;
             authorRole = comment._authorRole;
           } else if (comment.userName && (comment.role === 'Director' || comment.role === 'Project Head')) {
+            // Fallback for older comments or if role is passed differently
             authorName = comment.userName;
             authorRole = comment.role;
           } else {
-            // Try to find by name
+            // ... existing fallback by name ...
             const commentName = comment.userName || comment.name || '';
             commentAuthor = users.find((u: User) => {
               const userName = u.name || '';
@@ -475,12 +453,12 @@ const EmployeeDashboard: React.FC = () => {
               authorRole = commentAuthor.role === 'Director' ? 'Director' : 'Project Head';
             }
           }
-          
+
           if (authorName && authorRole) {
-            const message = `${authorRole} ${authorName} commented on task: "${task.title}"`;
-            
+            const message = `Task "${task.title}" has a new comment by ${authorRole} ${authorName}`;
+
             console.log('🔔 New comment notification:', message, 'Comment:', comment);
-            
+
             // Add to notifications list
             const notificationId = `comment-${task.id || task._id}-${comment._id || comment.id || Date.now()}`;
             const newNotification: Notification = {
@@ -494,7 +472,7 @@ const EmployeeDashboard: React.FC = () => {
               timestamp: Date.now(),
               read: false
             };
-            
+
             setNotifications(prev => {
               // Check if notification already exists to avoid duplicates
               const exists = prev.some(n => n.id === notificationId);
@@ -505,7 +483,7 @@ const EmployeeDashboard: React.FC = () => {
               console.log('Adding new notification:', newNotification);
               return [newNotification, ...prev];
             });
-            
+
             // Also show popup notification
             setNotificationMessage(message);
             setShowNotification(true);
@@ -514,6 +492,46 @@ const EmployeeDashboard: React.FC = () => {
             }, 5000);
           } else {
             console.log('Comment author not found or not Director/Project Head:', comment);
+          }
+        });
+
+        // Check for reminders
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0];
+        const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+
+        fetchedTasks.forEach((task: Task) => {
+          const hasDateReminder = task.reminderDates?.includes(dateStr);
+          const hasWeeklyReminder = task.weeklyReminders?.includes(dayName);
+
+          if (hasDateReminder || hasWeeklyReminder) {
+            const notificationId = `reminder-${task.id || task._id}-${dateStr}`;
+
+            // Only notify if not already notified for this task TODAY
+            setNotifications(prev => {
+              const alreadyNotified = prev.some(n => n.id === notificationId);
+              if (alreadyNotified) return prev;
+
+              const message = `Reminder: Task "${task.title}" is due today.`;
+              const notification: Notification = {
+                id: notificationId,
+                type: 'reminder',
+                message,
+                taskId: task.id || task._id,
+                taskTitle: task.title,
+                creatorName: 'System',
+                creatorRole: 'System',
+                timestamp: Date.now(),
+                read: false
+              };
+
+              // Show popup
+              setNotificationMessage(message);
+              setShowNotification(true);
+              setTimeout(() => setShowNotification(false), 5000);
+
+              return [notification, ...prev];
+            });
           }
         });
 
@@ -544,7 +562,7 @@ const EmployeeDashboard: React.FC = () => {
         });
         setPreviousCommentCounts(initialCommentCounts);
         console.log('📋 Initialized notifications tracking with', initialTasks.length, 'existing tasks');
-        
+
         // Now start checking for updates after a short delay
         setTimeout(() => {
           checkForUpdates();
@@ -667,7 +685,7 @@ const EmployeeDashboard: React.FC = () => {
         await createIndependentWork(workEntry);
         setNotificationMessage('Independent work entry added successfully!');
       }
-      
+
       // Reset form
       setIndependentWorkForm({
         date: '',
@@ -817,7 +835,7 @@ const EmployeeDashboard: React.FC = () => {
       // Allow images and PDFs
       const isValidType = file.type.startsWith('image/') || file.type === 'application/pdf';
       const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB max
-      
+
       if (!isValidType) {
         alert(`${file.name} is not a valid file type. Please upload images or PDF files only.`);
         return false;
@@ -830,7 +848,7 @@ const EmployeeDashboard: React.FC = () => {
     });
 
     setSelectedFiles(prev => [...prev, ...validFiles]);
-    
+
     // Create previews for images
     validFiles.forEach(file => {
       if (file.type.startsWith('image/')) {
@@ -923,7 +941,7 @@ const EmployeeDashboard: React.FC = () => {
       activeProjects,
       activeEmployees
     });
-    
+
     // Calculate employee priority task counts
     if (isEmployee && user?.id) {
       const employeeTasks = tasks.filter(task => task.assignedToId === user.id);
@@ -931,7 +949,7 @@ const EmployeeDashboard: React.FC = () => {
       const lessUrgentTasks = employeeTasks.filter(t => t.priority === 'Less Urgent').length;
       const freeTimeTasks = employeeTasks.filter(t => t.priority === 'Free Time').length;
       const totalCompletedTasks = employeeTasks.filter(t => t.status === 'Completed').length;
-      
+
       setEmployeePriorityStats({
         urgentTasks,
         lessUrgentTasks,
@@ -946,7 +964,7 @@ const EmployeeDashboard: React.FC = () => {
     try {
       // Fetch all tasks and find the one with matching ID
       let fetchedTasks: Task[] = [];
-      
+
       if (user) {
         if (isEmployee) {
           fetchedTasks = await taskApi.getTasksByUser(user.id, 'Employee');
@@ -958,13 +976,13 @@ const EmployeeDashboard: React.FC = () => {
       } else {
         fetchedTasks = await taskApi.getAllTasks();
       }
-      
+
       // Find the task with matching ID
-      const latestTask = fetchedTasks.find(t => 
-        (t.id || t._id) === taskId || 
+      const latestTask = fetchedTasks.find(t =>
+        (t.id || t._id) === taskId ||
         String(t.id || t._id) === String(taskId)
       );
-      
+
       return latestTask || null;
     } catch (error: any) {
       console.error('Error fetching latest task:', error);
@@ -987,22 +1005,22 @@ const EmployeeDashboard: React.FC = () => {
         createdAt: new Date().toISOString(),
         comments: []
       };
-      
+
       // Remove id and _id for new tasks to let MongoDB auto-generate them
       delete taskWithUserInfo.id;
       delete taskWithUserInfo._id;
-      
+
       console.log('Employee creating task with data:', JSON.stringify(taskWithUserInfo, null, 2));
-      
+
       await taskApi.createTask(taskWithUserInfo);
       await loadTasks(); // Reload tasks from database
-      
+
       setNotificationMessage('Task created successfully!');
       setShowNotification(true);
       setTimeout(() => {
         setShowNotification(false);
       }, 3000);
-      
+
       setIsTaskModalOpen(false);
       setSelectedTask(null);
     } catch (error: any) {
@@ -1020,7 +1038,7 @@ const EmployeeDashboard: React.FC = () => {
       }
       await taskApi.updateTask(taskId, updatedTask);
       await loadTasks(); // Reload tasks from database
-      
+
       // Update selectedTask with latest data if modal is still open
       if (isTaskModalOpen) {
         const latestTask = await fetchLatestTask(taskId);
@@ -1042,15 +1060,15 @@ const EmployeeDashboard: React.FC = () => {
   const handleWorkDoneSave = async (task: Task) => {
     const taskId = task.id || task._id;
     if (!taskId) return;
-    
+
     // Clamp value between 0 and 100
     const clampedValue = Math.max(0, Math.min(100, workDoneValue));
-    
+
     const updatedTask = {
       ...task,
       workDone: clampedValue
     };
-    
+
     await handleTaskUpdate(updatedTask);
     setEditingWorkDone(null);
   };
@@ -1065,7 +1083,7 @@ const EmployeeDashboard: React.FC = () => {
       if (window.confirm('Are you sure you want to delete this task?')) {
         await taskApi.deleteTask(taskId);
         await loadTasks(); // Reload tasks from database
-        
+
         setNotificationMessage('Task deleted successfully!');
         setShowNotification(true);
         setTimeout(() => {
@@ -1089,22 +1107,22 @@ const EmployeeDashboard: React.FC = () => {
         status: normalizeProjectStatus(newProject.status),
         isEmployeeCreated: true // Flag to identify this project was created by employee from employee dashboard
       };
-      
+
       // Remove id and _id for new projects to let MongoDB auto-generate them
       delete projectWithUserInfo.id;
       delete projectWithUserInfo._id;
-      
+
       console.log('Employee creating project with data:', JSON.stringify(projectWithUserInfo, null, 2));
-      
+
       const createdProject = await createProject(projectWithUserInfo);
       await loadProjects(); // Reload projects from database
-      
+
       setNotificationMessage('Project created successfully!');
       setShowNotification(true);
       setTimeout(() => {
         setShowNotification(false);
       }, 3000);
-      
+
       setIsProjectModalOpen(false);
       setSelectedProject(null);
     } catch (error: any) {
@@ -1125,7 +1143,7 @@ const EmployeeDashboard: React.FC = () => {
         status: normalizeProjectStatus(updatedProject.status)
       });
       await loadProjects(); // Reload projects from database
-      
+
       setNotificationMessage('Project updated successfully!');
       setShowNotification(true);
       setTimeout(() => {
@@ -1142,7 +1160,7 @@ const EmployeeDashboard: React.FC = () => {
       if (window.confirm('Are you sure you want to delete this project?')) {
         await deleteProject(projectId);
         await loadProjects(); // Reload projects from database
-        
+
         setNotificationMessage('Project deleted successfully!');
         setShowNotification(true);
         setTimeout(() => {
@@ -1174,16 +1192,16 @@ const EmployeeDashboard: React.FC = () => {
 
       // Request completion approval
       await taskApi.requestTaskCompletion(taskId, user.id);
-      
+
       // Show success notification
       setNotificationMessage('Completion request submitted. Waiting for director approval.');
       setShowNotification(true);
-      
+
       // Hide notification after 3 seconds
       setTimeout(() => {
         setShowNotification(false);
       }, 3000);
-      
+
       // Close modal and reload tasks
       setShowCompletionModal(false);
       setTaskToComplete(null);
@@ -1194,6 +1212,43 @@ const EmployeeDashboard: React.FC = () => {
     }
   };
 
+  const markNotificationAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const clearAllNotifications = () => {
+    if (window.confirm('Are you sure you want to clear all notifications?')) {
+      setNotifications([]);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    markNotificationAsRead(notification.id);
+
+    if (notification.taskId) {
+      const task = tasks.find(t => (t.id || t._id) === notification.taskId);
+      if (task) {
+        setSelectedTask(task);
+        setIsTaskModalOpen(true);
+      } else {
+        // If not in current tasks list, try fetching it
+        const latestTask = await fetchLatestTask(notification.taskId);
+        if (latestTask) {
+          setSelectedTask(latestTask);
+          setIsTaskModalOpen(true);
+        } else {
+          setNotificationMessage('Task not found or you no longer have access to it.');
+          setShowNotification(true);
+          setTimeout(() => setShowNotification(false), 3000);
+        }
+      }
+    }
+  };
+
   // Filter tasks based on user role
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
 
@@ -1201,7 +1256,14 @@ const EmployeeDashboard: React.FC = () => {
   useEffect(() => {
     let filtered = tasks.filter(task => {
       if (isEmployee) {
-        return task.assignedToId === user?.id;
+        const userIdStr = String(user?.id || '');
+        const taskAssignedId = String(task.assignedToId || '');
+        const taskCreatedById = String(task.assignedById || '');
+        const assignedEmployeeIds = (task.assignedEmployeeIds || []).map(id => String(id));
+
+        return taskAssignedId === userIdStr ||
+          taskCreatedById === userIdStr ||
+          assignedEmployeeIds.includes(userIdStr);
       }
       return true; // Directors and Project Heads see all tasks
     });
@@ -1240,65 +1302,65 @@ const EmployeeDashboard: React.FC = () => {
           // Tasks assigned by Director
           const taskAssignedId = task.assignedById || '';
           const taskAssignedByName = task.assignedByName || '';
-          
+
           // First, exclude employee-created tasks
           if (task.isEmployeeCreated === true) {
             return false;
           }
-          
+
           // Exclude tasks assigned by current employee
           if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) {
             return false;
           }
-          
+
           // Try to find in users list with multiple ID format checks
           const assignedByUser = users.find(u => {
             const userId = u.id || (u as any)._id || '';
-            return userId === taskAssignedId || 
-                   String(userId) === String(taskAssignedId) ||
-                   String(userId) === taskAssignedId ||
-                   userId === String(taskAssignedId);
+            return userId === taskAssignedId ||
+              String(userId) === String(taskAssignedId) ||
+              String(userId) === taskAssignedId ||
+              userId === String(taskAssignedId);
           });
-          
+
           // If found in users list, check role
           if (assignedByUser) {
             return assignedByUser.role === 'Director';
           }
-          
+
           // Fallback: If task is not employee-created and assignedById doesn't match current employee,
           // check if it's a Project Head task. If not, it's likely a Director task.
           const isProjectHeadTask = users.some(u => {
             const userId = u.id || (u as any)._id || '';
-            return (userId === taskAssignedId || 
-                    String(userId) === String(taskAssignedId) ||
-                    String(userId) === taskAssignedId ||
-                    userId === String(taskAssignedId)) && 
-                   u.role === 'Project Head';
+            return (userId === taskAssignedId ||
+              String(userId) === String(taskAssignedId) ||
+              String(userId) === taskAssignedId ||
+              userId === String(taskAssignedId)) &&
+              u.role === 'Project Head';
           });
-          
+
           // If it's not a Project Head task and not employee-created, it's likely a Director task
           if (!isProjectHeadTask && taskAssignedId && taskAssignedId !== user?.id) {
             return true;
           }
-          
+
           return false;
         } else if (taskSourceFilter === 'projectHead') {
           // Tasks assigned by Project Head - check if assignedById belongs to a Project Head
           const taskAssignedId = task.assignedById || '';
           if (!taskAssignedId) return false;
-          
+
           const assignedByUser = users.find(u => {
             const userId = u.id || (u as any)._id || '';
-            return userId === taskAssignedId || 
-                   String(userId) === String(taskAssignedId) ||
-                   String(userId) === taskAssignedId ||
-                   userId === String(taskAssignedId);
+            return userId === taskAssignedId ||
+              String(userId) === String(taskAssignedId) ||
+              String(userId) === taskAssignedId ||
+              userId === String(taskAssignedId);
           });
-          
+
           if (assignedByUser) {
             return assignedByUser.role === 'Project Head';
           }
-          
+
           return false;
         } else if (taskSourceFilter === 'self') {
           // Tasks added by staff themselves - check if assignedById equals current employee's ID
@@ -1340,11 +1402,11 @@ const EmployeeDashboard: React.FC = () => {
     // Apply project source filter (for employees only)
     if (isEmployee && filtered && projectSourceFilter !== 'all') {
       // Check if project was self-created by comparing assignedEmployeeName with current user's name/email
-      const isSelfCreated = project.assignedEmployeeId === user?.id && 
-                            (project.assignedEmployeeName === user?.name || 
-                             project.assignedEmployeeName === user?.email ||
-                             project.assignedEmployeeName === `${user?.name || ''}`.trim());
-      
+      const isSelfCreated = project.assignedEmployeeId === user?.id &&
+        (project.assignedEmployeeName === user?.name ||
+          project.assignedEmployeeName === user?.email ||
+          project.assignedEmployeeName === `${user?.name || ''}`.trim());
+
       if (projectSourceFilter === 'director') {
         // Projects assigned by Director - exclude self-created projects
         if (isSelfCreated) return false;
@@ -1394,570 +1456,1096 @@ const EmployeeDashboard: React.FC = () => {
         height: '100vh',
         width: '100%'
       }}>
-        <Sidebar 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab} 
-          isEmployee={true} 
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isEmployee={true}
           unreadNotificationCount={notifications.filter(n => !n.read).length}
         />
-      
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflowY: activeTab === 'notifications' ? 'hidden' : 'auto',
-        overflowX: 'hidden',
-        marginLeft: '256px',
-        width: 'calc(100% - 256px)',
-        height: '100vh'
-      }}>
-        {activeTab !== 'notifications' && <Header user={user} />}
-        
-        <main style={{
+
+        <div style={{
           flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: activeTab === 'notifications' ? 'hidden' : 'auto',
           overflowX: 'hidden',
-          overflowY: activeTab === 'notifications' ? 'hidden' : 'visible',
-          padding: activeTab === 'notifications' ? '0' : '32px',
-          paddingTop: activeTab === 'notifications' ? '0' : '32px',
-          paddingBottom: activeTab === 'notifications' ? '0' : '32px',
-          paddingLeft: activeTab === 'notifications' ? '0' : '32px',
-          paddingRight: activeTab === 'notifications' ? '0' : '32px',
-          backgroundColor: activeTab === 'notifications' ? '#ffffff' : '#f8fafc',
-          minHeight: 'auto',
-          width: '100%',
-          marginTop: activeTab === 'notifications' ? '0' : 'auto',
-          height: activeTab === 'notifications' ? '100vh' : 'auto'
+          marginLeft: '256px',
+          width: 'calc(100% - 256px)',
+          height: '100vh'
         }}>
-          {/* Success Notification */}
-          {showNotification && (
-            <div style={{
-              position: 'fixed',
-              top: '80px',
-              right: '24px',
-              zIndex: 9999,
-              backgroundColor: '#3b82f6',
-              color: '#ffffff',
-              padding: '16px 24px',
-              borderRadius: '12px',
-              boxShadow: '0 20px 25px -5px rgba(59, 130, 246, 0.3), 0 10px 10px -5px rgba(59, 130, 246, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              minWidth: '350px',
-              maxWidth: '600px',
-              animation: 'slideInRight 0.4s ease-out',
-              border: '2px solid rgba(255, 255, 255, 0.2)'
-            }}>
+          {activeTab !== 'notifications' && <Header user={user} />}
+
+          <main style={{
+            flex: 1,
+            overflowX: 'hidden',
+            overflowY: activeTab === 'notifications' ? 'hidden' : 'visible',
+            padding: activeTab === 'notifications' ? '0' : '32px',
+            paddingTop: activeTab === 'notifications' ? '0' : '32px',
+            paddingBottom: activeTab === 'notifications' ? '0' : '32px',
+            paddingLeft: activeTab === 'notifications' ? '0' : '32px',
+            paddingRight: activeTab === 'notifications' ? '0' : '32px',
+            backgroundColor: activeTab === 'notifications' ? '#ffffff' : '#f8fafc',
+            minHeight: 'auto',
+            width: '100%',
+            marginTop: activeTab === 'notifications' ? '0' : 'auto',
+            height: activeTab === 'notifications' ? '100vh' : 'auto'
+          }}>
+            {/* Success Notification */}
+            {showNotification && (
               <div style={{
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                position: 'fixed',
+                top: '80px',
+                right: '24px',
+                zIndex: 9999,
+                backgroundColor: '#3b82f6',
+                color: '#ffffff',
+                padding: '16px 24px',
+                borderRadius: '12px',
+                boxShadow: '0 20px 25px -5px rgba(59, 130, 246, 0.3), 0 10px 10px -5px rgba(59, 130, 246, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
+                gap: '12px',
+                minWidth: '350px',
+                maxWidth: '600px',
+                animation: 'slideInRight 0.4s ease-out',
+                border: '2px solid rgba(255, 255, 255, 0.2)'
               }}>
-                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5' }}>{notificationMessage}</span>
+                <button
+                  onClick={() => setShowNotification(false)}
+                  style={{
+                    marginLeft: '16px',
+                    color: '#ffffff',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'color 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.color = '#d1fae5';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                >
+                  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <span style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5' }}>{notificationMessage}</span>
-              <button
-                onClick={() => setShowNotification(false)}
-                style={{
-                  marginLeft: '16px',
-                  color: '#ffffff',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'color 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.color = '#d1fae5';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.color = '#ffffff';
-                }}
-              >
-                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
-          
-          {activeTab === 'overview' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '32px',
-              maxWidth: '100%',
-              width: '100%'
-            }}>
-              {/* Header Section */}
+            )}
+
+            {activeTab === 'overview' && (
               <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                flexDirection: 'column',
+                gap: '32px',
+                maxWidth: '100%',
                 width: '100%'
               }}>
-                <h1 style={{
-                  fontSize: '32px',
-                  fontWeight: 'bold',
-                  color: '#111827',
-                  margin: 0
-                }}>Dashboard</h1>
+                {/* Header Section */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px'
+                  justifyContent: 'space-between',
+                  width: '100%'
                 }}>
-                  <button style={{
+                  <h1 style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: '#111827',
+                    margin: 0
+                  }}>Dashboard</h1>
+                  <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 16px',
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '8px',
-                    color: '#374151',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f9fafb';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = '#ffffff';
+                    gap: '12px'
                   }}>
-                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    This week
-                  </button>
-                    </div>
-                    </div>
-              
-              {/* Stats Cards Row */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '20px',
-                width: '100%'
-              }}>
-                {/* Urgent Tasks Card */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 10px 25px -5px rgba(255, 107, 107, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(255, 107, 107, 0.4)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
-                }}
-                onClick={() => {
-                  setSelectedPriorityCard(selectedPriorityCard === 'urgent' ? null : 'urgent');
-                }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
+                    <button style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      color: '#374151',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#ffffff';
                       }}>
-                        Urgent Tasks
-                      </h3>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                  }}>
-                        <AlertCircle size={20} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                      {employeePriorityStats.urgentTasks}
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      <AlertCircle size={12} />
-                      <span>High priority tasks</span>
-                    </div>
+                      <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      This week
+                    </button>
                   </div>
                 </div>
 
-                {/* Less Urgent Tasks Card */}
+                {/* Stats Cards Row */}
                 <div style={{
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                  }}
-                  onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
-                }}
-                onClick={() => {
-                  setSelectedPriorityCard(selectedPriorityCard === 'lessUrgent' ? null : 'lessUrgent');
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '20px',
+                  width: '100%'
                 }}>
-                <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
-                }}>
-                        Less Urgent Tasks
-                      </h3>
+                  {/* Urgent Tasks Card */}
                   <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                  }}>
-                        <Clock size={20} />
-                      </div>
-                    </div>
+                    background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    color: '#ffffff',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 25px -5px rgba(255, 107, 107, 0.3)',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(255, 107, 107, 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(255, 107, 107, 0.3)';
+                    }}
+                    onClick={() => {
+                      setSelectedPriorityCard(selectedPriorityCard === 'urgent' ? null : 'urgent');
+                    }}>
                     <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                      {employeePriorityStats.lessUrgentTasks}
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      <Clock size={12} />
-                      <span>Medium priority tasks</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Free Time Tasks Card */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                  }}
-                  onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
-                }}
-                onClick={() => {
-                  setSelectedPriorityCard(selectedPriorityCard === 'freeTime' ? null : 'freeTime');
-                }}>
-                <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
-                }}>
-                        Free Time Tasks
-                      </h3>
-                  <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                  }}>
-                        <CheckCircle size={20} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                      {employeePriorityStats.freeTimeTasks}
-                            </div>
-                  <div style={{
-                    fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      <CheckCircle size={12} />
-                      <span>Low priority tasks</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Completed Tasks Card */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #06ffa5 0%, #00d4aa 100%)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  color: '#ffffff',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                  }}
-                  onMouseOver={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
-                }}
-                onClick={() => {
-                  setSelectedPriorityCard(selectedPriorityCard === 'completed' ? null : 'completed');
-                }}>
-                <div style={{
-                    position: 'absolute',
-                    top: '-20px',
-                    right: '-20px',
-                    width: '100px',
-                    height: '100px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%'
-                  }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                      <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        margin: 0,
-                        opacity: 0.95,
-                        letterSpacing: '0.5px'
-                }}>
-                        Completed Tasks
-                      </h3>
-                  <div style={{
-                        width: '40px',
-                        height: '40px',
-                        background: 'rgba(255, 255, 255, 0.2)',
-                        borderRadius: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                        justifyContent: 'center',
-                        backdropFilter: 'blur(10px)'
-                  }}>
-                        <CheckCircle2 size={20} />
-                      </div>
-                    </div>
-                    <div style={{
-                      fontSize: '36px',
-                      fontWeight: '700',
-                      margin: '0 0 8px 0',
-                      letterSpacing: '-1px'
-                    }}>
-                      {employeePriorityStats.totalCompletedTasks}
-                            </div>
-                  <div style={{
-                    fontSize: '12px',
-                      opacity: 0.8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}>
-                      <CheckCircle2 size={12} />
-                      <span>Tasks finished</span>
-                    </div>
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '100px',
+                      height: '100px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '50%'
+                    }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h3 style={{
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          margin: 0,
+                          opacity: 0.95,
+                          letterSpacing: '0.5px'
+                        }}>
+                          Urgent Tasks
+                        </h3>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          <AlertCircle size={20} />
                         </div>
+                      </div>
+                      <div style={{
+                        fontSize: '36px',
+                        fontWeight: '700',
+                        margin: '0 0 8px 0',
+                        letterSpacing: '-1px'
+                      }}>
+                        {employeePriorityStats.urgentTasks}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        opacity: 0.8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <AlertCircle size={12} />
+                        <span>High priority tasks</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Less Urgent Tasks Card */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    color: '#ffffff',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 25px -5px rgba(245, 87, 108, 0.3)',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(245, 87, 108, 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(245, 87, 108, 0.3)';
+                    }}
+                    onClick={() => {
+                      setSelectedPriorityCard(selectedPriorityCard === 'lessUrgent' ? null : 'lessUrgent');
+                    }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '100px',
+                      height: '100px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '50%'
+                    }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h3 style={{
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          margin: 0,
+                          opacity: 0.95,
+                          letterSpacing: '0.5px'
+                        }}>
+                          Less Urgent Tasks
+                        </h3>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          <Clock size={20} />
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: '36px',
+                        fontWeight: '700',
+                        margin: '0 0 8px 0',
+                        letterSpacing: '-1px'
+                      }}>
+                        {employeePriorityStats.lessUrgentTasks}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        opacity: 0.8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <Clock size={12} />
+                        <span>Medium priority tasks</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Free Time Tasks Card */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #48cae4 0%, #023e8a 100%)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    color: '#ffffff',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 25px -5px rgba(72, 202, 228, 0.3)',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(72, 202, 228, 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(72, 202, 228, 0.3)';
+                    }}
+                    onClick={() => {
+                      setSelectedPriorityCard(selectedPriorityCard === 'freeTime' ? null : 'freeTime');
+                    }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '100px',
+                      height: '100px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '50%'
+                    }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h3 style={{
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          margin: 0,
+                          opacity: 0.95,
+                          letterSpacing: '0.5px'
+                        }}>
+                          Free Time Tasks
+                        </h3>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          <CheckCircle size={20} />
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: '36px',
+                        fontWeight: '700',
+                        margin: '0 0 8px 0',
+                        letterSpacing: '-1px'
+                      }}>
+                        {employeePriorityStats.freeTimeTasks}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        opacity: 0.8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <CheckCircle size={12} />
+                        <span>Low priority tasks</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Completed Tasks Card */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #06ffa5 0%, #00d4aa 100%)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    color: '#ffffff',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 25px -5px rgba(6, 255, 165, 0.3)',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 20px 35px -5px rgba(6, 255, 165, 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 10px 25px -5px rgba(6, 255, 165, 0.3)';
+                    }}
+                    onClick={() => {
+                      setSelectedPriorityCard(selectedPriorityCard === 'completed' ? null : 'completed');
+                    }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '-20px',
+                      right: '-20px',
+                      width: '100px',
+                      height: '100px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '50%'
+                    }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h3 style={{
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          margin: 0,
+                          opacity: 0.95,
+                          letterSpacing: '0.5px'
+                        }}>
+                          Completed Tasks
+                        </h3>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: 'rgba(255, 255, 255, 0.2)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backdropFilter: 'blur(10px)'
+                        }}>
+                          <CheckCircle2 size={20} />
+                        </div>
+                      </div>
+                      <div style={{
+                        fontSize: '36px',
+                        fontWeight: '700',
+                        margin: '0 0 8px 0',
+                        letterSpacing: '-1px'
+                      }}>
+                        {employeePriorityStats.totalCompletedTasks}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        opacity: 0.8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        <CheckCircle2 size={12} />
+                        <span>Tasks finished</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Priority Tasks Table - Show when priority card is clicked */}
+                {selectedPriorityCard && (() => {
+                  // Filter tasks based on selected card
+                  let filteredPriorityTasks: Task[] = [];
+                  let cardTitle = '';
+
+                  const employeeTasks = filteredTasks.filter(task => {
+                    const taskAssignedId = task.assignedToId || '';
+                    const userId = user?.id || '';
+                    return taskAssignedId === userId || String(taskAssignedId) === String(userId);
+                  });
+
+                  switch (selectedPriorityCard) {
+                    case 'urgent':
+                      filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Urgent');
+                      cardTitle = 'Urgent Tasks';
+                      break;
+                    case 'lessUrgent':
+                      filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Less Urgent');
+                      cardTitle = 'Less Urgent Tasks';
+                      break;
+                    case 'freeTime':
+                      filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Free Time');
+                      cardTitle = 'Free Time Tasks';
+                      break;
+                    case 'completed':
+                      filteredPriorityTasks = employeeTasks.filter(t => t.status === 'Completed');
+                      cardTitle = 'Completed Tasks';
+                      break;
+                  }
+
+                  const priorityColors: Record<string, { bg: string; text: string }> = {
+                    'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                    'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                    'Free Time': { bg: '#d1fae5', text: '#059669' },
+                    'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                  };
+                  const statusColors: Record<string, { bg: string; text: string }> = {
+                    'Pending': { bg: '#fef3c7', text: '#d97706' },
+                    'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                    'Completed': { bg: '#d1fae5', text: '#059669' }
+                  };
+
+                  return (
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '16px',
+                      padding: '24px',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+                      marginTop: '24px'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '24px',
+                        paddingBottom: '16px',
+                        borderBottom: '2px solid #f3f4f6'
+                      }}>
+                        <h3 style={{
+                          fontSize: '20px',
+                          fontWeight: '700',
+                          color: '#111827',
+                          margin: 0,
+                          letterSpacing: '-0.5px'
+                        }}>
+                          {cardTitle}
+                        </h3>
+                        <button
+                          onClick={() => setSelectedPriorityCard(null)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '8px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <X size={20} color="#6b7280" />
+                        </button>
+                      </div>
+
+                      {filteredPriorityTasks.length > 0 ? (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{
+                            width: '100%',
+                            borderCollapse: 'separate',
+                            borderSpacing: 0
+                          }}>
+                            <thead style={{
+                              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                              borderBottom: '2px solid #e5e7eb'
+                            }}>
+                              <tr>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Priority
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Status
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Project Name
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Task Title
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Description / Remarks
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Work Done (%)
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Flag (Director Input Required)
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Date
+                                </th>
+                                <th style={{
+                                  padding: '16px 20px',
+                                  textAlign: 'left',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  color: '#374151',
+                                  letterSpacing: '-0.3px',
+                                  borderBottom: '2px solid #e5e7eb'
+                                }}>
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredPriorityTasks.map((task, index) => {
+                                const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+                                const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
+
+                                return (
+                                  <tr
+                                    key={task.id || task._id}
+                                    style={{
+                                      borderBottom: index < filteredPriorityTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                      transition: 'all 0.2s ease',
+                                      backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                                      cursor: 'pointer'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
+                                      e.currentTarget.style.transform = 'scale(1.002)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                  >
+                                    {/* Priority */}
+                                    <td style={{
+                                      padding: '20px',
+                                      borderTopLeftRadius: index === 0 ? '12px' : '0',
+                                      borderBottomLeftRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
+                                    }}>
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '8px 16px',
+                                        borderRadius: '10px',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        letterSpacing: '0.3px',
+                                        textTransform: 'uppercase',
+                                        backgroundColor: priorityColor.bg,
+                                        color: priorityColor.text,
+                                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                      }}>
+                                        {task.priority || 'Less Urgent'}
+                                      </span>
+                                    </td>
+                                    {/* Status */}
+                                    <td style={{ padding: '20px' }}>
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '8px 16px',
+                                        borderRadius: '10px',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        letterSpacing: '0.3px',
+                                        textTransform: 'uppercase',
+                                        backgroundColor: statusColor.bg,
+                                        color: statusColor.text,
+                                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                      }}>
+                                        {task.status || 'Pending'}
+                                      </span>
+                                    </td>
+                                    {/* Project Name */}
+                                    <td style={{ padding: '20px' }}>
+                                      <span style={{
+                                        fontSize: '14px',
+                                        color: '#111827',
+                                        fontWeight: '500'
+                                      }}>
+                                        {task.projectName || 'N/A'}
+                                      </span>
+                                    </td>
+                                    {/* Task Title */}
+                                    <td style={{ padding: '20px' }}>
+                                      <p style={{
+                                        fontSize: '15px',
+                                        fontWeight: '700',
+                                        color: '#111827',
+                                        margin: 0,
+                                        letterSpacing: '-0.3px'
+                                      }}>
+                                        {task.title}
+                                      </p>
+                                    </td>
+                                    {/* Description / Remarks */}
+                                    <td style={{ padding: '20px' }}>
+                                      <p style={{
+                                        fontSize: '13px',
+                                        color: '#6b7280',
+                                        margin: 0,
+                                        lineHeight: '1.5',
+                                        maxWidth: '300px',
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden'
+                                      }}>
+                                        {task.description || 'No description'}
+                                      </p>
+                                    </td>
+                                    {/* Work Done (%) */}
+                                    <td style={{ padding: '20px' }}>
+                                      {editingWorkDone === (task.id || task._id) ? (
+                                        <select
+                                          value={workDoneValue}
+                                          onChange={(e) => {
+                                            setWorkDoneValue(Number(e.target.value));
+                                            handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
+                                          }}
+                                          onBlur={() => {
+                                            handleWorkDoneSave(task);
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Escape') {
+                                              handleWorkDoneCancel();
+                                            }
+                                          }}
+                                          autoFocus
+                                          style={{
+                                            padding: '6px 12px',
+                                            border: '2px solid #3b82f6',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            backgroundColor: '#ffffff',
+                                            color: '#4f46e5',
+                                            outline: 'none',
+                                            cursor: 'pointer',
+                                            minWidth: '100px'
+                                          }}
+                                        >
+                                          {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                                            <option key={percent} value={percent}>
+                                              {percent}%
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <span
+                                          onClick={() => {
+                                            // Employees can only edit workDone for tasks they created
+                                            if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                              return; // Don't allow editing workDone for tasks assigned by Directors/Project Heads
+                                            }
+                                            handleWorkDoneEdit(task);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            padding: '6px 12px',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            backgroundColor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#f3f4f6' : '#e0e7ff',
+                                            color: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#9ca3af' : '#4f46e5',
+                                            cursor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s ease'
+                                          }}
+                                          onMouseOver={(e) => {
+                                            if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                              return; // Don't change style for non-editable tasks
+                                            }
+                                            e.currentTarget.style.backgroundColor = '#c7d2fe';
+                                            e.currentTarget.style.transform = 'scale(1.05)';
+                                          }}
+                                          onMouseOut={(e) => {
+                                            if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
+                                              e.currentTarget.style.backgroundColor = '#f3f4f6';
+                                              return;
+                                            }
+                                            e.currentTarget.style.backgroundColor = '#e0e7ff';
+                                            e.currentTarget.style.transform = 'scale(1)';
+                                          }}
+                                          title={(isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? "Cannot edit tasks assigned by Directors/Project Heads" : "Click to edit Work Done (%)"}
+                                        >
+                                          {task.workDone || 0}%
+                                        </span>
+                                      )}
+                                    </td>
+                                    {/* Flag (Director Input Required) */}
+                                    <td style={{ padding: '20px' }}>
+                                      {task.flagDirectorInputRequired ? (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#fee2e2',
+                                          color: '#dc2626'
+                                        }}>
+                                          Yes
+                                        </span>
+                                      ) : (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#f3f4f6',
+                                          color: '#6b7280'
+                                        }}>
+                                          No
+                                        </span>
+                                      )}
+                                    </td>
+                                    {/* Date */}
+                                    <td style={{ padding: '20px' }}>
+                                      <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '6px'
+                                      }}>
+                                        {/* Created Date */}
+                                        <div style={{
+                                          fontSize: '12px',
+                                          color: '#6b7280',
+                                          fontWeight: '500'
+                                        }}>
+                                          <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                          {task.startDate
+                                            ? new Date(task.startDate).toLocaleDateString()
+                                            : 'N/A'}
+                                        </div>
+                                        {/* Reminder Date */}
+                                        {task.reminderDate && (
+                                          <div style={{
+                                            fontSize: '12px',
+                                            color: '#dc2626',
+                                            fontWeight: '500',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                          }}>
+                                            <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                            {new Date(task.reminderDate).toLocaleDateString()}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    {/* Actions */}
+                                    <td style={{
+                                      padding: '20px',
+                                      borderTopRightRadius: index === 0 ? '12px' : '0',
+                                      borderBottomRightRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
+                                    }}>
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        flexWrap: 'wrap'
+                                      }}>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedTask(task);
+                                            setIsTaskModalOpen(true);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '8px 14px',
+                                            backgroundColor: '#dbeafe',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: '#1e40af',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
+                                          }}
+                                          onMouseOver={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                            e.currentTarget.style.transform = 'translateY(-1px)';
+                                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
+                                          }}
+                                          onMouseOut={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#dbeafe';
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
+                                          }}
+                                        >
+                                          <Eye size={14} />
+                                          View
+                                        </button>
+                                        {/* Red Flag Button */}
+                                        <button
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            const taskId = task.id || task._id;
+                                            if (!taskId) return;
+
+                                            const updatedTask = {
+                                              ...task,
+                                              flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                            };
+                                            await handleTaskUpdate(updatedTask);
+                                          }}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '8px 14px',
+                                            backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
+                                          }}
+                                          onMouseOver={(e) => {
+                                            e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                            e.currentTarget.style.transform = 'translateY(-1px)';
+                                            e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
+                                          }}
+                                          onMouseOut={(e) => {
+                                            e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
+                                          }}
+                                          title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                                        >
+                                          🚩 Red Flag
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '60px 20px',
+                          color: '#6b7280'
+                        }}>
+                          <div style={{
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            marginBottom: '8px'
+                          }}>
+                            No {cardTitle.toLowerCase()} found
+                          </div>
+                          <div style={{
+                            fontSize: '14px',
+                            color: '#9ca3af'
+                          }}>
+                            There are no tasks matching this category at the moment.
                           </div>
                         </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
-              {/* Priority Tasks Table - Show when priority card is clicked */}
-              {selectedPriorityCard && (() => {
-                // Filter tasks based on selected card
-                let filteredPriorityTasks: Task[] = [];
-                let cardTitle = '';
-                
-                const employeeTasks = filteredTasks.filter(task => {
-                  const taskAssignedId = task.assignedToId || '';
-                  const userId = user?.id || '';
-                  return taskAssignedId === userId || String(taskAssignedId) === String(userId);
-                });
-                
-                switch (selectedPriorityCard) {
-                  case 'urgent':
-                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Urgent');
-                    cardTitle = 'Urgent Tasks';
-                    break;
-                  case 'lessUrgent':
-                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Less Urgent');
-                    cardTitle = 'Less Urgent Tasks';
-                    break;
-                  case 'freeTime':
-                    filteredPriorityTasks = employeeTasks.filter(t => t.priority === 'Free Time');
-                    cardTitle = 'Free Time Tasks';
-                    break;
-                  case 'completed':
-                    filteredPriorityTasks = employeeTasks.filter(t => t.status === 'Completed');
-                    cardTitle = 'Completed Tasks';
-                    break;
-                }
-                
-                const priorityColors: Record<string, { bg: string; text: string }> = {
-                  'Urgent': { bg: '#fee2e2', text: '#dc2626' },
-                  'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
-                  'Free Time': { bg: '#d1fae5', text: '#059669' },
-                  'Custom': { bg: '#e0e7ff', text: '#6366f1' }
-                };
-                const statusColors: Record<string, { bg: string; text: string }> = {
-                  'Pending': { bg: '#fef3c7', text: '#d97706' },
-                  'In Progress': { bg: '#dbeafe', text: '#2563eb' },
-                  'Completed': { bg: '#d1fae5', text: '#059669' }
-                };
-                
-                return (
+                {/* Assigned Tasks Table */}
                 <div style={{
                   backgroundColor: '#ffffff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '16px',
+                  borderRadius: '16px',
                   padding: '24px',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                    marginTop: '24px'
+                  border: '1px solid #e5e7eb',
+                  marginTop: '24px'
                 }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                      marginBottom: '24px',
-                      paddingBottom: '16px',
-                      borderBottom: '2px solid #f3f4f6'
+                    marginBottom: '24px',
+                    paddingBottom: '16px',
+                    borderBottom: '2px solid #f3f4f6'
                   }}>
                     <h3 style={{
-                        fontSize: '20px',
-                        fontWeight: '700',
+                      fontSize: '20px',
+                      fontWeight: '700',
                       color: '#111827',
-                        margin: 0,
-                        letterSpacing: '-0.5px'
-                      }}>
-                        {cardTitle}
-                      </h3>
-                      <button
-                        onClick={() => setSelectedPriorityCard(null)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: '8px',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <X size={20} color="#6b7280" />
-                      </button>
+                      margin: 0,
+                      letterSpacing: '-0.5px'
+                    }}>
+                      My Assigned Tasks
+                    </h3>
                   </div>
-                    
-                    {filteredPriorityTasks.length > 0 ? (
+
+                  {(() => {
+                    const employeeTasks = filteredTasks.filter(task => {
+                      const taskAssignedId = task.assignedToId || '';
+                      const userId = user?.id || '';
+                      return taskAssignedId === userId || String(taskAssignedId) === String(userId);
+                    });
+
+                    const priorityColors: Record<string, { bg: string; text: string }> = {
+                      'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                      'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                      'Free Time': { bg: '#d1fae5', text: '#059669' },
+                      'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                    };
+                    const statusColors: Record<string, { bg: string; text: string }> = {
+                      'Pending': { bg: '#fef3c7', text: '#d97706' },
+                      'In Progress': { bg: '#dbeafe', text: '#2563eb' },
+                      'Completed': { bg: '#d1fae5', text: '#059669' }
+                    };
+
+                    return employeeTasks.length > 0 ? (
                       <div style={{ overflowX: 'auto' }}>
                         <table style={{
                           width: '100%',
                           borderCollapse: 'separate',
                           borderSpacing: 0
                         }}>
-                          <thead style={{ 
+                          <thead style={{
                             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                             borderBottom: '2px solid #e5e7eb'
                           }}>
@@ -2059,20 +2647,31 @@ const EmployeeDashboard: React.FC = () => {
                                 letterSpacing: '-0.3px',
                                 borderBottom: '2px solid #e5e7eb'
                               }}>
+                                Created by
+                              </th>
+                              <th style={{
+                                padding: '16px 20px',
+                                textAlign: 'left',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                color: '#374151',
+                                letterSpacing: '-0.3px',
+                                borderBottom: '2px solid #e5e7eb'
+                              }}>
                                 Actions
                               </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredPriorityTasks.map((task, index) => {
+                            {employeeTasks.map((task, index) => {
                               const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
                               const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
-                              
-                      return (
+
+                              return (
                                 <tr
                                   key={task.id || task._id}
                                   style={{
-                                    borderBottom: index < filteredPriorityTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                    borderBottom: index < employeeTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
                                     transition: 'all 0.2s ease',
                                     backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
                                     cursor: 'pointer'
@@ -2088,9 +2687,9 @@ const EmployeeDashboard: React.FC = () => {
                                 >
                                   {/* Priority */}
                                   <td style={{
-                          padding: '20px',
+                                    padding: '20px',
                                     borderTopLeftRadius: index === 0 ? '12px' : '0',
-                                    borderBottomLeftRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
+                                    borderBottomLeftRadius: index === employeeTasks.length - 1 ? '12px' : '0'
                                   }}>
                                     <span style={{
                                       display: 'inline-flex',
@@ -2128,8 +2727,8 @@ const EmployeeDashboard: React.FC = () => {
                                   </td>
                                   {/* Project Name */}
                                   <td style={{ padding: '20px' }}>
-                                    <span style={{ 
-                                      fontSize: '14px', 
+                                    <span style={{
+                                      fontSize: '14px',
                                       color: '#111827',
                                       fontWeight: '500'
                                     }}>
@@ -2152,7 +2751,7 @@ const EmployeeDashboard: React.FC = () => {
                                   <td style={{ padding: '20px' }}>
                                     <p style={{
                                       fontSize: '13px',
-                          color: '#6b7280',
+                                      color: '#6b7280',
                                       margin: 0,
                                       lineHeight: '1.5',
                                       maxWidth: '300px',
@@ -2182,7 +2781,7 @@ const EmployeeDashboard: React.FC = () => {
                                           }
                                         }}
                                         autoFocus
-                        style={{
+                                        style={{
                                           padding: '6px 12px',
                                           border: '2px solid #3b82f6',
                                           borderRadius: '8px',
@@ -2191,7 +2790,7 @@ const EmployeeDashboard: React.FC = () => {
                                           backgroundColor: '#ffffff',
                                           color: '#4f46e5',
                                           outline: 'none',
-                          cursor: 'pointer',
+                                          cursor: 'pointer',
                                           minWidth: '100px'
                                         }}
                                       >
@@ -2214,22 +2813,22 @@ const EmployeeDashboard: React.FC = () => {
                                           display: 'inline-flex',
                                           alignItems: 'center',
                                           padding: '6px 12px',
-                          borderRadius: '8px',
+                                          borderRadius: '8px',
                                           fontSize: '13px',
                                           fontWeight: '600',
                                           backgroundColor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#f3f4f6' : '#e0e7ff',
                                           color: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#9ca3af' : '#4f46e5',
                                           cursor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
+                                          transition: 'all 0.2s ease'
+                                        }}
+                                        onMouseOver={(e) => {
                                           if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
                                             return; // Don't change style for non-editable tasks
                                           }
                                           e.currentTarget.style.backgroundColor = '#c7d2fe';
                                           e.currentTarget.style.transform = 'scale(1.05)';
-                        }}
-                        onMouseOut={(e) => {
+                                        }}
+                                        onMouseOut={(e) => {
                                           if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
                                             e.currentTarget.style.backgroundColor = '#f3f4f6';
                                             return;
@@ -2237,7 +2836,7 @@ const EmployeeDashboard: React.FC = () => {
                                           e.currentTarget.style.backgroundColor = '#e0e7ff';
                                           e.currentTarget.style.transform = 'scale(1)';
                                         }}
-                                        title={(isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? "Cannot edit tasks assigned by Directors/Project Heads" : "Click to edit Work Done (%)"}
+                                        title="Click to edit Work Done (%)"
                                       >
                                         {task.workDone || 0}%
                                       </span>
@@ -2252,7 +2851,7 @@ const EmployeeDashboard: React.FC = () => {
                                         padding: '6px 12px',
                                         borderRadius: '8px',
                                         fontSize: '12px',
-                          fontWeight: '600',
+                                        fontWeight: '600',
                                         backgroundColor: '#fee2e2',
                                         color: '#dc2626'
                                       }}>
@@ -2275,7 +2874,7 @@ const EmployeeDashboard: React.FC = () => {
                                   </td>
                                   {/* Date */}
                                   <td style={{ padding: '20px' }}>
-                        <div style={{
+                                    <div style={{
                                       display: 'flex',
                                       flexDirection: 'column',
                                       gap: '6px'
@@ -2283,37 +2882,47 @@ const EmployeeDashboard: React.FC = () => {
                                       {/* Created Date */}
                                       <div style={{
                                         fontSize: '12px',
-                          color: '#6b7280',
+                                        color: '#6b7280',
                                         fontWeight: '500'
-                        }}>
+                                      }}>
                                         <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
-                                        {task.startDate 
-                                          ? new Date(task.startDate).toLocaleDateString() 
+                                        {task.startDate
+                                          ? new Date(task.startDate).toLocaleDateString()
                                           : 'N/A'}
-                        </div>
+                                      </div>
                                       {/* Reminder Date */}
                                       {task.reminderDate && (
-                        <div style={{
+                                        <div style={{
                                           fontSize: '12px',
                                           color: '#dc2626',
-                          fontWeight: '500',
+                                          fontWeight: '500',
                                           display: 'flex',
                                           alignItems: 'center',
                                           gap: '4px'
-                        }}>
+                                        }}>
                                           <span style={{ fontWeight: '600' }}>Reminder: </span>
                                           {new Date(task.reminderDate).toLocaleDateString()}
-                        </div>
+                                        </div>
                                       )}
+                                    </div>
+                                  </td>
+                                  {/* Created by */}
+                                  <td style={{ padding: '20px' }}>
+                                    <div style={{
+                                      fontSize: '13px',
+                                      fontWeight: '500',
+                                      color: '#374151'
+                                    }}>
+                                      {task.assignedByName || 'N/A'}
                                     </div>
                                   </td>
                                   {/* Actions */}
                                   <td style={{
                                     padding: '20px',
                                     borderTopRightRadius: index === 0 ? '12px' : '0',
-                                    borderBottomRightRadius: index === filteredPriorityTasks.length - 1 ? '12px' : '0'
-                        }}>
-                          <div style={{
+                                    borderBottomRightRadius: index === employeeTasks.length - 1 ? '12px' : '0'
+                                  }}>
+                                    <div style={{
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: '8px',
@@ -2360,7 +2969,7 @@ const EmployeeDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           const taskId = task.id || task._id;
                                           if (!taskId) return;
-                                          
+
                                           const updatedTask = {
                                             ...task,
                                             flagDirectorInputRequired: !task.flagDirectorInputRequired
@@ -2396,7 +3005,7 @@ const EmployeeDashboard: React.FC = () => {
                                       >
                                         🚩 Red Flag
                                       </button>
-                        </div>
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2405,7 +3014,7 @@ const EmployeeDashboard: React.FC = () => {
                         </table>
                       </div>
                     ) : (
-                        <div style={{
+                      <div style={{
                         textAlign: 'center',
                         padding: '60px 20px',
                         color: '#6b7280'
@@ -2415,1859 +3024,1476 @@ const EmployeeDashboard: React.FC = () => {
                           fontWeight: '600',
                           marginBottom: '8px'
                         }}>
-                          No {cardTitle.toLowerCase()} found
+                          No tasks assigned
                         </div>
                         <div style={{
                           fontSize: '14px',
                           color: '#9ca3af'
                         }}>
-                          There are no tasks matching this category at the moment.
+                          You don't have any assigned tasks at the moment.
                         </div>
-                      </div>
-                    )}
                       </div>
                     );
                   })()}
-                
-              {/* Assigned Tasks Table */}
-                <div style={{
-                  backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                  padding: '24px',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                border: '1px solid #e5e7eb',
-                marginTop: '24px'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  marginBottom: '24px',
-                  paddingBottom: '16px',
-                  borderBottom: '2px solid #f3f4f6'
-                  }}>
-                    <h3 style={{
-                    fontSize: '20px',
-                    fontWeight: '700',
-                      color: '#111827',
-                    margin: 0,
-                    letterSpacing: '-0.5px'
-                  }}>
-                    My Assigned Tasks
-                  </h3>
-                          </div>
-                
-                {(() => {
-                  const employeeTasks = filteredTasks.filter(task => {
-                    const taskAssignedId = task.assignedToId || '';
-                    const userId = user?.id || '';
-                    return taskAssignedId === userId || String(taskAssignedId) === String(userId);
-                  });
-
-                  const priorityColors: Record<string, { bg: string; text: string }> = {
-                    'Urgent': { bg: '#fee2e2', text: '#dc2626' },
-                    'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
-                    'Free Time': { bg: '#d1fae5', text: '#059669' },
-                    'Custom': { bg: '#e0e7ff', text: '#6366f1' }
-                  };
-                  const statusColors: Record<string, { bg: string; text: string }> = {
-                    'Pending': { bg: '#fef3c7', text: '#d97706' },
-                    'In Progress': { bg: '#dbeafe', text: '#2563eb' },
-                    'Completed': { bg: '#d1fae5', text: '#059669' }
-                  };
-
-                  return employeeTasks.length > 0 ? (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{
-                        width: '100%',
-                        borderCollapse: 'separate',
-                        borderSpacing: 0
-                      }}>
-                        <thead style={{ 
-                          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          <tr>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Priority
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Status
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Project Name
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Task Title
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Description / Remarks
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Work Done (%)
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Flag (Director Input Required)
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Date
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Created by
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {employeeTasks.map((task, index) => {
-                            const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
-                            const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
-                            
-                            return (
-                              <tr
-                          key={task.id || task._id}
-                          style={{
-                                  borderBottom: index < employeeTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
-                                  transition: 'all 0.2s ease',
-                                  backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
-                                  cursor: 'pointer'
-                          }}
-                          onMouseOver={(e) => {
-                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
-                                  e.currentTarget.style.transform = 'scale(1.002)';
-                          }}
-                          onMouseOut={(e) => {
-                                  e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
-                                  e.currentTarget.style.transform = 'scale(1)';
-                                }}
-                              >
-                                {/* Priority */}
-                                <td style={{
-                                  padding: '20px',
-                                  borderTopLeftRadius: index === 0 ? '12px' : '0',
-                                  borderBottomLeftRadius: index === employeeTasks.length - 1 ? '12px' : '0'
-                                }}>
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '8px 16px',
-                                    borderRadius: '10px',
-                                    fontSize: '12px',
-                                    fontWeight: '700',
-                                    letterSpacing: '0.3px',
-                                    textTransform: 'uppercase',
-                                    backgroundColor: priorityColor.bg,
-                                    color: priorityColor.text,
-                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                                  }}>
-                                    {task.priority || 'Less Urgent'}
-                                  </span>
-                                </td>
-                                {/* Status */}
-                                <td style={{ padding: '20px' }}>
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '8px 16px',
-                                    borderRadius: '10px',
-                                    fontSize: '12px',
-                                    fontWeight: '700',
-                                    letterSpacing: '0.3px',
-                                    textTransform: 'uppercase',
-                                    backgroundColor: statusColor.bg,
-                                    color: statusColor.text,
-                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                                  }}>
-                                    {task.status || 'Pending'}
-                                  </span>
-                                </td>
-                                {/* Project Name */}
-                                <td style={{ padding: '20px' }}>
-                                  <span style={{ 
-                                    fontSize: '14px', 
-                            color: '#111827',
-                                    fontWeight: '500'
-                                  }}>
-                                    {task.projectName || 'N/A'}
-                                  </span>
-                                </td>
-                                {/* Task Title */}
-                                <td style={{ padding: '20px' }}>
-                          <p style={{
-                                    fontSize: '15px',
-                                    fontWeight: '700',
-                                    color: '#111827',
-                            margin: 0,
-                                    letterSpacing: '-0.3px'
-                                  }}>
-                                    {task.title}
-                                  </p>
-                                </td>
-                                {/* Description / Remarks */}
-                                <td style={{ padding: '20px' }}>
-                          <p style={{
-                                    fontSize: '13px',
-                            color: '#6b7280',
-                            margin: 0,
-                                    lineHeight: '1.5',
-                                    maxWidth: '300px',
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden'
-                                  }}>
-                                    {task.description || 'No description'}
-                                  </p>
-                                </td>
-                                {/* Work Done (%) */}
-                                <td style={{ padding: '20px' }}>
-                                  {editingWorkDone === (task.id || task._id) ? (
-                                    <select
-                                      value={workDoneValue}
-                                      onChange={(e) => {
-                                        setWorkDoneValue(Number(e.target.value));
-                                        handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
-                                      }}
-                                      onBlur={() => {
-                                        handleWorkDoneSave(task);
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Escape') {
-                                          handleWorkDoneCancel();
-                                        }
-                                      }}
-                                      autoFocus
-                                      style={{
-                                        padding: '6px 12px',
-                                        border: '2px solid #3b82f6',
-                                        borderRadius: '8px',
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        backgroundColor: '#ffffff',
-                                        color: '#4f46e5',
-                                        outline: 'none',
-                                        cursor: 'pointer',
-                                        minWidth: '100px'
-                                      }}
-                                    >
-                                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
-                                        <option key={percent} value={percent}>
-                                          {percent}%
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span
-                                      onClick={() => {
-                                        // Employees can only edit workDone for tasks they created
-                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
-                                          return; // Don't allow editing workDone for tasks assigned by Directors/Project Heads
-                                        }
-                                        handleWorkDoneEdit(task);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        padding: '6px 12px',
-                                        borderRadius: '8px',
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        backgroundColor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#f3f4f6' : '#e0e7ff',
-                                        color: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? '#9ca3af' : '#4f46e5',
-                                        cursor: (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) ? 'not-allowed' : 'pointer',
-                                        transition: 'all 0.2s ease'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
-                                          return; // Don't change style for non-editable tasks
-                                        }
-                                        e.currentTarget.style.backgroundColor = '#c7d2fe';
-                                        e.currentTarget.style.transform = 'scale(1.05)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        if (isEmployee && !task.isEmployeeCreated && task.assignedById !== user?.id) {
-                                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                                          return;
-                                        }
-                                        e.currentTarget.style.backgroundColor = '#e0e7ff';
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                      }}
-                                      title="Click to edit Work Done (%)"
-                                    >
-                                      {task.workDone || 0}%
-                                    </span>
-                                  )}
-                                </td>
-                                {/* Flag (Director Input Required) */}
-                                <td style={{ padding: '20px' }}>
-                                  {task.flagDirectorInputRequired ? (
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      backgroundColor: '#fee2e2',
-                                      color: '#dc2626'
-                                    }}>
-                                      Yes
-                                    </span>
-                                  ) : (
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      backgroundColor: '#f3f4f6',
-                                      color: '#6b7280'
-                                    }}>
-                                      No
-                                    </span>
-                                  )}
-                                </td>
-                                {/* Date */}
-                                <td style={{ padding: '20px' }}>
-                          <div style={{
-                            display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '6px'
-                          }}>
-                                    {/* Created Date */}
-                                    <div style={{
-                              fontSize: '12px',
-                                      color: '#6b7280',
-                              fontWeight: '500'
-                                    }}>
-                                      <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
-                                      {task.startDate 
-                                        ? new Date(task.startDate).toLocaleDateString() 
-                                        : 'N/A'}
-                          </div>
-                                    {/* Reminder Date */}
-                                    {task.reminderDate && (
-                          <div style={{
-                            fontSize: '12px',
-                                        color: '#dc2626',
-                                        fontWeight: '500',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px'
-                          }}>
-                                        <span style={{ fontWeight: '600' }}>Reminder: </span>
-                                        {new Date(task.reminderDate).toLocaleDateString()}
-                          </div>
-                                    )}
-                        </div>
-                                </td>
-                                {/* Created by */}
-                                <td style={{ padding: '20px' }}>
-                                  <div style={{
-                                    fontSize: '13px',
-                                    fontWeight: '500',
-                                    color: '#374151'
-                                  }}>
-                                    {task.assignedByName || 'N/A'}
-                                  </div>
-                                </td>
-                                {/* Actions */}
-                                <td style={{
-                                  padding: '20px',
-                                  borderTopRightRadius: index === 0 ? '12px' : '0',
-                                  borderBottomRightRadius: index === employeeTasks.length - 1 ? '12px' : '0'
-                                }}>
-                                  <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    flexWrap: 'wrap'
-                                  }}>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedTask(task);
-                                        setIsTaskModalOpen(true);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#dbeafe',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#1e40af',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#dbeafe';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                      }}
-                                    >
-                                      <Eye size={14} />
-                                      View
-                                    </button>
-                                    {/* Red Flag Button */}
-                                    <button
-                                      onClick={async (e) => {
-                                        e.stopPropagation();
-                                        const taskId = task.id || task._id;
-                                        if (!taskId) return;
-                                        
-                                        const updatedTask = {
-                                          ...task,
-                                          flagDirectorInputRequired: !task.flagDirectorInputRequired
-                                        };
-                                        await handleTaskUpdate(updatedTask);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
-                                      }}
-                                      title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
-                                    >
-                                      🚩 Red Flag
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div style={{
-                      textAlign: 'center',
-                      padding: '60px 20px',
-                      color: '#6b7280'
-                    }}>
-                      <div style={{
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        marginBottom: '8px'
-                      }}>
-                        No tasks assigned
-                      </div>
-                      <div style={{
-                      fontSize: '14px',
-                        color: '#9ca3af'
-                      }}>
-                        You don't have any assigned tasks at the moment.
-                  </div>
-                    </div>
-                  );
-                })()}
                 </div>
 
-            </div>
-          )}
+              </div>
+            )}
 
-          {activeTab === 'tasks' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '32px',
-              width: '100%',
-              maxWidth: '100%'
-            }}>
+            {activeTab === 'tasks' && (
               <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-                width: '100%'
+                flexDirection: 'column',
+                gap: '32px',
+                width: '100%',
+                maxWidth: '100%'
               }}>
-                  <div>
-                  <h1 style={{
-                    fontSize: '32px',
-                    fontWeight: 'bold',
-                    color: '#111827',
-                    margin: 0
-                  }}>Tasks</h1>
-                  <p style={{
-                    color: '#6b7280',
-                    fontSize: '16px',
-                    margin: 0,
-                    marginTop: '8px'
-                  }}>My Access</p>
-                  </div>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '20px'
+                  justifyContent: 'space-between',
+                  marginBottom: '16px',
+                  width: '100%'
                 }}>
-                  {/* Create Task Button */}
-                  <button
-                    onClick={() => {
-                      setSelectedTask(null);
-                      setIsTaskModalOpen(true);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 20px',
-                      backgroundColor: '#3b82f6',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#2563eb';
-                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
-                    }}
-                  >
-                    <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Create Task
-                  </button>
-                  {/* Search Bar */}
-                  <div style={{ position: 'relative', minWidth: '280px' }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      bottom: 0,
-                      left: 0,
-                      paddingLeft: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      pointerEvents: 'none',
-                      zIndex: 1
-                    }}>
-                      <svg style={{ height: '20px', width: '20px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search my tasks..."
+                  <div>
+                    <h1 style={{
+                      fontSize: '32px',
+                      fontWeight: 'bold',
+                      color: '#111827',
+                      margin: 0
+                    }}>Tasks</h1>
+                    <p style={{
+                      color: '#6b7280',
+                      fontSize: '16px',
+                      margin: 0,
+                      marginTop: '8px'
+                    }}>My Access</p>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '20px'
+                  }}>
+                    {/* Create Task Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedTask(null);
+                        setIsTaskModalOpen(true);
+                      }}
                       style={{
-                        display: 'block',
-                        width: '100%',
-                        minWidth: '280px',
-                        paddingLeft: '40px',
-                        paddingRight: '12px',
-                        paddingTop: '12px',
-                        paddingBottom: '12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '10px',
-                        lineHeight: '1.25',
-                        backgroundColor: '#ffffff',
-                        color: '#111827',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 20px',
+                        backgroundColor: '#3b82f6',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
                         fontSize: '14px',
-                        outline: 'none',
+                        fontWeight: '600',
+                        cursor: 'pointer',
                         transition: 'all 0.2s ease',
-                        boxSizing: 'border-box'
+                        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
                       }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = '#10b981';
-                        e.target.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.1)';
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#2563eb';
+                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
                       }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = '#d1d5db';
-                        e.target.style.boxShadow = 'none';
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
                       }}
-                      onChange={(e) => {
-                        const searchTerm = e.target.value.toLowerCase();
-                        let filtered = tasks.filter(task => {
-                          if (isEmployee) {
-                            if (task.assignedToId !== user?.id) return false;
-                          }
-                          
-                          // Apply search filter
-                          if (searchTerm !== '') {
-                            const matchesSearch = 
-                              (task.title && task.title.toLowerCase().includes(searchTerm)) ||
-                              (task.description && task.description.toLowerCase().includes(searchTerm)) ||
-                              (task.projectName && task.projectName.toLowerCase().includes(searchTerm)) ||
-                              (task.assignedByName && task.assignedByName.toLowerCase().includes(searchTerm));
-                            if (!matchesSearch) return false;
-                          }
-                          
-                          // Apply status filter
-                          if (taskFilter !== 'all') {
-                            switch (taskFilter) {
-                              case 'completed':
-                                if (task.status !== 'Completed') return false;
-                                break;
-                              case 'pending':
-                                if (task.status !== 'Pending' && task.status !== 'In Progress') return false;
-                                break;
-                              case 'overdue':
-                                if (task.status === 'Completed' || !task.dueDate || new Date(task.dueDate) >= new Date()) return false;
-                                break;
+                    >
+                      <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Create Task
+                    </button>
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative', minWidth: '280px' }}>
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: 0,
+                        paddingLeft: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 1
+                      }}>
+                        <svg style={{ height: '20px', width: '20px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search my tasks..."
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          minWidth: '280px',
+                          paddingLeft: '40px',
+                          paddingRight: '12px',
+                          paddingTop: '12px',
+                          paddingBottom: '12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '10px',
+                          lineHeight: '1.25',
+                          backgroundColor: '#ffffff',
+                          color: '#111827',
+                          fontSize: '14px',
+                          outline: 'none',
+                          transition: 'all 0.2s ease',
+                          boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = '#10b981';
+                          e.target.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.1)';
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = '#d1d5db';
+                          e.target.style.boxShadow = 'none';
+                        }}
+                        onChange={(e) => {
+                          const searchTerm = e.target.value.toLowerCase();
+                          let filtered = tasks.filter(task => {
+                            if (isEmployee) {
+                              if (task.assignedToId !== user?.id) return false;
                             }
-                          }
-                          
-                          // Apply priority filter
-                          if (taskPriorityFilter !== 'all') {
-                            if (taskPriorityFilter === 'Custom') {
-                              if (task.priority === 'Urgent' || task.priority === 'Less Urgent' || task.priority === 'Free Time') return false;
-                            } else {
-                              if (task.priority !== taskPriorityFilter) return false;
+
+                            // Apply search filter
+                            if (searchTerm !== '') {
+                              const matchesSearch =
+                                (task.title && task.title.toLowerCase().includes(searchTerm)) ||
+                                (task.description && task.description.toLowerCase().includes(searchTerm)) ||
+                                (task.projectName && task.projectName.toLowerCase().includes(searchTerm)) ||
+                                (task.assignedByName && task.assignedByName.toLowerCase().includes(searchTerm));
+                              if (!matchesSearch) return false;
                             }
-                          }
-                          
-                          // Apply task source filter (for employees only)
-                          if (isEmployee && taskSourceFilter !== 'all') {
-                            if (taskSourceFilter === 'director') {
-                              // Tasks assigned by Director
-                              const taskAssignedId = task.assignedById || '';
-                              
-                              // Exclude employee-created tasks
-                              if (task.isEmployeeCreated === true) return false;
-                              
-                              // Exclude tasks assigned by current employee
-                              if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
-                              
-                              // Try to find in users list
-                              const assignedByUser = users.find(u => {
-                                const userId = u.id || (u as any)._id || '';
-                                return userId === taskAssignedId || 
-                                       String(userId) === String(taskAssignedId) ||
-                                       String(userId) === taskAssignedId ||
-                                       userId === String(taskAssignedId);
-                              });
-                              
-                              // If found, check role
-                              if (assignedByUser) {
-                                if (assignedByUser.role !== 'Director') return false;
-                              } else {
-                                // Fallback: Check if it's a Project Head task
-                                const isProjectHeadTask = users.some(u => {
-                                  const userId = u.id || (u as any)._id || '';
-                                  return (userId === taskAssignedId || 
-                                          String(userId) === String(taskAssignedId) ||
-                                          String(userId) === taskAssignedId ||
-                                          userId === String(taskAssignedId)) && 
-                                         u.role === 'Project Head';
-                                });
-                                
-                                // If it's a Project Head task, exclude it
-                                if (isProjectHeadTask) return false;
-                                
-                                // If not Project Head and not employee-created, it's likely a Director task
-                                if (!taskAssignedId || taskAssignedId === user?.id) return false;
+
+                            // Apply status filter
+                            if (taskFilter !== 'all') {
+                              switch (taskFilter) {
+                                case 'completed':
+                                  if (task.status !== 'Completed') return false;
+                                  break;
+                                case 'pending':
+                                  if (task.status !== 'Pending' && task.status !== 'In Progress') return false;
+                                  break;
+                                case 'overdue':
+                                  if (task.status === 'Completed' || !task.dueDate || new Date(task.dueDate) >= new Date()) return false;
+                                  break;
                               }
-                            } else if (taskSourceFilter === 'projectHead') {
-                              // Tasks assigned by Project Head
-                              const taskAssignedId = task.assignedById || '';
-                              
-                              // Exclude employee-created tasks
-                              if (task.isEmployeeCreated === true) return false;
-                              
-                              // Exclude tasks assigned by current employee
-                              if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
-                              
-                              const assignedByUser = users.find(u => {
-                                const userId = u.id || (u as any)._id || '';
-                                return userId === taskAssignedId || 
-                                       String(userId) === String(taskAssignedId) ||
-                                       String(userId) === taskAssignedId ||
-                                       userId === String(taskAssignedId);
-                              });
-                              
-                              if (!assignedByUser || assignedByUser.role !== 'Project Head') return false;
-                            } else if (taskSourceFilter === 'self') {
-                              // Tasks added by staff themselves
-                              if (task.assignedById !== user?.id && !task.isEmployeeCreated) return false;
                             }
-                          }
-                          
-                          return true;
-                        });
-                        setFilteredTasks(filtered);
-                      }}
-                    />
+
+                            // Apply priority filter
+                            if (taskPriorityFilter !== 'all') {
+                              if (taskPriorityFilter === 'Custom') {
+                                if (task.priority === 'Urgent' || task.priority === 'Less Urgent' || task.priority === 'Free Time') return false;
+                              } else {
+                                if (task.priority !== taskPriorityFilter) return false;
+                              }
+                            }
+
+                            // Apply task source filter (for employees only)
+                            if (isEmployee && taskSourceFilter !== 'all') {
+                              if (taskSourceFilter === 'director') {
+                                // Tasks assigned by Director
+                                const taskAssignedId = task.assignedById || '';
+
+                                // Exclude employee-created tasks
+                                if (task.isEmployeeCreated === true) return false;
+
+                                // Exclude tasks assigned by current employee
+                                if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
+
+                                // Try to find in users list
+                                const assignedByUser = users.find(u => {
+                                  const userId = u.id || (u as any)._id || '';
+                                  return userId === taskAssignedId ||
+                                    String(userId) === String(taskAssignedId) ||
+                                    String(userId) === taskAssignedId ||
+                                    userId === String(taskAssignedId);
+                                });
+
+                                // If found, check role
+                                if (assignedByUser) {
+                                  if (assignedByUser.role !== 'Director') return false;
+                                } else {
+                                  // Fallback: Check if it's a Project Head task
+                                  const isProjectHeadTask = users.some(u => {
+                                    const userId = u.id || (u as any)._id || '';
+                                    return (userId === taskAssignedId ||
+                                      String(userId) === String(taskAssignedId) ||
+                                      String(userId) === taskAssignedId ||
+                                      userId === String(taskAssignedId)) &&
+                                      u.role === 'Project Head';
+                                  });
+
+                                  // If it's a Project Head task, exclude it
+                                  if (isProjectHeadTask) return false;
+
+                                  // If not Project Head and not employee-created, it's likely a Director task
+                                  if (!taskAssignedId || taskAssignedId === user?.id) return false;
+                                }
+                              } else if (taskSourceFilter === 'projectHead') {
+                                // Tasks assigned by Project Head
+                                const taskAssignedId = task.assignedById || '';
+
+                                // Exclude employee-created tasks
+                                if (task.isEmployeeCreated === true) return false;
+
+                                // Exclude tasks assigned by current employee
+                                if (taskAssignedId === user?.id || String(taskAssignedId) === String(user?.id)) return false;
+
+                                const assignedByUser = users.find(u => {
+                                  const userId = u.id || (u as any)._id || '';
+                                  return userId === taskAssignedId ||
+                                    String(userId) === String(taskAssignedId) ||
+                                    String(userId) === taskAssignedId ||
+                                    userId === String(taskAssignedId);
+                                });
+
+                                if (!assignedByUser || assignedByUser.role !== 'Project Head') return false;
+                              } else if (taskSourceFilter === 'self') {
+                                // Tasks added by staff themselves
+                                if (task.assignedById !== user?.id && !task.isEmployeeCreated) return false;
+                              }
+                            }
+
+                            return true;
+                          });
+                          setFilteredTasks(filtered);
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* Filters Row */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-end',
-                gap: '24px',
-                flexWrap: 'wrap'
-              }}>
-                {/* Task Status Filter Dropdown */}
+
+                {/* Filters Row */}
                 <div style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
+                  alignItems: 'flex-end',
+                  gap: '24px',
+                  flexWrap: 'wrap'
                 }}>
-                  <label style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#374151'
-                  }}>
-                    Task Status:
-                  </label>
-                  <select
-                    value={taskFilter}
-                    onChange={(e) => setTaskFilter(e.target.value as 'all' | 'completed' | 'pending' | 'overdue')}
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      backgroundColor: '#ffffff',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      width: '200px',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <option value="all">All</option>
-                    <option value="completed">Completed</option>
-                    <option value="pending">Pending</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                </div>
-
-                {/* Priority Filter Dropdown */}
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <label style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#374151'
-                  }}>
-                    Categorized by Priority:
-                  </label>
-                  <select
-                    value={taskPriorityFilter}
-                    onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
-                    style={{
-                      padding: '8px 16px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      backgroundColor: '#ffffff',
-                      color: '#374151',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      width: '200px',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#3b82f6';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <option value="all">All Priorities</option>
-                    <option value="Urgent">Urgent</option>
-                    <option value="Less Urgent">Less Urgent</option>
-                    <option value="Free Time">Free Time</option>
-                    <option value="Custom">Custom</option>
-                  </select>
-                </div>
-
-                {/* Task Source Filter - Only for Employees */}
-                {isEmployee && (
+                  {/* Priority Filter Dropdown */}
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '8px'
                   }}>
-                    <div style={{
+                    <label style={{
                       fontSize: '14px',
                       fontWeight: '600',
                       color: '#374151'
                     }}>
-                      Tasks visible:
-                    </div>
+                      Categorized by Priority:
+                    </label>
+                    <select
+                      value={taskPriorityFilter}
+                      onChange={(e) => setTaskPriorityFilter(e.target.value as 'all' | 'Urgent' | 'Less Urgent' | 'Free Time' | 'Custom')}
+                      style={{
+                        padding: '8px 16px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        backgroundColor: '#ffffff',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        width: '200px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <option value="all">All Priorities</option>
+                      <option value="Urgent">Urgent</option>
+                      <option value="Less Urgent">Less Urgent</option>
+                      <option value="Free Time">Free Time</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
+
+                  {/* Task Source Filter - Only for Employees */}
+                  {isEmployee && (
                     <div style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      flexWrap: 'wrap'
+                      flexDirection: 'column',
+                      gap: '8px'
                     }}>
-                      <button
-                        onClick={() => setTaskSourceFilter('all')}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: taskSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
-                          color: taskSourceFilter === 'all' ? '#ffffff' : '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          if (taskSourceFilter !== 'all') {
-                            e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            e.currentTarget.style.borderColor = '#9ca3af';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (taskSourceFilter !== 'all') {
-                            e.currentTarget.style.backgroundColor = '#ffffff';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                          }
-                        }}
-                      >
-                        All Tasks
-                      </button>
-                      <button
-                        onClick={() => setTaskSourceFilter('director')}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: taskSourceFilter === 'director' ? '#2563eb' : '#ffffff',
-                          color: taskSourceFilter === 'director' ? '#ffffff' : '#1e40af',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          if (taskSourceFilter !== 'director') {
-                            e.currentTarget.style.backgroundColor = '#eff6ff';
-                            e.currentTarget.style.borderColor = '#1e40af';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (taskSourceFilter !== 'director') {
-                            e.currentTarget.style.backgroundColor = '#ffffff';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                          }
-                        }}
-                      >
-                        Assigned by Director
-                      </button>
-                      <button
-                        onClick={() => setTaskSourceFilter('projectHead')}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: taskSourceFilter === 'projectHead' ? '#9333ea' : '#ffffff',
-                          color: taskSourceFilter === 'projectHead' ? '#ffffff' : '#7c3aed',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          if (taskSourceFilter !== 'projectHead') {
-                            e.currentTarget.style.backgroundColor = '#faf5ff';
-                            e.currentTarget.style.borderColor = '#7c3aed';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (taskSourceFilter !== 'projectHead') {
-                            e.currentTarget.style.backgroundColor = '#ffffff';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                          }
-                        }}
-                      >
-                        Assigned by Project Head
-                      </button>
-                      <button
-                        onClick={() => setTaskSourceFilter('self')}
-                        style={{
-                          padding: '8px 16px',
-                          backgroundColor: taskSourceFilter === 'self' ? '#10b981' : '#ffffff',
-                          color: taskSourceFilter === 'self' ? '#ffffff' : '#059669',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '8px',
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        onMouseOver={(e) => {
-                          if (taskSourceFilter !== 'self') {
-                            e.currentTarget.style.backgroundColor = '#ecfdf5';
-                            e.currentTarget.style.borderColor = '#059669';
-                          }
-                        }}
-                        onMouseOut={(e) => {
-                          if (taskSourceFilter !== 'self') {
-                            e.currentTarget.style.backgroundColor = '#ffffff';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                          }
-                        }}
-                      >
-                        Tasks added by staff themselves
-                      </button>
+                      <div style={{
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#374151'
+                      }}>
+                        Tasks visible:
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap'
+                      }}>
+                        <button
+                          onClick={() => setTaskSourceFilter('all')}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: taskSourceFilter === 'all' ? '#3b82f6' : '#ffffff',
+                            color: taskSourceFilter === 'all' ? '#ffffff' : '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            if (taskSourceFilter !== 'all') {
+                              e.currentTarget.style.backgroundColor = '#f3f4f6';
+                              e.currentTarget.style.borderColor = '#9ca3af';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (taskSourceFilter !== 'all') {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                            }
+                          }}
+                        >
+                          All Tasks
+                        </button>
+                        <button
+                          onClick={() => setTaskSourceFilter('director')}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: taskSourceFilter === 'director' ? '#2563eb' : '#ffffff',
+                            color: taskSourceFilter === 'director' ? '#ffffff' : '#1e40af',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            if (taskSourceFilter !== 'director') {
+                              e.currentTarget.style.backgroundColor = '#eff6ff';
+                              e.currentTarget.style.borderColor = '#1e40af';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (taskSourceFilter !== 'director') {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                            }
+                          }}
+                        >
+                          Assigned by Director
+                        </button>
+                        <button
+                          onClick={() => setTaskSourceFilter('projectHead')}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: taskSourceFilter === 'projectHead' ? '#9333ea' : '#ffffff',
+                            color: taskSourceFilter === 'projectHead' ? '#ffffff' : '#7c3aed',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            if (taskSourceFilter !== 'projectHead') {
+                              e.currentTarget.style.backgroundColor = '#faf5ff';
+                              e.currentTarget.style.borderColor = '#7c3aed';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (taskSourceFilter !== 'projectHead') {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                            }
+                          }}
+                        >
+                          Assigned by Project Head
+                        </button>
+                        <button
+                          onClick={() => setTaskSourceFilter('self')}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: taskSourceFilter === 'self' ? '#10b981' : '#ffffff',
+                            color: taskSourceFilter === 'self' ? '#ffffff' : '#059669',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            if (taskSourceFilter !== 'self') {
+                              e.currentTarget.style.backgroundColor = '#ecfdf5';
+                              e.currentTarget.style.borderColor = '#059669';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (taskSourceFilter !== 'self') {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                            }
+                          }}
+                        >
+                          Tasks added by staff themselves
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Tasks Table View */}
-              <div style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '16px',
-                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                border: '1px solid #e5e7eb',
-                overflow: 'hidden',
-                width: '100%',
-                maxWidth: '100%'
-              }}>
-                <div style={{ 
-                  overflowX: 'auto',
-                  width: '100%'
+                  )}
+                </div>
+
+                {/* Tasks Table View */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  border: '1px solid #e5e7eb',
+                  overflow: 'hidden',
+                  width: '100%',
+                  maxWidth: '100%'
                 }}>
-                  <table style={{
-                    width: '100%',
-                    minWidth: '800px',
-                    borderCollapse: 'separate',
-                    borderSpacing: 0
+                  <div style={{
+                    overflowX: 'auto',
+                    width: '100%'
                   }}>
-                    <thead style={{
-                      background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                      borderBottom: '2px solid #e5e7eb'
+                    <table style={{
+                      width: '100%',
+                      minWidth: '800px',
+                      borderCollapse: 'separate',
+                      borderSpacing: 0
                     }}>
-                      <tr>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Priority
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Status
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Project Name
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Task Title
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Description / Remarks
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Work Done (%)
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Flag (Director Input Required)
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Date
-                        </th>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          color: '#374151',
-                          letterSpacing: '-0.3px',
-                          borderBottom: '2px solid #e5e7eb'
-                        }}>
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTasks.map((task, index) => {
-                        const priorityColors: Record<string, { bg: string; text: string }> = {
-                          'Urgent': { bg: '#fee2e2', text: '#dc2626' },
-                          'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
-                          'Free Time': { bg: '#d1fae5', text: '#059669' },
-                          'Custom': { bg: '#e0e7ff', text: '#6366f1' }
-                        };
-                        const statusColors: Record<string, { bg: string; text: string }> = {
-                          'Pending': { bg: '#fef3c7', text: '#d97706' },
-                          'In Progress': { bg: '#dbeafe', text: '#2563eb' },
-                          'Completed': { bg: '#d1fae5', text: '#059669' }
-                        };
-                        const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
-                        const statusColor = statusColors[task.status || 'Pending'] || statusColors['Pending'];
-                        
-                        return (
-                          <tr
-                            key={task.id || task._id}
-                            style={{
-                              borderBottom: index < filteredTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
-                              transition: 'all 0.2s ease',
-                              backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
-                              cursor: 'pointer'
-                        }}
-                        onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
-                              e.currentTarget.style.transform = 'scale(1.002)';
-                        }}
-                        onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
-                              e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                          >
-                            {/* Priority */}
-                          <td style={{
-                              padding: '20px',
-                              borderTopLeftRadius: index === 0 ? '12px' : '0',
-                              borderBottomLeftRadius: index === filteredTasks.length - 1 ? '12px' : '0'
+                      <thead style={{
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                        borderBottom: '2px solid #e5e7eb'
+                      }}>
+                        <tr>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
                           }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '8px 16px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                letterSpacing: '0.3px',
-                                textTransform: 'uppercase',
-                                backgroundColor: priorityColor.bg,
-                                color: priorityColor.text,
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                            Priority
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Project Name
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Task Title
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Description / Remarks
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Work Done (%)
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Flag (Director Input Required)
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Date
+                          </th>
+                          <th style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: '#374151',
+                            letterSpacing: '-0.3px',
+                            borderBottom: '2px solid #e5e7eb'
+                          }}>
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredTasks.map((task, index) => {
+                          const priorityColors: Record<string, { bg: string; text: string }> = {
+                            'Urgent': { bg: '#fee2e2', text: '#dc2626' },
+                            'Less Urgent': { bg: '#fef3c7', text: '#d97706' },
+                            'Free Time': { bg: '#d1fae5', text: '#059669' },
+                            'Custom': { bg: '#e0e7ff', text: '#6366f1' }
+                          };
+                          const priorityColor = priorityColors[task.priority || 'Less Urgent'] || priorityColors['Less Urgent'];
+
+                          return (
+                            <tr
+                              key={task.id || task._id}
+                              style={{
+                                borderBottom: index < filteredTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                transition: 'all 0.2s ease',
+                                backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                                cursor: 'pointer'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f8fafc';
+                                e.currentTarget.style.transform = 'scale(1.002)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fef2f2' : 'transparent';
+                                e.currentTarget.style.transform = 'scale(1)';
+                              }}
+                            >
+                              {/* Priority */}
+                              <td style={{
+                                padding: '20px',
+                                borderTopLeftRadius: index === 0 ? '12px' : '0',
+                                borderBottomLeftRadius: index === filteredTasks.length - 1 ? '12px' : '0'
                               }}>
-                                {task.priority || 'Less Urgent'}
-                              </span>
-                          </td>
-                            {/* Status */}
-                            <td style={{ padding: '20px' }}>
-                              <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '8px 16px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                letterSpacing: '0.3px',
-                                textTransform: 'uppercase',
-                                backgroundColor: statusColor.bg,
-                                color: statusColor.text,
-                                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                              }}>
-                                {task.status || 'Pending'}
-                              </span>
-                            </td>
-                            {/* Project Name */}
-                            <td style={{ padding: '20px' }}>
-                              <span style={{
-                                fontSize: '14px',
-                                color: '#111827',
-                                fontWeight: '500'
-                              }}>
-                                {task.projectName || 'N/A'}
-                              </span>
-                          </td>
-                            {/* Task Title */}
-                            <td style={{ padding: '20px' }}>
-                              <p style={{
-                                fontSize: '15px',
-                                fontWeight: '700',
-                              color: '#111827',
-                                margin: 0,
-                                letterSpacing: '-0.3px'
-                            }}>
-                                {task.title}
-                              </p>
-                          </td>
-                            {/* Description / Remarks */}
-                            <td style={{ padding: '20px' }}>
-                              <p style={{
-                                fontSize: '13px',
-                                color: '#6b7280',
-                                margin: 0,
-                                lineHeight: '1.5',
-                                maxWidth: '300px',
-                                display: '-webkit-box',
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden'
-                              }}>
-                                {task.description || 'No description'}
-                              </p>
-                            </td>
-                            {/* Work Done (%) */}
-                            <td style={{ padding: '20px' }}>
-                              {editingWorkDone === (task.id || task._id) ? (
-                                <select
-                                  value={workDoneValue}
-                                  onChange={(e) => {
-                                    setWorkDoneValue(Number(e.target.value));
-                                    handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
-                                  }}
-                                  onBlur={() => {
-                                    handleWorkDoneSave(task);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                      handleWorkDoneCancel();
-                                    }
-                                  }}
-                                  autoFocus
-                                  style={{
-                                    padding: '6px 12px',
-                                    border: '2px solid #3b82f6',
-                                    borderRadius: '8px',
-                                    fontSize: '13px',
-                                    fontWeight: '600',
-                                    backgroundColor: '#ffffff',
-                                    color: '#4f46e5',
-                                    outline: 'none',
-                                    cursor: 'pointer',
-                                    minWidth: '100px'
-                                  }}
-                                >
-                                  {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
-                                    <option key={percent} value={percent}>
-                                      {percent}%
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span
-                                  onClick={() => handleWorkDoneEdit(task)}
-                                  style={{
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '8px 16px',
+                                  borderRadius: '10px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  letterSpacing: '0.3px',
+                                  textTransform: 'uppercase',
+                                  backgroundColor: priorityColor.bg,
+                                  color: priorityColor.text,
+                                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                                }}>
+                                  {task.priority || 'Less Urgent'}
+                                </span>
+                              </td>
+                              {/* Project Name */}
+                              <td style={{ padding: '20px' }}>
+                                <span style={{
+                                  fontSize: '14px',
+                                  color: '#111827',
+                                  fontWeight: '500'
+                                }}>
+                                  {task.projectName || 'N/A'}
+                                </span>
+                              </td>
+                              {/* Task Title */}
+                              <td style={{ padding: '20px' }}>
+                                <p style={{
+                                  fontSize: '15px',
+                                  fontWeight: '700',
+                                  color: '#111827',
+                                  margin: 0,
+                                  letterSpacing: '-0.3px'
+                                }}>
+                                  {task.title}
+                                </p>
+                              </td>
+                              {/* Description / Remarks */}
+                              <td style={{ padding: '20px' }}>
+                                <p style={{
+                                  fontSize: '13px',
+                                  color: '#6b7280',
+                                  margin: 0,
+                                  lineHeight: '1.5',
+                                  maxWidth: '300px',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden'
+                                }}>
+                                  {task.description || 'No description'}
+                                </p>
+                              </td>
+                              {/* Work Done (%) */}
+                              <td style={{ padding: '20px' }}>
+                                {editingWorkDone === (task.id || task._id) ? (
+                                  <select
+                                    value={workDoneValue}
+                                    onChange={(e) => {
+                                      setWorkDoneValue(Number(e.target.value));
+                                      handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
+                                    }}
+                                    onBlur={() => {
+                                      handleWorkDoneSave(task);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') {
+                                        handleWorkDoneCancel();
+                                      }
+                                    }}
+                                    autoFocus
+                                    style={{
+                                      padding: '6px 12px',
+                                      border: '2px solid #3b82f6',
+                                      borderRadius: '8px',
+                                      fontSize: '13px',
+                                      fontWeight: '600',
+                                      backgroundColor: '#ffffff',
+                                      color: '#4f46e5',
+                                      outline: 'none',
+                                      cursor: 'pointer',
+                                      minWidth: '100px'
+                                    }}
+                                  >
+                                    {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
+                                      <option key={percent} value={percent}>
+                                        {percent}%
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span
+                                    onClick={() => handleWorkDoneEdit(task)}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      padding: '6px 12px',
+                                      borderRadius: '8px',
+                                      fontSize: '13px',
+                                      fontWeight: '600',
+                                      backgroundColor: '#e0e7ff',
+                                      color: '#4f46e5',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#c7d2fe';
+                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = '#e0e7ff';
+                                      e.currentTarget.style.transform = 'scale(1)';
+                                    }}
+                                    title="Click to edit Work Done (%)"
+                                  >
+                                    {task.workDone || 0}%
+                                  </span>
+                                )}
+                              </td>
+                              {/* Flag (Director Input Required) */}
+                              <td style={{ padding: '20px' }}>
+                                {task.flagDirectorInputRequired ? (
+                                  <span style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     padding: '6px 12px',
                                     borderRadius: '8px',
-                                    fontSize: '13px',
+                                    fontSize: '12px',
                                     fontWeight: '600',
-                                    backgroundColor: '#e0e7ff',
-                                    color: '#4f46e5',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                  }}
-                                  onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#c7d2fe';
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                  }}
-                                  onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#e0e7ff';
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                  }}
-                                  title="Click to edit Work Done (%)"
-                                >
-                                  {task.workDone || 0}%
-                                </span>
-                              )}
-                            </td>
-                            {/* Flag (Director Input Required) */}
-                            <td style={{ padding: '20px' }}>
-                              {task.flagDirectorInputRequired ? (
-                            <span style={{
-                              display: 'inline-flex',
-                                  alignItems: 'center',
-                              padding: '6px 12px',
-                                  borderRadius: '8px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                                  backgroundColor: '#fee2e2',
-                                  color: '#dc2626'
-                            }}>
-                                  Yes
-                            </span>
-                              ) : (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '6px 12px',
-                                  borderRadius: '8px',
-                                  fontSize: '12px',
-                                  fontWeight: '600',
-                                  backgroundColor: '#f3f4f6',
-                                  color: '#6b7280'
-                                }}>
-                                  No
-                                </span>
-                              )}
-                          </td>
-                            {/* Date */}
-                            <td style={{ padding: '20px' }}>
-                              <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                {/* Created Date */}
+                                    backgroundColor: '#fee2e2',
+                                    color: '#dc2626'
+                                  }}>
+                                    Yes
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    backgroundColor: '#f3f4f6',
+                                    color: '#6b7280'
+                                  }}>
+                                    No
+                                  </span>
+                                )}
+                              </td>
+                              {/* Date */}
+                              <td style={{ padding: '20px' }}>
                                 <div style={{
-                                  fontSize: '12px',
-                                  color: '#6b7280',
-                                  fontWeight: '500'
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px'
                                 }}>
-                                  <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
-                                  {task.startDate 
-                                    ? new Date(task.startDate).toLocaleDateString() 
-                                    : 'N/A'}
-                                </div>
-                                {/* Reminder Date */}
-                                {task.reminderDate && (
+                                  {/* Created Date */}
                                   <div style={{
                                     fontSize: '12px',
-                                    color: '#dc2626',
-                                    fontWeight: '500',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
+                                    color: '#6b7280',
+                                    fontWeight: '500'
                                   }}>
-                                    <span style={{ fontWeight: '600' }}>Reminder: </span>
-                                    {new Date(task.reminderDate).toLocaleDateString()}
+                                    <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
+                                    {task.startDate
+                                      ? new Date(task.startDate).toLocaleDateString()
+                                      : 'N/A'}
                                   </div>
-                                )}
-                              </div>
-                            </td>
-                            {/* Created by */}
-                            <td style={{ padding: '20px' }}>
-                              <div style={{
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: '#374151'
-                              }}>
-                                {task.assignedByName || 'N/A'}
-                              </div>
-                            </td>
-                            {/* Actions */}
-                          <td style={{
-                              padding: '20px',
-                              borderTopRightRadius: index === 0 ? '12px' : '0',
-                              borderBottomRightRadius: index === filteredTasks.length - 1 ? '12px' : '0'
-                          }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                                gap: '8px',
-                                flexWrap: 'wrap'
-                            }}>
-                              <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTask(task);
-                                    setIsTaskModalOpen(true);
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    backgroundColor: '#dbeafe',
-                                  border: 'none',
-                                    borderRadius: '8px',
-                                    color: '#1e40af',
-                                  fontSize: '12px',
-                                    fontWeight: '600',
-                                  cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                }}
-                                onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#dbeafe';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                }}
-                              >
-                                  <Eye size={14} />
-                                  View
-                              </button>
-                                {/* Red Flag Button - Available for all tasks */}
-                                  <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    const taskId = task.id || task._id;
-                                    if (!taskId) return;
-                                    
-                                    const updatedTask = {
-                                      ...task,
-                                      flagDirectorInputRequired: !task.flagDirectorInputRequired
-                                    };
-                                    await handleTaskUpdate(updatedTask);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
-                                      border: 'none',
-                                    borderRadius: '8px',
-                                    color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
+                                  {/* Reminder Date */}
+                                  {task.reminderDate && (
+                                    <div style={{
                                       fontSize: '12px',
-                                    fontWeight: '600',
-                                      cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
-                                    e.currentTarget.style.transform = 'translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                    e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
-                                  }}
-                                  title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
-                                >
-                                  🚩 Red Flag
-                                  </button>
-                                {/* Show Edit, Delete buttons only for employee-created tasks */}
-                                {task.isEmployeeCreated && (
-                                  <>
+                                      color: '#dc2626',
+                                      fontWeight: '500',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}>
+                                      <span style={{ fontWeight: '600' }}>Reminder: </span>
+                                      {new Date(task.reminderDate).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              {/* Created by */}
+                              <td style={{ padding: '20px' }}>
+                                <div style={{
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  color: '#374151'
+                                }}>
+                                  {task.assignedByName || 'N/A'}
+                                </div>
+                              </td>
+                              {/* Actions */}
+                              <td style={{
+                                padding: '20px',
+                                borderTopRightRadius: index === 0 ? '12px' : '0',
+                                borderBottomRightRadius: index === filteredTasks.length - 1 ? '12px' : '0'
+                              }}>
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  flexWrap: 'wrap'
+                                }}>
                                   <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setSelectedTask(task);
                                       setIsTaskModalOpen(true);
                                     }}
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#dcfce7',
+                                      gap: '6px',
+                                      padding: '8px 14px',
+                                      backgroundColor: '#dbeafe',
                                       border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#15803d',
+                                      borderRadius: '8px',
+                                      color: '#1e40af',
                                       fontSize: '12px',
-                                        fontWeight: '600',
+                                      fontWeight: '600',
                                       cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
+                                      transition: 'all 0.2s ease',
+                                      boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
                                     }}
                                     onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
+                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
                                     }}
                                     onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dcfce7';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
+                                      e.currentTarget.style.backgroundColor = '#dbeafe';
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
                                     }}
                                   >
-                                    Edit
+                                    <Eye size={14} />
+                                    View
                                   </button>
+                                  {/* Red Flag Button - Available for all tasks */}
                                   <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                      const taskId = task.id || task._id;
-                                      if (taskId) {
-                                        handleTaskDelete(String(taskId));
-                                      }
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#fee2e2',
-                                      border: 'none',
-                                        borderRadius: '8px',
-                                      color: '#dc2626',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                      cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fecaca';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#fee2e2';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
-                                    }}
-                                  >
-                                    Delete
-                                  </button>
-                                </>
-                                )}
-                                {/* Show Complete button for non-employee-created tasks */}
-                                {!task.isEmployeeCreated && task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
-                                  <button
-                                    onClick={(e) => {
+                                    onClick={async (e) => {
                                       e.stopPropagation();
-                                      handleTaskCompleted(task);
+                                      const taskId = task.id || task._id;
+                                      if (!taskId) return;
+
+                                      const updatedTask = {
+                                        ...task,
+                                        flagDirectorInputRequired: !task.flagDirectorInputRequired
+                                      };
+                                      await handleTaskUpdate(updatedTask);
                                     }}
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       gap: '6px',
                                       padding: '8px 14px',
-                                      backgroundColor: '#dcfce7',
+                                      backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
                                       border: 'none',
                                       borderRadius: '8px',
-                                      color: '#15803d',
+                                      color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
                                       fontSize: '12px',
                                       fontWeight: '600',
                                       cursor: 'pointer',
                                       transition: 'all 0.2s ease',
-                                      boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
+                                      boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
+                                      e.currentTarget.style.transform = 'translateY(-1px)';
+                                      e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
+                                      e.currentTarget.style.transform = 'translateY(0)';
+                                      e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
+                                    }}
+                                    title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
+                                  >
+                                    🚩 Red Flag
+                                  </button>
+                                  {/* Show Edit, Delete buttons only for employee-created tasks */}
+                                  {task.isEmployeeCreated && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedTask(task);
+                                          setIsTaskModalOpen(true);
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: '#dcfce7',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: '#15803d',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#bbf7d0';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#dcfce7';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const taskId = task.id || task._id;
+                                          if (taskId) {
+                                            handleTaskDelete(String(taskId));
+                                          }
+                                        }}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '8px 14px',
+                                          backgroundColor: '#fee2e2',
+                                          border: 'none',
+                                          borderRadius: '8px',
+                                          color: '#dc2626',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
+                                        }}
+                                        onMouseOver={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#fecaca';
+                                          e.currentTarget.style.transform = 'translateY(-1px)';
+                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                          e.currentTarget.style.backgroundColor = '#fee2e2';
+                                          e.currentTarget.style.transform = 'translateY(0)';
+                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
+                                        }}
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
+                                  {/* Show Complete button for non-employee-created tasks */}
+                                  {!task.isEmployeeCreated && task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTaskCompleted(task);
+                                      }}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 14px',
+                                        backgroundColor: '#dcfce7',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#15803d',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
                                       }}
                                       onMouseOver={(e) => {
                                         e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
                                       }}
                                       onMouseOut={(e) => {
                                         e.currentTarget.style.backgroundColor = '#dcfce7';
-                                      e.currentTarget.style.transform = 'translateY(0)';
-                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
                                       }}
                                     >
                                       Complete
                                     </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {filteredTasks.length === 0 && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '48px 0'
-                  }}>
-                    <div style={{
-                      width: '64px',
-                      height: '64px',
-                      backgroundColor: '#f3f4f6',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 16px'
-                    }}>
-                      <svg style={{ width: '32px', height: '32px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <h3 style={{
-                      fontSize: '18px',
-                      fontWeight: '500',
-                      color: '#111827',
-                      marginBottom: '8px',
-                      margin: 0
-                    }}>No tasks assigned</h3>
-                    <p style={{
-                      color: '#6b7280',
-                      margin: 0
-                    }}>You don't have any tasks assigned yet.</p>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                )}
+                  {filteredTasks.length === 0 && (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '48px 0'
+                    }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 16px'
+                      }}>
+                        <svg style={{ width: '32px', height: '32px', color: '#9ca3af' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <h3 style={{
+                        fontSize: '18px',
+                        fontWeight: '500',
+                        color: '#111827',
+                        marginBottom: '8px',
+                        margin: 0
+                      }}>No tasks assigned</h3>
+                      <p style={{
+                        color: '#6b7280',
+                        margin: 0
+                      }}>You don't have any tasks assigned yet.</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'employees' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              gap: '32px',
-              width: '100%',
-              maxWidth: '100%'
-            }}>
+            {activeTab === 'notifications' && (
               <div style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%'
+                flexDirection: 'column',
+                gap: '24px',
+                width: '100%',
+                maxWidth: '1000px',
+                margin: '0 auto',
+                padding: '40px 20px'
               }}>
-                <div>
-                  <h1 style={{
-                    fontSize: '32px',
-                    fontWeight: 'bold',
-                    color: '#111827',
-                    margin: 0
-                  }}>Employee Directory</h1>
-                  <p style={{
-                    fontSize: '16px',
-                    color: '#4b5563',
-                    marginTop: '8px',
-                    margin: 0
-                  }}>
-                    View only access - You can see employee information but cannot create, edit, or delete them
-                  </p>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '12px'
+                }}>
+                  <div>
+                    <h1 style={{
+                      fontSize: '32px',
+                      fontWeight: '800',
+                      color: '#111827',
+                      margin: 0,
+                      letterSpacing: '-1px'
+                    }}>Notifications</h1>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#6b7280',
+                      marginTop: '4px'
+                    }}>Stay updated with your latest task assignments and comments</p>
+                  </div>
+                  {notifications.length > 0 && (
+                    <button
+                      onClick={clearAllNotifications}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                    >
+                      <X size={18} />
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px'
+                }}>
+                  {notifications.length === 0 ? (
+                    <div style={{
+                      textAlign: 'center',
+                      padding: '80px 40px',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '24px',
+                      border: '2px dashed #e5e7eb'
+                    }}>
+                      <div style={{
+                        width: '80px',
+                        height: '80px',
+                        backgroundColor: '#ffffff',
+                        borderRadius: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 24px',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
+                      }}>
+                        <Bell size={40} color="#9ca3af" />
+                      </div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>All caught up!</h3>
+                      <p style={{ color: '#6b7280', maxWidth: '300px', margin: '0 auto' }}>You don't have any new notifications at the moment.</p>
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        onClick={() => handleNotificationClick(notification)}
+                        style={{
+                          backgroundColor: notification.read ? '#ffffff' : '#f0f7ff',
+                          borderRadius: '20px',
+                          padding: '20px',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '20px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          border: notification.read ? '1px solid #e5e7eb' : '1px solid #bfdbfe',
+                          position: 'relative',
+                          boxShadow: notification.read ? 'none' : '0 4px 6px -1px rgba(59, 130, 246, 0.1)'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = notification.read ? 'none' : '0 4px 6px -1px rgba(59, 130, 246, 0.1)';
+                        }}
+                      >
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '16px',
+                          backgroundColor: notification.type === 'task' ? '#dcfce7' : '#e0e7ff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {notification.type === 'task' ? (
+                            <CheckSquare size={24} color="#15803d" />
+                          ) : (
+                            <MessageSquare size={24} color="#4338ca" />
+                          )}
+                        </div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span style={{
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              color: notification.type === 'task' ? '#15803d' : '#4338ca'
+                            }}>
+                              {notification.type === 'task' ? 'New Task' : 'New Comment'}
+                            </span>
+                            {!notification.read && (
+                              <span style={{
+                                width: '6px',
+                                height: '6px',
+                                backgroundColor: '#3b82f6',
+                                borderRadius: '50%'
+                              }} />
+                            )}
+                          </div>
+                          <p style={{
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: '#111827',
+                            margin: '0 0 4px 0',
+                            lineHeight: '1.4'
+                          }}>
+                            {notification.message}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '14px', color: '#6b7280' }}>
+                              {new Date(notification.timestamp).toLocaleString()}
+                            </span>
+                            {notification.creatorRole && (
+                              <span style={{
+                                fontSize: '12px',
+                                padding: '2px 8px',
+                                backgroundColor: '#f3f4f6',
+                                borderRadius: '6px',
+                                color: '#4b5563',
+                                fontWeight: '500'
+                              }}>
+                                {notification.creatorRole}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {!notification.read && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markNotificationAsRead(notification.id);
+                              }}
+                              style={{
+                                padding: '8px',
+                                borderRadius: '10px',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #e5e7eb',
+                                color: '#6b7280',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              title="Mark as read"
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.color = '#3b82f6';
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.color = '#6b7280';
+                                e.currentTarget.style.borderColor = '#e5e7eb';
+                              }}
+                            >
+                              <CheckCircle size={18} />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                            style={{
+                              padding: '8px',
+                              borderRadius: '10px',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #e5e7eb',
+                              color: '#6b7280',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Delete"
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.color = '#ef4444';
+                              e.currentTarget.style.borderColor = '#ef4444';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.color = '#6b7280';
+                              e.currentTarget.style.borderColor = '#e5e7eb';
+                            }}
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              
-              <EmployeeList
-                employees={[]} // Employees don't have access to employee data in this view
-                onEmployeeSave={() => {
-                  // Employees cannot save employee data
-                }}
-                onEmployeeDelete={() => {
-                  // Employees cannot delete employee data
-                }}
-              />
-            </div>
-          )}
+            )}
 
-        </main>
-      </div>
+            {activeTab === 'employees' && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '32px',
+                width: '100%',
+                maxWidth: '100%'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%'
+                }}>
+                  <div>
+                    <h1 style={{
+                      fontSize: '32px',
+                      fontWeight: 'bold',
+                      color: '#111827',
+                      margin: 0
+                    }}>Employee Directory</h1>
+                    <p style={{
+                      fontSize: '16px',
+                      color: '#4b5563',
+                      marginTop: '8px',
+                      margin: 0
+                    }}>
+                      View only access - You can see employee information but cannot create, edit, or delete them
+                    </p>
+                  </div>
+                </div>
 
-      {isTaskModalOpen && (
-        <TaskModal
-          task={selectedTask}
-          projects={projects}
-          users={users}
-          tasks={tasks}
-          onClose={async () => {
-            setIsTaskModalOpen(false);
-            setSelectedTask(null);
-            // Refresh tasks list when modal closes to show any updates
-            await loadTasks();
-          }}
-          onSave={selectedTask ? handleTaskUpdate : handleTaskCreate}
-          isDirector={isDirector}
-          isProjectHead={isProjectHead}
-          isEmployee={isEmployee}
-          onProjectsChange={loadProjects}
-        />
-      )}
+                <EmployeeList
+                  employees={[]} // Employees don't have access to employee data in this view
+                  onEmployeeSave={() => {
+                    // Employees cannot save employee data
+                  }}
+                  onEmployeeDelete={() => {
+                    // Employees cannot delete employee data
+                  }}
+                />
+              </div>
+            )}
 
-      {isProjectModalOpen && (
-        <ProjectModal
-          project={selectedProject}
-          isOpen={isProjectModalOpen}
-          onClose={() => {
-            setIsProjectModalOpen(false);
-            setSelectedProject(null);
-          }}
-          onSave={async (project: Project) => {
-            try {
-              const projectId = project.id || project._id || '';
-              if (projectId) {
-                // Update existing project
-                await updateProject(projectId, project);
-                await loadProjects();
-              } else {
-                // Create new project
-                await handleProjectCreate(project);
-              }
-            } catch (error: any) {
-              console.error('Error saving project:', error);
-              throw error;
-            }
-          }}
-          onDelete={selectedProject ? async (projectId: string) => {
-            try {
-              await deleteProject(projectId);
-              await loadProjects();
-              setIsProjectModalOpen(false);
-              setSelectedProject(null);
-            } catch (error: any) {
-              console.error('Error deleting project:', error);
-              throw error;
-            }
-          } : undefined}
-          users={users}
-        />
-      )}
-
-      {/* Completion Request Modal */}
-      {showCompletionModal && taskToComplete && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}
-        onClick={() => {
-          setShowCompletionModal(false);
-          setTaskToComplete(null);
-        }}
-        >
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            padding: '32px',
-            maxWidth: '500px',
-            width: '100%',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-          }}
-          onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: '#111827',
-              marginBottom: '16px'
-            }}>
-              Request Completion Approval
-            </h2>
-            <p style={{
-              fontSize: '16px',
-              color: '#374151',
-              marginBottom: '24px',
-              lineHeight: '1.6'
-            }}>
-              You are requesting approval to mark <strong>"{taskToComplete.title}"</strong> as completed. 
-              The director will review your request and approve or reject it.
-            </p>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '12px'
-            }}>
-              <button
-                onClick={() => {
-                  setShowCompletionModal(false);
-                  setTaskToComplete(null);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmCompletionRequest}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#1d4ed8';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb';
-                }}
-              >
-                Submit Request
-              </button>
-            </div>
-          </div>
+          </main>
         </div>
-      )}
-      </div>
+
+        {isTaskModalOpen && (
+          <TaskModal
+            task={selectedTask}
+            projects={projects}
+            users={users}
+            tasks={tasks}
+            onClose={async () => {
+              setIsTaskModalOpen(false);
+              setSelectedTask(null);
+              // Refresh tasks list when modal closes to show any updates
+              await loadTasks();
+            }}
+            onSave={selectedTask ? handleTaskUpdate : handleTaskCreate}
+            isDirector={isDirector}
+            isProjectHead={isProjectHead}
+            isEmployee={isEmployee}
+            onProjectsChange={loadProjects}
+          />
+        )}
+
+        {
+          isProjectModalOpen && (
+            <ProjectModal
+              project={selectedProject}
+              isOpen={isProjectModalOpen}
+              onClose={() => {
+                setIsProjectModalOpen(false);
+                setSelectedProject(null);
+              }}
+              onSave={async (project: Project) => {
+                try {
+                  const projectId = project.id || project._id || '';
+                  if (projectId) {
+                    // Update existing project
+                    await updateProject(projectId, project);
+                    await loadProjects();
+                  } else {
+                    // Create new project
+                    await handleProjectCreate(project);
+                  }
+                } catch (error: any) {
+                  console.error('Error saving project:', error);
+                  throw error;
+                }
+              }}
+              onDelete={selectedProject ? async (projectId: string) => {
+                try {
+                  await deleteProject(projectId);
+                  await loadProjects();
+                  setIsProjectModalOpen(false);
+                  setSelectedProject(null);
+                } catch (error: any) {
+                  console.error('Error deleting project:', error);
+                  throw error;
+                }
+              } : undefined}
+              users={users}
+            />
+          )
+        }
+
+        {/* Completion Request Modal */}
+        {
+          showCompletionModal && taskToComplete && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+              onClick={() => {
+                setShowCompletionModal(false);
+                setTaskToComplete(null);
+              }}
+            >
+              <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                padding: '32px',
+                maxWidth: '500px',
+                width: '100%',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+              }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: '#111827',
+                  marginBottom: '16px'
+                }}>
+                  Request Completion Approval
+                </h2>
+                <p style={{
+                  fontSize: '16px',
+                  color: '#374151',
+                  marginBottom: '24px',
+                  lineHeight: '1.6'
+                }}>
+                  You are requesting approval to mark <strong>"{taskToComplete.title}"</strong> as completed.
+                  The director will review your request and approve or reject it.
+                </p>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px'
+                }}>
+                  <button
+                    onClick={() => {
+                      setShowCompletionModal(false);
+                      setTaskToComplete(null);
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#f3f4f6',
+                      color: '#374151',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmCompletionRequest}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#1d4ed8';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2563eb';
+                    }}
+                  >
+                    Submit Request
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }
+      </div >
     </>
   );
 };

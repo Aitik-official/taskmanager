@@ -18,7 +18,7 @@ import { getProjects, createProject, updateProject, deleteProject } from '../ser
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/employeeService';
 import { taskApi } from '../services/api';
 import { getAllIndependentWork, updateIndependentWork, deleteIndependentWork, addComment } from '../services/independentWorkService';
-import { Download, Database, FolderKanban, CheckCircle2, Clock, AlertCircle, Users, TrendingUp, ArrowRight, Search, Filter, Eye, CheckCircle, Trash2, FileText, Calendar, User as UserIcon, X, Edit, ChevronLeft, ChevronRight, CheckSquare, FileCheck } from 'lucide-react';
+import { Download, Database, FolderKanban, CheckCircle2, Clock, AlertCircle, Users, TrendingUp, ArrowRight, Search, Filter, Eye, CheckCircle, Trash2, FileText, Calendar, User as UserIcon, X, Edit, ChevronLeft, ChevronRight, CheckSquare, FileCheck, MessageSquare } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // Helper function to download files without external dependencies
 const downloadFile = (data: Blob, filename: string) => {
@@ -51,6 +51,58 @@ const getUsersFromEmployees = async (): Promise<User[]> => {
 
 const Dashboard: React.FC = () => {
   const { user, isDirector, isProjectHead, isEmployee } = useAuth();
+
+  // Notifications state
+  interface Notification {
+    id: string;
+    type: 'task' | 'comment' | 'project';
+    message: string;
+    itemId?: string;
+    timestamp: number;
+    read: boolean;
+  }
+
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    try {
+      const saved = localStorage.getItem('directorNotifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        return parsed.filter((n: Notification) => n.timestamp > sevenDaysAgo);
+      }
+    } catch (e) {
+      console.error('Error loading notifications:', e);
+    }
+    return [];
+  });
+
+  const [previousTasks, setPreviousTasks] = useState<Task[]>([]);
+  const [previousProjects, setPreviousProjects] = useState<Project[]>([]);
+  const [previousCommentCounts, setPreviousCommentCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    localStorage.setItem('directorNotifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.read) {
+      setNotifications(prev => prev.map(n =>
+        n.id === notification.id ? { ...n, read: true } : n
+      ));
+    }
+    // Navigate based on type
+    if (notification.type === 'task' || notification.type === 'comment') {
+      setActiveTab('tasks');
+    } else if (notification.type === 'project') {
+      setActiveTab('projects');
+    }
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -133,6 +185,144 @@ const Dashboard: React.FC = () => {
     timeSpent: 0
   });
   const [independentWorkComment, setIndependentWorkComment] = useState('');
+
+
+
+  // Polling for updates
+  useEffect(() => {
+    if (!user || (!isDirector && !isProjectHead)) return;
+
+    const checkForUpdates = async () => {
+      try {
+        const currentTasks = await taskApi.getAllTasks();
+        const currentProjects = await getProjects();
+
+        // Check for new tasks created by employees
+        if (previousTasks.length > 0) {
+          const previousTaskIds = new Set(previousTasks.map(t => t.id || t._id));
+          const newTasks = currentTasks.filter((t: Task) => {
+            const id = t.id || t._id;
+            return id && !previousTaskIds.has(id);
+          });
+
+          newTasks.forEach((task: Task) => {
+            // Notify if created by an employee
+            if (task.isEmployeeCreated) {
+              const message = `New task created by ${task.assignedByName || 'Employee'}: "${task.title}"`;
+              const notification: Notification = {
+                id: `task-${task.id || task._id}-${Date.now()}`,
+                type: 'task',
+                message,
+                itemId: task.id || task._id,
+                timestamp: Date.now(),
+                read: false
+              };
+              setNotifications(prev => [notification, ...prev]);
+            }
+          });
+        }
+
+        // Check for new comments
+        if (previousTasks.length > 0) {
+          currentTasks.forEach((task: Task) => {
+            const taskId = task.id || task._id || '';
+            const prevCount = previousCommentCounts[taskId] || 0;
+            if (task.comments && task.comments.length > prevCount) {
+              const newComments = task.comments.slice(prevCount);
+              newComments.forEach((comment: any) => {
+                // Check if comment is NOT from current user (Director)
+                if (comment.userId !== user.id) {
+                  const message = `New comment on task "${task.title}" by ${comment.userName}`;
+                  const notification: Notification = { // Create fresh object
+                    id: `comment-${taskId}-${comment.id || Date.now()}`,
+                    type: 'comment',
+                    message,
+                    itemId: taskId,
+                    timestamp: Date.now(),
+                    read: false
+                  };
+                  setNotifications(prev => {
+                    // Avoid duplicates
+                    if (prev.some(n => n.id === notification.id)) return prev;
+                    return [notification, ...prev];
+                  });
+                }
+              });
+            }
+          });
+        }
+
+        // Check for new projects created by employees
+        const transformedProjects = currentProjects.map((p: any) => ({ ...p, id: p.id || p._id }));
+        if (previousProjects.length > 0) {
+          const previousProjectIds = new Set(previousProjects.map(p => p.id || p._id));
+          const newProjects = transformedProjects.filter((p: Project) => {
+            const id = p.id || p._id;
+            return id && !previousProjectIds.has(id);
+          });
+
+          newProjects.forEach((project: Project) => {
+            // Check if project is marked as employee created or infer from assignedEmployeeId matching an employee
+            if (project.isEmployeeCreated) {
+              const message = `New project created: "${project.name}" by ${project.assignedEmployeeName || 'Employee'}`;
+              const notification: Notification = {
+                id: `project-${project.id || project._id}-${Date.now()}`,
+                type: 'project',
+                message,
+                itemId: project.id || project._id,
+                timestamp: Date.now(),
+                read: false
+              };
+              setNotifications(prev => [notification, ...prev]);
+            }
+          });
+        }
+
+        // Update previous state
+        setPreviousTasks(currentTasks);
+        setPreviousProjects(transformedProjects);
+        const newCounts: Record<string, number> = {};
+        currentTasks.forEach((t: Task) => {
+          const id = t.id || t._id;
+          if (id) newCounts[id] = t.comments?.length || 0;
+        });
+        setPreviousCommentCounts(newCounts);
+
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    };
+
+    // Initial load for tracking baseline
+    const initTracking = async () => {
+      try {
+        const initialTasks = await taskApi.getAllTasks();
+        const initialProjects = await getProjects();
+        const transformedProjects = initialProjects.map((p: any) => ({ ...p, id: p.id || p._id }));
+
+        setPreviousTasks(initialTasks);
+        setPreviousProjects(transformedProjects);
+        const initialCounts: Record<string, number> = {};
+        initialTasks.forEach((t: Task) => {
+          const id = t.id || t._id;
+          if (id) initialCounts[id] = t.comments?.length || 0;
+        });
+        setPreviousCommentCounts(initialCounts);
+      } catch (error) {
+        console.error('Error initializing tracking:', error);
+      }
+    };
+
+    // Only initialize once on mount (or if empty)
+    if (previousTasks.length === 0 && previousProjects.length === 0) {
+      initTracking();
+    }
+
+    // Poll interval
+    const interval = setInterval(checkForUpdates, 10000);
+    return () => clearInterval(interval);
+
+  }, [user, isDirector, isProjectHead, previousTasks, previousProjects, previousCommentCounts]);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -935,6 +1125,7 @@ const Dashboard: React.FC = () => {
         ...newTask,
         assignedById: user?.id || '1',
         assignedByName: user?.name || 'Admin',
+        isEmployeeCreated: isEmployee,
         extensionRequestStatus: 'Pending', // Ensure this field is set
         createdAt: new Date().toISOString()
       };
@@ -972,11 +1163,15 @@ const Dashboard: React.FC = () => {
 
     if (isEmployee) {
       // For employees, show only their assigned tasks
-      const userId = user?.id || '';
       filtered = tasks.filter(task => {
-        const taskAssignedId = task.assignedToId || '';
-        return taskAssignedId === userId ||
-          String(taskAssignedId) === String(userId);
+        const userIdStr = String(user?.id);
+        const taskAssignedId = String(task.assignedToId || '');
+        const taskCreatedById = String(task.assignedById || '');
+        const assignedEmployeeIds = (task.assignedEmployeeIds || []).map(id => String(id));
+
+        return taskAssignedId === userIdStr ||
+          taskCreatedById === userIdStr ||
+          assignedEmployeeIds.includes(userIdStr);
       });
     } else if (isProjectHead) {
       // For project heads, show all tasks (same as director) so they can see tasks they created
@@ -1275,7 +1470,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isEmployee={isEmployee} isDirector={isDirector} />
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isEmployee={isEmployee}
+        isDirector={isDirector}
+        unreadNotificationCount={unreadCount}
+      />
 
       <div style={{
         flex: 1,
@@ -2171,15 +2372,6 @@ const Dashboard: React.FC = () => {
                                 color: '#6b7280',
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.5px'
-                              }}>Status</th>
-                              <th style={{
-                                textAlign: 'left',
-                                padding: '12px 16px',
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                color: '#6b7280',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px'
                               }}>Project Name</th>
                               <th style={{
                                 textAlign: 'left',
@@ -2288,22 +2480,6 @@ const Dashboard: React.FC = () => {
                                       display: 'inline-block'
                                     }}>
                                       {task.priority || 'Less Urgent'}
-                                    </span>
-                                  </td>
-                                  {/* Status */}
-                                  <td style={{ padding: '16px' }}>
-                                    <span style={{
-                                      backgroundColor: statusColor.bg,
-                                      color: statusColor.text,
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      fontSize: '11px',
-                                      fontWeight: '600',
-                                      letterSpacing: '0.3px',
-                                      textTransform: 'uppercase',
-                                      display: 'inline-block'
-                                    }}>
-                                      {task.status || 'Pending'}
                                     </span>
                                   </td>
                                   {/* Project Name */}
@@ -3849,17 +4025,6 @@ const Dashboard: React.FC = () => {
                               letterSpacing: '-0.3px',
                               borderBottom: '2px solid #e5e7eb'
                             }}>
-                              Status
-                            </th>
-                            <th style={{
-                              padding: '16px 20px',
-                              textAlign: 'left',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              color: '#374151',
-                              letterSpacing: '-0.3px',
-                              borderBottom: '2px solid #e5e7eb'
-                            }}>
                               Project Name
                             </th>
                             <th style={{
@@ -3986,30 +4151,6 @@ const Dashboard: React.FC = () => {
                                     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
                                   }}>
                                     {task.priority || 'Less Urgent'}
-                                  </span>
-                                </td>
-                                {/* Status */}
-                                <td style={{ padding: '20px' }}>
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '8px 16px',
-                                    borderRadius: '10px',
-                                    fontSize: '12px',
-                                    fontWeight: '700',
-                                    letterSpacing: '0.3px',
-                                    textTransform: 'uppercase',
-                                    backgroundColor: task.status === 'Completed' ? '#d1fae5' :
-                                      task.status === 'In Progress' ? '#dbeafe' :
-                                        task.status === 'Pending' ? '#fef3c7' :
-                                          '#f3f4f6',
-                                    color: task.status === 'Completed' ? '#065f46' :
-                                      task.status === 'In Progress' ? '#1e3a8a' :
-                                        task.status === 'Pending' ? '#92400e' :
-                                          '#374151',
-                                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                                  }}>
-                                    {task.status || 'Pending'}
                                   </span>
                                 </td>
                                 {/* Project Name */}
@@ -6531,15 +6672,6 @@ const Dashboard: React.FC = () => {
                             color: '#6b7280',
                             textTransform: 'uppercase',
                             letterSpacing: '0.1em'
-                          }}>Status</th>
-                          <th style={{
-                            padding: '12px 20px',
-                            textAlign: 'left',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            color: '#6b7280',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.1em'
                           }}>Response Date</th>
                           <th style={{
                             padding: '12px 20px',
@@ -6669,24 +6801,6 @@ const Dashboard: React.FC = () => {
                               <td style={{
                                 padding: '20px'
                               }}>
-                                <span style={{
-                                  padding: '6px 14px',
-                                  borderRadius: '8px',
-                                  fontSize: '11px',
-                                  fontWeight: '700',
-                                  letterSpacing: '0.5px',
-                                  textTransform: 'uppercase',
-                                  backgroundColor: task.completionRequestStatus === 'Approved' ? '#d1fae5' :
-                                    task.completionRequestStatus === 'Rejected' ? '#fee2e2' :
-                                      '#fef3c7',
-                                  color: task.completionRequestStatus === 'Approved' ? '#065f46' :
-                                    task.completionRequestStatus === 'Rejected' ? '#991b1b' :
-                                      '#92400e',
-                                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',
-                                  display: 'inline-block'
-                                }}>
-                                  {task.completionRequestStatus || 'Pending'}
-                                </span>
                               </td>
                               <td style={{
                                 padding: '20px',
@@ -6987,6 +7101,148 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Notifications Tab */}
+          {activeTab === 'notifications' && (
+            <div style={{ padding: '0 24px' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '32px'
+              }}>
+                <div>
+                  <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#111827', margin: 0 }}>
+                    Notifications
+                  </h1>
+                  <p style={{ color: '#6b7280', marginTop: '8px' }}>
+                    Stay updated with latest activities.
+                  </p>
+                </div>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAllNotifications}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s ease'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#fecaca'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                  >
+                    <Trash2 size={16} />
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {notifications.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '80px 40px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '24px',
+                    border: '2px dashed #e5e7eb'
+                  }}>
+                    <div style={{
+                      width: '80px',
+                      height: '80px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 24px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
+                    }}>
+                      <CheckCircle size={40} color="#9ca3af" />
+                    </div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>All caught up!</h3>
+                    <p style={{ color: '#6b7280', maxWidth: '300px', margin: '0 auto' }}>You don't have any new notifications at the moment.</p>
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      style={{
+                        backgroundColor: notification.read ? '#ffffff' : '#eff6ff',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '20px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        border: '1px solid',
+                        borderColor: notification.read ? '#e5e7eb' : '#bfdbfe',
+                        boxShadow: notification.read ? 'none' : '0 4px 6px -1px rgba(59, 130, 246, 0.1)'
+                      }}
+                    >
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '14px',
+                        backgroundColor: notification.type === 'task' ? '#e0f2fe' : notification.type === 'project' ? '#f0fdf4' : '#f3e8ff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {notification.type === 'task' && <CheckSquare size={24} color="#0284c7" />}
+                        {notification.type === 'project' && <FolderKanban size={24} color="#16a34a" />}
+                        {notification.type === 'comment' && <MessageSquare size={24} color="#9333ea" />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            color: notification.type === 'task' ? '#0284c7' : notification.type === 'project' ? '#16a34a' : '#9333ea'
+                          }}>
+                            {notification.type}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {new Date(notification.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <p style={{
+                          fontSize: '16px',
+                          fontWeight: notification.read ? '400' : '600',
+                          color: '#1f2937',
+                          margin: 0,
+                          lineHeight: '1.5'
+                        }}>
+                          {notification.message}
+                        </p>
+                      </div>
+                      {!notification.read && (
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          backgroundColor: '#3b82f6',
+                          borderRadius: '50%',
+                          marginTop: '6px'
+                        }} />
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 

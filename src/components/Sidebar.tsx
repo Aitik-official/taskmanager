@@ -14,20 +14,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
   const { logout, user } = useAuth();
 
   // Different tabs for employees vs directors/project heads
-  const tabs = isEmployee 
+  const tabs = isEmployee
     ? [
-        { id: 'overview', label: 'Dashboard', icon: Home },
-        { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
-      ]
+      { id: 'overview', label: 'Dashboard', icon: Home },
+      { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+    ]
     : [
-        { id: 'overview', label: 'Dashboard', icon: Home },
-        { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-        { id: 'projects', label: 'Projects', icon: FolderOpen },
-        { id: 'employees', label: 'Employees', icon: Users },
-        ...(isDirector ? [{ id: 'approvals', label: 'Approvals', icon: FileCheck }] : []),
-        { id: 'profile', label: 'Profile', icon: User },
-      ];
+      { id: 'overview', label: 'Dashboard', icon: Home },
+      { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+      { id: 'projects', label: 'Projects', icon: FolderOpen },
+      { id: 'employees', label: 'Employees', icon: Users },
+      ...(isDirector ? [{ id: 'approvals', label: 'Approvals', icon: FileCheck }] : []),
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+      { id: 'profile', label: 'Profile', icon: User },
+    ];
 
   return (
     <div style={{
@@ -72,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            
+
             return (
               <button
                 key={tab.id}
@@ -178,7 +179,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isEmployee = 
             </p>
           </div>
         </div>
-        
+
         <button
           onClick={logout}
           style={{

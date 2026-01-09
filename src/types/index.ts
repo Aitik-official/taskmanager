@@ -104,6 +104,8 @@ export interface Task {
   workDone?: number; // Percentage of work done (0-100)
   flagDirectorInputRequired?: boolean; // Flag when staff needs clarification, approval, or input
   reminderDate?: string; // Date when the assigned employee should receive a reminder for this task
+  reminderDates?: string[]; // Multiple dates for reminders
+  weeklyReminders?: string[]; // Array of days for weekly reminders (e.g., ["Monday", "Friday"])
 }
 
 export interface Comment {

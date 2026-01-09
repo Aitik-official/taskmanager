@@ -8,29 +8,30 @@ export async function POST(
 ) {
   try {
     await dbConnect()
-    
-    const { content, userId, userName } = await request.json()
-    
+
+    const { content, userId, userName, role } = await request.json()
+
     const comment = {
       id: Date.now().toString(),
       taskId: params.id,
       userId,
       userName,
+      role,
       content,
       timestamp: new Date().toISOString(),
       isVisibleToEmployee: true
     }
-    
+
     const updatedTask = await Task.findByIdAndUpdate(
       params.id,
       { $push: { comments: comment } },
       { new: true }
     )
-    
+
     if (!updatedTask) {
       return NextResponse.json({ message: 'Task not found' }, { status: 404 })
     }
-    
+
     // Normalize the response
     const taskObj = updatedTask.toObject()
     const normalizedTask = {
@@ -41,7 +42,7 @@ export async function POST(
         id: comment._id || comment.id
       }))
     }
-    
+
     return NextResponse.json(normalizedTask)
   } catch (error) {
     return NextResponse.json(
