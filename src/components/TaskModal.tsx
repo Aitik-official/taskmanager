@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Task, Project, User, Employee } from '../types';
-import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell, ChevronDown, Check } from 'lucide-react';
+import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell, ChevronDown, Check, CheckSquare } from 'lucide-react';
 import { taskApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { createProject, deleteProject } from '../services/projectService';
@@ -36,6 +36,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const [formData, setFormData] = useState<Partial<Task>>({
     title: '',
     description: '',
+    descriptions: [], // Multiple descriptions array
     assignedToId: '',
     assignedEmployeeIds: [],
     assignedEmployeeNames: [],
@@ -50,7 +51,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
     flagDirectorInputRequired: false,
     reminderDate: '',
     reminderDates: [],
-    weeklyReminders: []
+    weeklyReminders: [],
+    scheduleType: 'none',
+    scheduleDate: '',
+    scheduleDayOfWeek: ''
   });
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
@@ -148,13 +152,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
         dueDate: task.dueDate ? (task.dueDate.split('T')[0] || task.dueDate) : (task.startDate ? task.startDate.split('T')[0] : ''),
         reminderDate: task.reminderDate ? (task.reminderDate.split('T')[0] || task.reminderDate) : '',
         reminderDates: task.reminderDates || [],
-        weeklyReminders: task.weeklyReminders || []
+        weeklyReminders: task.weeklyReminders || [],
+        descriptions: task.descriptions || [],
+        scheduleType: task.scheduleType || 'none',
+        scheduleDate: task.scheduleDate || '',
+        scheduleDayOfWeek: task.scheduleDayOfWeek || ''
       }));
     } else if (isEmployee && user) {
       // When creating a new task as an employee, pre-fill with employee's own ID
       setFormData({
         title: '',
         description: '',
+        descriptions: [],
         assignedToId: user.id || '',
         assignedToName: user.name || user.email || '',
         priority: 'Less Urgent',
@@ -167,7 +176,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
         flagDirectorInputRequired: false,
         reminderDate: '',
         reminderDates: [],
-        weeklyReminders: []
+        weeklyReminders: [],
+        scheduleType: 'none',
+        scheduleDate: '',
+        scheduleDayOfWeek: ''
       });
     }
   }, [task?.id || task?._id, isEmployee, user, users.length, isEditMode]);
@@ -331,6 +343,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
       ...(task?._id && { _id: task._id }),
       title: formData.title || '',
       description: formData.description || '',
+      descriptions: formData.descriptions || [],
       projectId: formData.projectId || '',
       projectName: formData.projectName || projects.find(p => p.id === formData.projectId)?.name || '',
       assignedToId: assignedToId,
@@ -360,7 +373,10 @@ const TaskModal: React.FC<TaskModalProps> = ({
       flagDirectorInputRequired: formData.flagDirectorInputRequired || false,
       reminderDate: formData.reminderDate || undefined,
       reminderDates: formData.reminderDates || [],
-      weeklyReminders: formData.weeklyReminders || []
+      weeklyReminders: formData.weeklyReminders || [],
+      scheduleType: formData.scheduleType || 'none',
+      scheduleDate: formData.scheduleDate || undefined,
+      scheduleDayOfWeek: formData.scheduleDayOfWeek || undefined
     };
 
     onSave(taskData);
@@ -370,6 +386,45 @@ const TaskModal: React.FC<TaskModalProps> = ({
       setIsEditMode(false);
     }
   };
+
+  // Helper function to parse work done update comments
+  const getWorkDoneUpdates = (): Array<{
+    percentage: number;
+    remark: string;
+    dateTime: string;
+    userName: string;
+  }> => {
+    if (!task || !task.comments) return [];
+    
+    return task.comments
+      .filter(comment => {
+        const content = comment.content || '';
+        return content.includes('Work Done Updated to') && content.includes('%');
+      })
+      .map(comment => {
+        const content = comment.content || '';
+        // Match pattern: "Work Done Updated to X%: remark" or "Work Done Updated to X%:remark"
+        const match = content.match(/Work Done Updated to\s*(\d+)%\s*:?\s*(.+)/i);
+        if (match) {
+          return {
+            percentage: parseInt(match[1]),
+            remark: match[2].trim() || 'No remark provided',
+            dateTime: comment.timestamp,
+            userName: comment.userName || 'Unknown User'
+          };
+        }
+        return null;
+      })
+      .filter((update): update is {
+        percentage: number;
+        remark: string;
+        dateTime: string;
+        userName: string;
+      } => update !== null)
+      .reverse(); // Show most recent first
+  };
+
+  const workDoneUpdates = getWorkDoneUpdates();
 
   const addComment = async () => {
     if (!newComment.trim() || !task) return;
@@ -740,16 +795,36 @@ const TaskModal: React.FC<TaskModalProps> = ({
               }}>
                 Description
               </h4>
-              <p style={{
-                color: '#374151',
-                backgroundColor: '#f9fafb',
-                padding: '16px',
-                borderRadius: '8px',
-                margin: 0,
-                lineHeight: '1.5'
-              }}>
-                {task.description}
-              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {task.description && (
+                  <p style={{
+                    color: '#374151',
+                    backgroundColor: '#f9fafb',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    margin: 0,
+                    lineHeight: '1.5',
+                    whiteSpace: 'pre-wrap'
+                  }}>
+                    {task.description}
+                  </p>
+                )}
+                {(task.descriptions || []).map((desc, index) => (
+                  desc && (
+                    <p key={index} style={{
+                      color: '#374151',
+                      backgroundColor: '#f9fafb',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      margin: 0,
+                      lineHeight: '1.5',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {desc}
+                    </p>
+                  )
+                ))}
+              </div>
             </div>
 
             {/* Comments Section */}
@@ -885,6 +960,179 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Work Done Update History Table */}
+            {task && (
+              <div style={{
+                borderTop: '1px solid #e5e7eb',
+                paddingTop: '24px',
+                marginTop: '24px'
+              }}>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <CheckSquare size={20} style={{ marginRight: '8px', color: '#059669' }} />
+                  Work Done Update History
+                </h3>
+                
+                <div style={{
+                  overflowX: 'auto',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse'
+                  }}>
+                    <thead>
+                      <tr style={{
+                        backgroundColor: '#f9fafb',
+                        borderBottom: '2px solid #e5e7eb'
+                      }}>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          borderRight: '1px solid #e5e7eb'
+                        }}>
+                          Remark
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          borderRight: '1px solid #e5e7eb',
+                          width: '150px'
+                        }}>
+                          Updated By
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          borderRight: '1px solid #e5e7eb',
+                          width: '120px'
+                        }}>
+                          Percentage
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          color: '#374151',
+                          width: '180px'
+                        }}>
+                          Date & Time
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workDoneUpdates.length > 0 ? (
+                        workDoneUpdates.map((update, index) => (
+                          <tr 
+                            key={index}
+                            style={{
+                              borderBottom: index < workDoneUpdates.length - 1 ? '1px solid #f3f4f6' : 'none',
+                              transition: 'background-color 0.2s ease'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <td style={{
+                              padding: '12px 16px',
+                              fontSize: '14px',
+                              color: '#111827',
+                              borderRight: '1px solid #e5e7eb',
+                              verticalAlign: 'top',
+                              lineHeight: '1.5'
+                            }}>
+                              {update.remark}
+                            </td>
+                            <td style={{
+                              padding: '12px 16px',
+                              fontSize: '14px',
+                              color: '#374151',
+                              borderRight: '1px solid #e5e7eb',
+                              verticalAlign: 'top',
+                              fontWeight: '500'
+                            }}>
+                              {update.userName}
+                            </td>
+                            <td style={{
+                              padding: '12px 16px',
+                              textAlign: 'center',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#4f46e5',
+                              borderRight: '1px solid #e5e7eb',
+                              verticalAlign: 'top'
+                            }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '4px 12px',
+                                borderRadius: '6px',
+                                backgroundColor: '#e0e7ff',
+                                color: '#4f46e5'
+                              }}>
+                                {update.percentage}%
+                              </span>
+                            </td>
+                            <td style={{
+                              padding: '12px 16px',
+                              textAlign: 'center',
+                              fontSize: '13px',
+                              color: '#6b7280',
+                              verticalAlign: 'top'
+                            }}>
+                              {update.dateTime ? new Date(update.dateTime).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              }) : 'N/A'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td 
+                            colSpan={4}
+                            style={{
+                              padding: '24px 16px',
+                              textAlign: 'center',
+                              fontSize: '14px',
+                              color: '#6b7280'
+                            }}
+                          >
+                            No work done updates yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Extension Request Section */}
             {task && task.status !== 'Completed' && new Date(task.dueDate) < new Date() && !task.newDeadlineProposal && isEmployee && (
@@ -2133,31 +2381,133 @@ const TaskModal: React.FC<TaskModalProps> = ({
               }}>
                 Description / Remarks *
               </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Daily comments on work done"
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* First description field */}
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Daily comments on work done"
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                />
+                {/* Additional description fields */}
+                {(formData.descriptions || []).map((desc, index) => (
+                  <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <textarea
+                      value={desc}
+                      onChange={(e) => {
+                        const updatedDescriptions = [...(formData.descriptions || [])];
+                        updatedDescriptions[index] = e.target.value;
+                        handleInputChange('descriptions', updatedDescriptions);
+                      }}
+                      placeholder={`Additional description ${index + 2}`}
+                      rows={4}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedDescriptions = [...(formData.descriptions || [])];
+                        updatedDescriptions.splice(index, 1);
+                        handleInputChange('descriptions', updatedDescriptions);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '40px',
+                        height: '40px',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fecaca';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                      }}
+                      title="Remove this description"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {/* Add description button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleInputChange('descriptions', [...(formData.descriptions || []), '']);
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: '#dbeafe',
+                    color: '#1e40af',
+                    border: '2px dashed #93c5fd',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#bfdbfe';
+                    e.currentTarget.style.borderColor = '#60a5fa';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#dbeafe';
+                    e.currentTarget.style.borderColor = '#93c5fd';
+                  }}
+                >
+                  <Plus size={18} />
+                  Add Description
+                </button>
+              </div>
             </div>
 
             <div style={{
@@ -2420,6 +2770,227 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   Receive reminders every week on the selected days
                 </p>
               </div>
+            </div>
+
+            {/* Task Scheduling Section */}
+            <div style={{
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: '24px'
+            }}>
+              <label style={{
+                display: 'block',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '8px'
+              }}>
+                Task will automatically appear on this day
+              </label>
+              <p style={{
+                fontSize: '13px',
+                color: '#6b7280',
+                marginBottom: '16px',
+                marginTop: 0
+              }}>
+                Choose when this task should automatically appear
+              </p>
+
+              {/* Schedule Type Selection */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{
+                  display: 'flex',
+                  gap: '12px',
+                  flexWrap: 'wrap'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'none' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'none' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleType"
+                      value="none"
+                      checked={formData.scheduleType === 'none'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      No Scheduling
+                    </span>
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'date' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'date' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleType"
+                      value="date"
+                      checked={formData.scheduleType === 'date'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      Specific Date
+                    </span>
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'dayOfWeek' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'dayOfWeek' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleType"
+                      value="dayOfWeek"
+                      checked={formData.scheduleType === 'dayOfWeek'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      Day of Week (Recurring)
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Specific Date Input */}
+              {formData.scheduleType === 'date' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Select Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.scheduleDate || ''}
+                    onChange={(e) => handleInputChange('scheduleDate', e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      width: '100%',
+                      maxWidth: '300px',
+                      padding: '10px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Task will automatically appear on this date
+                  </p>
+                </div>
+              )}
+
+              {/* Day of Week Selection */}
+              {formData.scheduleType === 'dayOfWeek' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '12px'
+                  }}>
+                    Select Day of Week
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                      const isSelected = formData.scheduleDayOfWeek === day;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange('scheduleDayOfWeek', isSelected ? '' : day);
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            border: '2px solid',
+                            backgroundColor: isSelected ? '#3b82f6' : '#ffffff',
+                            color: isSelected ? '#ffffff' : '#374151',
+                            borderColor: isSelected ? '#3b82f6' : '#d1d5db'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = '#93c5fd';
+                              e.currentTarget.style.backgroundColor = '#f0f9ff';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                            }
+                          }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Task will automatically appear every week on the selected day
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Comments Section */}
@@ -3915,31 +4486,133 @@ const TaskModal: React.FC<TaskModalProps> = ({
               }}>
                 Description / Remarks *
               </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Daily comments on work done"
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '8px',
-                  outline: 'none',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'vertical'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#3b82f6';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d5db';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                required
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* First description field */}
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Daily comments on work done"
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  required
+                />
+                {/* Additional description fields */}
+                {(formData.descriptions || []).map((desc, index) => (
+                  <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <textarea
+                      value={desc}
+                      onChange={(e) => {
+                        const updatedDescriptions = [...(formData.descriptions || [])];
+                        updatedDescriptions[index] = e.target.value;
+                        handleInputChange('descriptions', updatedDescriptions);
+                      }}
+                      placeholder={`Additional description ${index + 2}`}
+                      rows={4}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedDescriptions = [...(formData.descriptions || [])];
+                        updatedDescriptions.splice(index, 1);
+                        handleInputChange('descriptions', updatedDescriptions);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '40px',
+                        height: '40px',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fecaca';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                      }}
+                      title="Remove this description"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                {/* Add description button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleInputChange('descriptions', [...(formData.descriptions || []), '']);
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: '#dbeafe',
+                    color: '#1e40af',
+                    border: '2px dashed #93c5fd',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#bfdbfe';
+                    e.currentTarget.style.borderColor = '#60a5fa';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#dbeafe';
+                    e.currentTarget.style.borderColor = '#93c5fd';
+                  }}
+                >
+                  <Plus size={18} />
+                  Add Description
+                </button>
+              </div>
             </div>
 
             <div style={{
@@ -4169,6 +4842,227 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   Receive reminders every week on the selected days
                 </p>
               </div>
+            </div>
+
+            {/* Task Scheduling Section */}
+            <div style={{
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: '24px'
+            }}>
+              <label style={{
+                display: 'block',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#111827',
+                marginBottom: '8px'
+              }}>
+                Task will automatically appear on this day
+              </label>
+              <p style={{
+                fontSize: '13px',
+                color: '#6b7280',
+                marginBottom: '16px',
+                marginTop: 0
+              }}>
+                Choose when this task should automatically appear
+              </p>
+
+              {/* Schedule Type Selection */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{
+                  display: 'flex',
+                  gap: '12px',
+                  flexWrap: 'wrap'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'none' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'none' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleTypeCreate"
+                      value="none"
+                      checked={formData.scheduleType === 'none'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      No Scheduling
+                    </span>
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'date' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'date' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleTypeCreate"
+                      value="date"
+                      checked={formData.scheduleType === 'date'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      Specific Date
+                    </span>
+                  </label>
+
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '2px solid',
+                    borderColor: formData.scheduleType === 'dayOfWeek' ? '#3b82f6' : '#d1d5db',
+                    backgroundColor: formData.scheduleType === 'dayOfWeek' ? '#eff6ff' : '#ffffff',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="radio"
+                      name="scheduleTypeCreate"
+                      value="dayOfWeek"
+                      checked={formData.scheduleType === 'dayOfWeek'}
+                      onChange={(e) => handleInputChange('scheduleType', e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      Day of Week (Recurring)
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Specific Date Input */}
+              {formData.scheduleType === 'date' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
+                    Select Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.scheduleDate || ''}
+                    onChange={(e) => handleInputChange('scheduleDate', e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      width: '100%',
+                      maxWidth: '300px',
+                      padding: '10px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      outline: 'none',
+                      fontSize: '14px'
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Task will automatically appear on this date
+                  </p>
+                </div>
+              )}
+
+              {/* Day of Week Selection */}
+              {formData.scheduleType === 'dayOfWeek' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '12px'
+                  }}>
+                    Select Day of Week
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => {
+                      const isSelected = formData.scheduleDayOfWeek === day;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange('scheduleDayOfWeek', isSelected ? '' : day);
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            border: '2px solid',
+                            backgroundColor: isSelected ? '#3b82f6' : '#ffffff',
+                            color: isSelected ? '#ffffff' : '#374151',
+                            borderColor: isSelected ? '#3b82f6' : '#d1d5db'
+                          }}
+                          onMouseOver={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = '#93c5fd';
+                              e.currentTarget.style.backgroundColor = '#f0f9ff';
+                            }
+                          }}
+                          onMouseOut={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.borderColor = '#d1d5db';
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                            }
+                          }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#6b7280',
+                    marginTop: '8px',
+                    margin: 0
+                  }}>
+                    Task will automatically appear every week on the selected day
+                  </p>
+                </div>
+              )}
             </div>
 
             <div style={{

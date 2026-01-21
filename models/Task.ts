@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose'
 export interface ITask extends Document {
   title: string
   description: string
+  descriptions?: string[] // Multiple descriptions array
   projectId?: string
   projectName?: string
   assignedToId?: string
@@ -52,12 +53,16 @@ export interface ITask extends Document {
   reminderDate?: string
   reminderDates?: string[]
   weeklyReminders?: string[]
+  scheduleDate?: string // Specific date when task should automatically appear
+  scheduleDayOfWeek?: string // Day of week when task should automatically appear
+  scheduleType?: 'date' | 'dayOfWeek' | 'none' // Type of scheduling
   createdAt: Date
 }
 
 const taskSchema = new Schema<ITask>({
   title: { type: String, required: true },
   description: { type: String, required: true },
+  descriptions: [{ type: String }], // Multiple descriptions array
   projectId: { type: String },
   projectName: { type: String },
   assignedToId: { type: String, default: '' },
@@ -121,6 +126,9 @@ const taskSchema = new Schema<ITask>({
   reminderDate: { type: String },
   reminderDates: [{ type: String }],
   weeklyReminders: [{ type: String }],
+  scheduleDate: { type: String }, // Specific date when task should automatically appear
+  scheduleDayOfWeek: { type: String }, // Day of week when task should automatically appear
+  scheduleType: { type: String, enum: ['date', 'dayOfWeek', 'none'], default: 'none' }, // Type of scheduling
   createdAt: { type: Date, default: Date.now }
 })
 

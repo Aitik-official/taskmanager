@@ -65,6 +65,7 @@ export interface Task {
   _id?: string; // MongoDB ID field (Auto-generated)
   title: string;
   description: string;
+  descriptions?: string[]; // Multiple descriptions array
   projectId?: string; // Optional - not required in new spec
   projectName?: string; // Optional - not required in new spec
   assignedToId: string; // Keep for backward compatibility - will use first employee if multiple assigned
@@ -106,6 +107,9 @@ export interface Task {
   reminderDate?: string; // Date when the assigned employee should receive a reminder for this task
   reminderDates?: string[]; // Multiple dates for reminders
   weeklyReminders?: string[]; // Array of days for weekly reminders (e.g., ["Monday", "Friday"])
+  scheduleDate?: string; // Specific date when task should automatically appear
+  scheduleDayOfWeek?: string; // Day of week when task should automatically appear (e.g., "Monday", "Tuesday")
+  scheduleType?: 'date' | 'dayOfWeek' | 'none'; // Type of scheduling: specific date, recurring day, or none
 }
 
 export interface Comment {

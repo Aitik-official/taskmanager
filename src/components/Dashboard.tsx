@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Project, Task, DashboardStats, User, Employee, IndependentWork } from '../types';
+import { Project, Task, DashboardStats, User, Employee, IndependentWork, Comment } from '../types';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import StatsCards from './StatsCards';
@@ -186,7 +186,12 @@ const Dashboard: React.FC = () => {
   });
   const [independentWorkComment, setIndependentWorkComment] = useState('');
 
-
+  // Work done editing state
+  const [editingWorkDone, setEditingWorkDone] = useState<string | null>(null);
+  const [workDoneValue, setWorkDoneValue] = useState<number>(0);
+  const [showRemarkModal, setShowRemarkModal] = useState(false);
+  const [remarkText, setRemarkText] = useState('');
+  const [pendingWorkDoneUpdate, setPendingWorkDoneUpdate] = useState<{ task: Task; newValue: number } | null>(null);
 
   // Polling for updates
   useEffect(() => {
@@ -1116,6 +1121,76 @@ const Dashboard: React.FC = () => {
       console.error('Error updating task:', error);
       alert(`Error updating task: ${error?.response?.data?.message || error?.message || 'Unknown error occurred'}`);
     }
+  };
+
+  const handleWorkDoneEdit = (task: Task) => {
+    const taskId = task.id || task._id || '';
+    setEditingWorkDone(taskId);
+    setWorkDoneValue(task.workDone || 0);
+  };
+
+  const handleWorkDoneChange = (task: Task, newValue: number) => {
+    // Clamp value between 0 and 100
+    const clampedValue = Math.max(0, Math.min(100, newValue));
+    setWorkDoneValue(clampedValue);
+    
+    // Show remark modal before saving
+    setPendingWorkDoneUpdate({ task, newValue: clampedValue });
+    setShowRemarkModal(true);
+    setRemarkText('');
+  };
+
+  const handleWorkDoneSave = async () => {
+    if (!pendingWorkDoneUpdate) return;
+    
+    if (!remarkText.trim()) {
+      alert('Please add a remark before updating the work done percentage.');
+      return;
+    }
+
+    try {
+      const { task, newValue } = pendingWorkDoneUpdate;
+      const taskId = task.id || task._id;
+      if (!taskId) return;
+
+      // Create a comment for the remark
+      const remarkComment: Comment = {
+        id: `remark-${Date.now()}`,
+        taskId: taskId,
+        userId: user?.id || '',
+        userName: user?.name || 'Employee',
+        content: `Work Done Updated to ${newValue}%: ${remarkText}`,
+        timestamp: new Date().toISOString(),
+        isVisibleToEmployee: true
+      };
+
+      // Add the remark as a comment
+      const updatedComments = [...(task.comments || []), remarkComment];
+
+      const updatedTask = {
+        ...task,
+        workDone: newValue,
+        comments: updatedComments
+      };
+
+      await handleTaskUpdate(updatedTask);
+      setEditingWorkDone(null);
+      setShowRemarkModal(false);
+      setRemarkText('');
+      setPendingWorkDoneUpdate(null);
+      setWorkDoneValue(0);
+    } catch (error: any) {
+      console.error('Error updating work done:', error);
+      alert(`Error updating work done: ${error?.response?.data?.message || error?.message || 'Unknown error occurred'}`);
+    }
+  };
+
+  const handleWorkDoneCancel = () => {
+    setEditingWorkDone(null);
+    setWorkDoneValue(0);
+    setShowRemarkModal(false);
+    setRemarkText('');
+    setPendingWorkDoneUpdate(null);
   };
 
   const handleTaskCreate = async (newTask: Task) => {
@@ -2522,18 +2597,101 @@ const Dashboard: React.FC = () => {
                                   </td>
                                   {/* Work Done (%) */}
                                   <td style={{ padding: '16px' }}>
-                                    <span style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      backgroundColor: '#e0e7ff',
-                                      color: '#4f46e5'
-                                    }}>
-                                      {task.workDone || 0}%
-                                    </span>
+                                    {isEmployee && (task.assignedToId === user?.id || task.assignedEmployeeIds?.includes(user?.id || '')) && editingWorkDone === (task.id || task._id) ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={workDoneValue}
+                                          onChange={(e) => {
+                                            const value = parseInt(e.target.value) || 0;
+                                            setWorkDoneValue(value);
+                                          }}
+                                          onBlur={() => {
+                                            if (workDoneValue !== (task.workDone || 0)) {
+                                              handleWorkDoneChange(task, workDoneValue);
+                                            } else {
+                                              handleWorkDoneCancel();
+                                            }
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              if (workDoneValue !== (task.workDone || 0)) {
+                                                handleWorkDoneChange(task, workDoneValue);
+                                              } else {
+                                                handleWorkDoneCancel();
+                                              }
+                                            } else if (e.key === 'Escape') {
+                                              handleWorkDoneCancel();
+                                            }
+                                          }}
+                                          autoFocus
+                                          style={{
+                                            width: '80px',
+                                            padding: '6px 12px',
+                                            border: '2px solid #4f46e5',
+                                            borderRadius: '8px',
+                                            fontSize: '12px',
+                                            fontWeight: '600',
+                                            backgroundColor: '#ffffff',
+                                            color: '#4f46e5',
+                                            outline: 'none'
+                                          }}
+                                        />
+                                        <span style={{ fontSize: '12px', fontWeight: '600', color: '#4f46e5' }}>%</span>
+                                        <button
+                                          onClick={() => handleWorkDoneCancel()}
+                                          style={{
+                                            padding: '4px 8px',
+                                            backgroundColor: '#fee2e2',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: '#dc2626',
+                                            fontSize: '11px',
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          fontSize: '12px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#e0e7ff',
+                                          color: '#4f46e5'
+                                        }}>
+                                          {task.workDone || 0}%
+                                        </span>
+                                        {isEmployee && (task.assignedToId === user?.id || task.assignedEmployeeIds?.includes(user?.id || '')) && (
+                                          <button
+                                            onClick={() => handleWorkDoneEdit(task)}
+                                            style={{
+                                              padding: '4px 8px',
+                                              backgroundColor: '#dbeafe',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              color: '#1e40af',
+                                              fontSize: '10px',
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '4px'
+                                            }}
+                                            title="Edit work done percentage"
+                                          >
+                                            <Edit size={11} />
+                                            Edit
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                   </td>
                                   {/* Flag (Director Input Required) */}
                                   <td style={{ padding: '16px' }}>
@@ -4193,18 +4351,101 @@ const Dashboard: React.FC = () => {
                                 </td>
                                 {/* Work Done (%) */}
                                 <td style={{ padding: '20px' }}>
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    fontSize: '13px',
-                                    fontWeight: '600',
-                                    backgroundColor: '#e0e7ff',
-                                    color: '#4f46e5'
-                                  }}>
-                                    {task.workDone || 0}%
-                                  </span>
+                                  {isEmployee && (task.assignedToId === user?.id || task.assignedEmployeeIds?.includes(user?.id || '')) && editingWorkDone === (task.id || task._id) ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={workDoneValue}
+                                        onChange={(e) => {
+                                          const value = parseInt(e.target.value) || 0;
+                                          setWorkDoneValue(value);
+                                        }}
+                                        onBlur={() => {
+                                          if (workDoneValue !== (task.workDone || 0)) {
+                                            handleWorkDoneChange(task, workDoneValue);
+                                          } else {
+                                            handleWorkDoneCancel();
+                                          }
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            if (workDoneValue !== (task.workDone || 0)) {
+                                              handleWorkDoneChange(task, workDoneValue);
+                                            } else {
+                                              handleWorkDoneCancel();
+                                            }
+                                          } else if (e.key === 'Escape') {
+                                            handleWorkDoneCancel();
+                                          }
+                                        }}
+                                        autoFocus
+                                        style={{
+                                          width: '80px',
+                                          padding: '6px 12px',
+                                          border: '2px solid #4f46e5',
+                                          borderRadius: '8px',
+                                          fontSize: '13px',
+                                          fontWeight: '600',
+                                          backgroundColor: '#ffffff',
+                                          color: '#4f46e5',
+                                          outline: 'none'
+                                        }}
+                                      />
+                                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#4f46e5' }}>%</span>
+                                      <button
+                                        onClick={() => handleWorkDoneCancel()}
+                                        style={{
+                                          padding: '4px 8px',
+                                          backgroundColor: '#fee2e2',
+                                          border: 'none',
+                                          borderRadius: '6px',
+                                          color: '#dc2626',
+                                          fontSize: '12px',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        backgroundColor: '#e0e7ff',
+                                        color: '#4f46e5'
+                                      }}>
+                                        {task.workDone || 0}%
+                                      </span>
+                                      {isEmployee && (task.assignedToId === user?.id || task.assignedEmployeeIds?.includes(user?.id || '')) && (
+                                        <button
+                                          onClick={() => handleWorkDoneEdit(task)}
+                                          style={{
+                                            padding: '4px 8px',
+                                            backgroundColor: '#dbeafe',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            color: '#1e40af',
+                                            fontSize: '11px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                          }}
+                                          title="Edit work done percentage"
+                                        >
+                                          <Edit size={12} />
+                                          Edit
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
                                 </td>
                                 {/* Flag (Director Input Required) */}
                                 <td style={{ padding: '20px' }}>
@@ -7317,6 +7558,195 @@ const Dashboard: React.FC = () => {
           }}
           users={employees}
         />
+      )}
+
+      {/* Remark Modal for Work Done Update */}
+      {showRemarkModal && pendingWorkDoneUpdate && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleWorkDoneCancel();
+          }
+        }}
+        >
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            padding: '32px',
+            maxWidth: '500px',
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '24px'
+            }}>
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: '700',
+                color: '#111827',
+                margin: 0
+              }}>
+                Update Work Done Percentage
+              </h2>
+              <button
+                onClick={handleWorkDoneCancel}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <X size={24} color="#6b7280" />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{
+                fontSize: '14px',
+                color: '#6b7280',
+                marginBottom: '12px'
+              }}>
+                Task: <span style={{ fontWeight: '600', color: '#111827' }}>{pendingWorkDoneUpdate.task.title}</span>
+              </p>
+              <p style={{
+                fontSize: '14px',
+                color: '#6b7280',
+                marginBottom: '12px'
+              }}>
+                Current: <span style={{ fontWeight: '600', color: '#4f46e5' }}>{pendingWorkDoneUpdate.task.workDone || 0}%</span>
+                {' → '}
+                New: <span style={{ fontWeight: '600', color: '#059669' }}>{pendingWorkDoneUpdate.newValue}%</span>
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                Remark <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <textarea
+                value={remarkText}
+                onChange={(e) => setRemarkText(e.target.value)}
+                placeholder="Please add a remark explaining the work done update..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  outline: 'none',
+                  transition: 'border-color 0.2s ease'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#4f46e5';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                }}
+                autoFocus
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#6b7280',
+                marginTop: '6px',
+                marginBottom: 0
+              }}>
+                This remark will be saved as a comment on the task.
+              </p>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={handleWorkDoneCancel}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#374151',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e5e7eb';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWorkDoneSave}
+                disabled={!remarkText.trim()}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: remarkText.trim() ? '#4f46e5' : '#9ca3af',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: remarkText.trim() ? 'pointer' : 'not-allowed',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  if (remarkText.trim()) {
+                    e.currentTarget.style.backgroundColor = '#4338ca';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = remarkText.trim() ? '#4f46e5' : '#9ca3af';
+                }}
+              >
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
