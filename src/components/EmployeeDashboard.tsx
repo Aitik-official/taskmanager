@@ -2277,11 +2277,13 @@ const EmployeeDashboard: React.FC = () => {
                                         <select
                                           value={workDoneValue}
                                           onChange={(e) => {
-                                            setWorkDoneValue(Number(e.target.value));
-                                            handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
-                                          }}
-                                          onBlur={() => {
-                                            handleWorkDoneSave(task);
+                                            const newValue = Number(e.target.value);
+                                            setWorkDoneValue(newValue);
+                                            if (newValue !== (task.workDone || 0)) {
+                                              handleWorkDoneChange(task, newValue);
+                                            } else {
+                                              handleWorkDoneCancel();
+                                            }
                                           }}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Escape') {
@@ -2814,11 +2816,13 @@ const EmployeeDashboard: React.FC = () => {
                                       <select
                                         value={workDoneValue}
                                         onChange={(e) => {
-                                          setWorkDoneValue(Number(e.target.value));
-                                          handleWorkDoneSave({ ...task, workDone: Number(e.target.value) });
-                                        }}
-                                        onBlur={() => {
-                                          handleWorkDoneSave(task);
+                                          const newValue = Number(e.target.value);
+                                          setWorkDoneValue(newValue);
+                                          if (newValue !== (task.workDone || 0)) {
+                                            handleWorkDoneChange(task, newValue);
+                                          } else {
+                                            handleWorkDoneCancel();
+                                          }
                                         }}
                                         onKeyDown={(e) => {
                                           if (e.key === 'Escape') {
