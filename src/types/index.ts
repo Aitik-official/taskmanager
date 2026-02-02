@@ -110,6 +110,8 @@ export interface Task {
   scheduleDate?: string; // Specific date when task should automatically appear
   scheduleDayOfWeek?: string; // Day of week when task should automatically appear (e.g., "Monday", "Tuesday")
   scheduleType?: 'date' | 'dayOfWeek' | 'none'; // Type of scheduling: specific date, recurring day, or none
+  redFlagReason?: string; // Reason why the employee raised a red flag
+  redFlagDate?: string; // Date when the red flag was raised
 }
 
 export interface Comment {

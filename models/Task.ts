@@ -56,6 +56,8 @@ export interface ITask extends Document {
   scheduleDate?: string // Specific date when task should automatically appear
   scheduleDayOfWeek?: string // Day of week when task should automatically appear
   scheduleType?: 'date' | 'dayOfWeek' | 'none' // Type of scheduling
+  redFlagReason?: string
+  redFlagDate?: string
   createdAt: Date
 }
 
@@ -127,8 +129,10 @@ const taskSchema = new Schema<ITask>({
   reminderDates: [{ type: String }],
   weeklyReminders: [{ type: String }],
   scheduleDate: { type: String }, // Specific date when task should automatically appear
-  scheduleDayOfWeek: { type: String }, // Day of week when task should automatically appear
+  scheduleDayOfWeek: { type: String }, // Day of week when task should automatically appear (e.g., "Monday", "Tuesday")
   scheduleType: { type: String, enum: ['date', 'dayOfWeek', 'none'], default: 'none' }, // Type of scheduling
+  redFlagReason: { type: String },
+  redFlagDate: { type: String },
   createdAt: { type: Date, default: Date.now }
 })
 

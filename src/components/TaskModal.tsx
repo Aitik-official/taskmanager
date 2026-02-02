@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Task, Project, User, Employee } from '../types';
-import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell, ChevronDown, Check, CheckSquare } from 'lucide-react';
+import { X, Save, MessageSquare, AlertTriangle, Plus, Trash2, Bell, ChevronDown, Check, CheckSquare, Calendar } from 'lucide-react';
 import { taskApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { createProject, deleteProject } from '../services/projectService';
@@ -54,10 +54,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
     weeklyReminders: [],
     scheduleType: 'none',
     scheduleDate: '',
-    scheduleDayOfWeek: ''
+    scheduleDayOfWeek: '',
+    redFlagReason: '',
+    redFlagDate: ''
   });
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [taskTitleMode, setTaskTitleMode] = useState<'select' | 'manual'>('manual'); // For employee dashboard: select from existing tasks or manual input
+  const [localWorkDone, setLocalWorkDone] = useState(task?.workDone || 0);
+  const [progressRemark, setProgressRemark] = useState('');
+  const [showRedFlagInput, setShowRedFlagInput] = useState(false);
+  const [redFlagRemark, setRedFlagRemark] = useState('');
+  const [redFlagReply, setRedFlagReply] = useState('');
 
   const [newComment, setNewComment] = useState('');
   const [showExtensionForm, setShowExtensionForm] = useState(false);
@@ -156,8 +163,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
         descriptions: task.descriptions || [],
         scheduleType: task.scheduleType || 'none',
         scheduleDate: task.scheduleDate || '',
-        scheduleDayOfWeek: task.scheduleDayOfWeek || ''
+        scheduleDayOfWeek: task.scheduleDayOfWeek || '',
+        redFlagReason: task.redFlagReason || '',
+        redFlagDate: task.redFlagDate || ''
       }));
+      setLocalWorkDone(task.workDone || 0);
     } else if (isEmployee && user) {
       // When creating a new task as an employee, pre-fill with employee's own ID
       setFormData({
@@ -376,7 +386,9 @@ const TaskModal: React.FC<TaskModalProps> = ({
       weeklyReminders: formData.weeklyReminders || [],
       scheduleType: formData.scheduleType || 'none',
       scheduleDate: formData.scheduleDate || undefined,
-      scheduleDayOfWeek: formData.scheduleDayOfWeek || undefined
+      scheduleDayOfWeek: formData.scheduleDayOfWeek || undefined,
+      redFlagReason: formData.redFlagReason || undefined,
+      redFlagDate: formData.redFlagDate || undefined
     };
 
     onSave(taskData);
@@ -395,7 +407,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
     userName: string;
   }> => {
     if (!task || !task.comments) return [];
-    
+
     return task.comments
       .filter(comment => {
         const content = comment.content || '';
@@ -454,9 +466,15 @@ const TaskModal: React.FC<TaskModalProps> = ({
       console.log('Updated task comments:', updatedTask.comments);
 
       // Update the local task state to show the comment immediately
+      // AND resolve red flag if the commentator is a Director/PH
       const updatedLocalTask = {
         ...task,
-        comments: updatedTask.comments
+        comments: updatedTask.comments,
+        ...((isDirector || isProjectHead) && task.flagDirectorInputRequired ? {
+          flagDirectorInputRequired: false,
+          redFlagReason: undefined,
+          redFlagDate: undefined
+        } : {})
       };
 
       console.log('Calling onSave with updated task:', updatedLocalTask);
@@ -481,7 +499,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
       const updatedTask = {
         ...task,
-        comments: [...(task.comments || []), comment]
+        comments: [...(task.comments || []), comment],
+        ...((isDirector || isProjectHead) && task.flagDirectorInputRequired ? {
+          flagDirectorInputRequired: false,
+          redFlagReason: undefined,
+          redFlagDate: undefined
+        } : {})
       };
       onSave(updatedTask);
       setNewComment('');
@@ -502,6 +525,105 @@ const TaskModal: React.FC<TaskModalProps> = ({
     onSave(updatedTask);
     setShowExtensionForm(false);
     setExtensionData({ newDeadline: '', reason: '', responseComment: '' });
+  };
+
+  const handleInternalProgressUpdate = () => {
+    if (!task) return;
+
+    if (!progressRemark.trim()) {
+      alert('Please add a remark before updating the progress.');
+      return;
+    }
+
+    const taskId = task.id || task._id;
+    if (!taskId) return;
+
+    const remarkComment = {
+      id: `remark-${Date.now()}`,
+      taskId: taskId,
+      userId: user?.id || '',
+      userName: user?.name || 'Employee',
+      content: `Work Done Updated to ${localWorkDone}%: ${progressRemark}`,
+      timestamp: new Date().toISOString(),
+      isVisibleToEmployee: true
+    };
+
+    const updatedTask: Task = {
+      ...task,
+      workDone: localWorkDone,
+      comments: [...(task.comments || []), remarkComment],
+      ...((isDirector || isProjectHead) && task.flagDirectorInputRequired ? {
+        flagDirectorInputRequired: false,
+        redFlagReason: undefined,
+        redFlagDate: undefined
+      } : {})
+    };
+
+    onSave(updatedTask);
+    setProgressRemark('');
+  };
+
+  const handleRedFlagSubmit = () => {
+    if (!task || !redFlagRemark.trim()) {
+      alert('Please add a reason for the Red Flag.');
+      return;
+    }
+
+    const taskId = task.id || task._id;
+    if (!taskId) return;
+
+    const redFlagComment = {
+      id: `redflag-${Date.now()}`,
+      taskId: taskId,
+      userId: user?.id || '',
+      userName: user?.name || 'Employee',
+      content: `🚩 RED FLAG RAISED: ${redFlagRemark}`,
+      timestamp: new Date().toISOString(),
+      isVisibleToEmployee: true
+    };
+
+    const updatedTask: Task = {
+      ...task,
+      flagDirectorInputRequired: true,
+      redFlagReason: redFlagRemark,
+      redFlagDate: new Date().toISOString(),
+      comments: [...(task.comments || []), redFlagComment]
+    };
+
+    onSave(updatedTask);
+    setRedFlagRemark('');
+    setShowRedFlagInput(false);
+  };
+
+  const handleRedFlagResolution = () => {
+    if (!task || !redFlagReply.trim()) {
+      alert('Please add a reply to resolve the Red Flag.');
+      return;
+    }
+
+    const taskId = task.id || task._id;
+    if (!taskId) return;
+
+    const resolutionComment = {
+      id: `resolve-${Date.now()}`,
+      taskId: taskId,
+      userId: user?.id || '',
+      userName: user?.name || 'Director',
+      content: `✅ RED FLAG RESOLVED: ${redFlagReply}`,
+      timestamp: new Date().toISOString(),
+      isVisibleToEmployee: true
+    };
+
+    const updatedTask: Task = {
+      ...task,
+      flagDirectorInputRequired: false,
+      redFlagReason: undefined,
+      redFlagDate: undefined,
+      comments: [...(task.comments || []), resolutionComment]
+    };
+
+    onSave(updatedTask);
+    setRedFlagReply('');
   };
 
   const handleExtensionResponse = async (status: 'Approved' | 'Rejected') => {
@@ -755,6 +877,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         : 'No start date'}
                     </span>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#6b7280' }}>Work Done:</span>
+                    <span style={{ fontWeight: '500', color: '#059669' }}>
+                      {task.workDone || 0}%
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -826,6 +954,131 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Red Flag Info Section for Directors/PH */}
+            {(isDirector || isProjectHead) && task.flagDirectorInputRequired && (
+              <div style={{
+                backgroundColor: '#fef2f2',
+                borderRadius: '12px',
+                padding: '24px',
+                border: '2px solid #ef4444',
+                marginTop: '16px',
+                marginBottom: '16px',
+                boxShadow: '0 4px 6px -1px rgba(220, 38, 38, 0.1)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    backgroundColor: '#fee2e2',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <AlertTriangle size={24} color="#dc2626" />
+                  </div>
+                  <div>
+                    <h4 style={{ fontWeight: '800', color: '#991b1b', margin: 0, fontSize: '18px' }}>
+                      Red Flag Resolution Required
+                    </h4>
+                    <p style={{ fontSize: '13px', color: '#b91c1c', margin: '2px 0 0 0', fontWeight: '500' }}>
+                      The employee has raised a red flag on this task.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1px solid #fecaca',
+                  marginBottom: '16px',
+                  boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)'
+                }}>
+                  <p style={{ fontSize: '14px', color: '#dc2626', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={16} />
+                    Employee's Red Flag Remark:
+                  </p>
+                  <p style={{
+                    fontSize: '15px',
+                    color: '#7f1d1d',
+                    margin: 0,
+                    lineHeight: '1.6',
+                    fontWeight: '500',
+                    backgroundColor: '#fff5f5',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    borderLeft: '4px solid #dc2626'
+                  }}>
+                    {task.redFlagReason || (() => {
+                      const redFlagComment = [...(task.comments || [])].reverse().find(c => c.content.includes('🚩 RED FLAG RAISED:'));
+                      return redFlagComment ? redFlagComment.content.replace('🚩 RED FLAG RAISED:', '').trim() : 'No reason provided.';
+                    })()}
+                  </p>
+                  {task.redFlagDate && (
+                    <p style={{ fontSize: '12px', color: '#991b1b', marginTop: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={12} />
+                      Raised on: {new Date(task.redFlagDate).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  padding: '16px',
+                  borderRadius: '10px',
+                  border: '1px solid #fecaca',
+                  marginTop: '16px'
+                }}>
+                  <p style={{ fontSize: '14px', color: '#111827', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <MessageSquare size={16} color="#dc2626" />
+                    Quick Resolution Reply
+                  </p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <textarea
+                      value={redFlagReply}
+                      onChange={(e) => setRedFlagReply(e.target.value)}
+                      placeholder="Write your resolution message here..."
+                      rows={2}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '2px solid #fee2e2',
+                        fontSize: '14px',
+                        outline: 'none',
+                        resize: 'none',
+                        lineHeight: '1.4'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRedFlagResolution}
+                      disabled={!redFlagReply.trim()}
+                      style={{
+                        padding: '0 24px',
+                        backgroundColor: redFlagReply.trim() ? '#dc2626' : '#f87171',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        cursor: redFlagReply.trim() ? 'pointer' : 'not-allowed',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap',
+                        boxShadow: redFlagReply.trim() ? '0 4px 6px -1px rgba(220, 38, 38, 0.2)' : 'none'
+                      }}
+                    >
+                      Resolve & Reply
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#991b1b', marginTop: '10px', fontStyle: 'italic' }}>
+                    Note: Submitting this reply will automatically clear the red flag status.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Comments Section */}
             <div>
@@ -961,6 +1214,266 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </div>
             </div>
 
+            {/* Quick Progress Update Section for Employees */}
+            {isEmployee && task.status !== 'Completed' && (
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                borderRadius: '12px',
+                padding: '20px',
+                border: '1px solid #bae6fd',
+                marginTop: '8px'
+              }}>
+                <h4 style={{
+                  fontWeight: '700',
+                  color: '#0369a1',
+                  marginBottom: '16px',
+                  fontSize: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    backgroundColor: '#e0f2fe',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <CheckSquare size={20} color="#0284c7" />
+                  </div>
+                  Update Your Progress
+                </h4>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '200px 1fr',
+                  gap: '16px',
+                  alignItems: 'start'
+                }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#0c4a6e',
+                      marginBottom: '8px'
+                    }}>
+                      Select Work Done (%)
+                    </label>
+                    <select
+                      value={localWorkDone}
+                      onChange={(e) => setLocalWorkDone(parseInt(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '2px solid #e0f2fe',
+                        backgroundColor: '#ffffff',
+                        fontSize: '14px',
+                        outline: 'none',
+                        color: '#0c4a6e',
+                        fontWeight: '600'
+                      }}
+                    >
+                      {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(val => (
+                        <option key={val} value={val}>{val}%</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#0c4a6e',
+                      marginBottom: '8px'
+                    }}>
+                      What have you done? (Remark)
+                    </label>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <textarea
+                        value={progressRemark}
+                        onChange={(e) => setProgressRemark(e.target.value)}
+                        placeholder="Describe your progress briefly..."
+                        rows={1}
+                        style={{
+                          flex: 1,
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '2px solid #e0f2fe',
+                          fontSize: '14px',
+                          outline: 'none',
+                          resize: 'none',
+                          lineHeight: '1.4'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleInternalProgressUpdate}
+                        disabled={!progressRemark.trim()}
+                        style={{
+                          padding: '0 24px',
+                          backgroundColor: progressRemark.trim() ? '#0284c7' : '#94a3b8',
+                          color: '#ffffff',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontWeight: '700',
+                          fontSize: '14px',
+                          cursor: progressRemark.trim() ? 'pointer' : 'not-allowed',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        onMouseOver={(e) => {
+                          if (progressRemark.trim()) e.currentTarget.style.backgroundColor = '#0369a1';
+                        }}
+                        onMouseOut={(e) => {
+                          if (progressRemark.trim()) e.currentTarget.style.backgroundColor = '#0284c7';
+                        }}
+                      >
+                        Update Progress
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Red Flag Section for Employees */}
+            {isEmployee && task.status !== 'Completed' && (
+              <div style={{
+                backgroundColor: showRedFlagInput ? '#fff1f2' : '#fef2f2',
+                borderRadius: '12px',
+                padding: '20px',
+                border: '1px solid #fecaca',
+                marginTop: '8px',
+                transition: 'all 0.3s ease'
+              }}>
+                {!showRedFlagInput ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        backgroundColor: '#fee2e2',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <AlertTriangle size={20} color="#dc2626" />
+                      </div>
+                      <div>
+                        <h4 style={{ fontWeight: '700', color: '#991b1b', margin: 0, fontSize: '16px' }}>
+                          Need Help? Raised a Red Flag
+                        </h4>
+                        <p style={{ fontSize: '13px', color: '#b91c1c', margin: '4px 0 0 0' }}>
+                          Flag this task if you're blocked or need director assistance.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowRedFlagInput(true)}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#dc2626',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#b91c1b';
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#dc2626';
+                        e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      <AlertTriangle size={18} />
+                      Raise Red Flag
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h4 style={{ fontWeight: '700', color: '#991b1b', margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        🚩 Describe the Issue
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowRedFlagInput(false);
+                          setRedFlagRemark('');
+                        }}
+                        style={{
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          color: '#991b1b',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <textarea
+                      value={redFlagRemark}
+                      onChange={(e) => setRedFlagRemark(e.target.value)}
+                      placeholder="Explain why you are flagging this task..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '2px solid #fecaca',
+                        fontSize: '14px',
+                        outline: 'none',
+                        resize: 'none',
+                        backgroundColor: '#ffffff'
+                      }}
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={handleRedFlagSubmit}
+                        disabled={!redFlagRemark.trim()}
+                        style={{
+                          padding: '10px 24px',
+                          backgroundColor: redFlagRemark.trim() ? '#dc2626' : '#f87171',
+                          color: '#ffffff',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontWeight: '700',
+                          fontSize: '14px',
+                          cursor: redFlagRemark.trim() ? 'pointer' : 'not-allowed',
+                          boxShadow: '0 4px 6px -1px rgba(220, 38, 38, 0.2)'
+                        }}
+                      >
+                        Submit Red Flag
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Work Done Update History Table */}
             {task && (
               <div style={{
@@ -979,7 +1492,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                   <CheckSquare size={20} style={{ marginRight: '8px', color: '#059669' }} />
                   Work Done Update History
                 </h3>
-                
+
                 <div style={{
                   overflowX: 'auto',
                   borderRadius: '8px',
@@ -1042,7 +1555,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                     <tbody>
                       {workDoneUpdates.length > 0 ? (
                         workDoneUpdates.map((update, index) => (
-                          <tr 
+                          <tr
                             key={index}
                             style={{
                               borderBottom: index < workDoneUpdates.length - 1 ? '1px solid #f3f4f6' : 'none',
@@ -1115,7 +1628,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                         ))
                       ) : (
                         <tr>
-                          <td 
+                          <td
                             colSpan={4}
                             style={{
                               padding: '24px 16px',

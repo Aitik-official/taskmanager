@@ -1,6 +1,6 @@
 import React from 'react';
 import { Task } from '../types';
-import { Calendar, Clock, User, Flag, MessageSquare, FolderOpen, Bell } from 'lucide-react';
+import { Calendar, Clock, User, Flag, MessageSquare, FolderOpen, Bell, AlertTriangle } from 'lucide-react';
 
 interface TaskListProps {
   tasks: Task[];
@@ -63,12 +63,49 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskClick, showActions = t
         <div
           key={task.id}
           onClick={() => onTaskClick(task)}
-          className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+          style={{
+            backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#ffffff',
+            border: task.flagDirectorInputRequired ? '2px solid #ef4444' : '1px solid #e5e7eb',
+            borderLeft: task.flagDirectorInputRequired ? '6px solid #b91c1c' : '1px solid #e5e7eb',
+            borderRadius: '12px',
+            padding: '16px',
+            marginBottom: '12px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: task.flagDirectorInputRequired ? '0 4px 6px -1px rgba(220, 38, 38, 0.1)' : 'none'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+            if (task.flagDirectorInputRequired) {
+              e.currentTarget.style.backgroundColor = '#fecaca';
+            } else {
+              e.currentTarget.style.backgroundColor = '#f9fafb';
+            }
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px -1px rgba(220, 38, 38, 0.1)' : 'none';
+            if (task.flagDirectorInputRequired) {
+              e.currentTarget.style.backgroundColor = '#fee2e2';
+            } else {
+              e.currentTarget.style.backgroundColor = '#ffffff';
+            }
+          }}
         >
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2 mb-2">
-                <h4 className="text-sm font-medium text-gray-900 truncate">
+                <h4 style={{
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  color: task.flagDirectorInputRequired ? '#991b1b' : '#111827',
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  {task.flagDirectorInputRequired && <AlertTriangle size={16} color="#dc2626" />}
                   {task.title}
                 </h4>
                 {task.isLocked && (

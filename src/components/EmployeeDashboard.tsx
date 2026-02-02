@@ -1063,7 +1063,7 @@ const EmployeeDashboard: React.FC = () => {
   const handleWorkDoneChange = (task: Task, newValue: number) => {
     // Clamp value between 0 and 100
     const clampedValue = Math.max(0, Math.min(100, newValue));
-    
+
     // Show remark modal before saving
     setPendingWorkDoneUpdate({ task, newValue: clampedValue });
     setShowRemarkModal(true);
@@ -1072,7 +1072,7 @@ const EmployeeDashboard: React.FC = () => {
 
   const handleWorkDoneSave = async () => {
     if (!pendingWorkDoneUpdate) return;
-    
+
     if (!remarkText.trim()) {
       alert('Please add a remark before updating the work done percentage.');
       return;
@@ -3531,98 +3531,23 @@ const EmployeeDashboard: React.FC = () => {
                       borderSpacing: 0
                     }}>
                       <thead style={{
-                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                        borderBottom: '2px solid #e5e7eb'
+                        background: '#3b82f6',
+                        borderBottom: '2px solid #2563eb'
                       }}>
                         <tr>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Priority
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Project Name
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Task Title
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Description / Remarks
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Work Done (%)
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Flag (Director Input Required)
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Date
-                          </th>
-                          <th style={{
-                            padding: '16px 20px',
-                            textAlign: 'left',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: '#374151',
-                            letterSpacing: '-0.3px',
-                            borderBottom: '2px solid #e5e7eb'
-                          }}>
-                            Actions
-                          </th>
+                          {['Project Name', 'Task Name', 'Description', 'comments', 'Submit'].map((header) => (
+                            <th key={header} style={{
+                              padding: '16px 20px',
+                              textAlign: 'left',
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              color: 'white',
+                              letterSpacing: '-0.3px',
+                              textTransform: header === 'comments' ? 'none' : 'capitalize'
+                            }}>
+                              {header}
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -3641,7 +3566,8 @@ const EmployeeDashboard: React.FC = () => {
                               style={{
                                 borderBottom: index < filteredTasks.length - 1 ? '1px solid #f3f4f6' : 'none',
                                 transition: 'all 0.2s ease',
-                                backgroundColor: task.flagDirectorInputRequired ? '#fef2f2' : 'transparent',
+                                backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : 'transparent',
+                                borderLeft: task.flagDirectorInputRequired ? '4px solid #dc2626' : '4px solid transparent',
                                 cursor: 'pointer'
                               }}
                               onMouseOver={(e) => {
@@ -3653,409 +3579,115 @@ const EmployeeDashboard: React.FC = () => {
                                 e.currentTarget.style.transform = 'scale(1)';
                               }}
                             >
-                              {/* Priority */}
-                              <td style={{
-                                padding: '20px',
-                                borderTopLeftRadius: index === 0 ? '12px' : '0',
-                                borderBottomLeftRadius: index === filteredTasks.length - 1 ? '12px' : '0'
-                              }}>
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  padding: '8px 16px',
-                                  borderRadius: '10px',
-                                  fontSize: '12px',
-                                  fontWeight: '700',
-                                  letterSpacing: '0.3px',
-                                  textTransform: 'uppercase',
-                                  backgroundColor: priorityColor.bg,
-                                  color: priorityColor.text,
-                                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-                                }}>
-                                  {task.priority || 'Less Urgent'}
-                                </span>
-                              </td>
                               {/* Project Name */}
-                              <td style={{ padding: '20px' }}>
+                              <td style={{ padding: '20px', verticalAlign: 'top' }}>
                                 <span style={{
                                   fontSize: '14px',
                                   color: '#111827',
-                                  fontWeight: '500'
+                                  fontWeight: '600'
                                 }}>
                                   {task.projectName || 'N/A'}
                                 </span>
                               </td>
-                              {/* Task Title */}
-                              <td style={{ padding: '20px' }}>
-                                <p style={{
-                                  fontSize: '15px',
-                                  fontWeight: '700',
-                                  color: '#111827',
-                                  margin: 0,
-                                  letterSpacing: '-0.3px'
-                                }}>
-                                  {task.title}
-                                </p>
+                              {/* Task Name */}
+                              <td style={{ padding: '20px', verticalAlign: 'top' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {task.flagDirectorInputRequired && (
+                                    <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0 }} />
+                                  )}
+                                  <p style={{
+                                    fontSize: '15px',
+                                    fontWeight: '700',
+                                    color: task.flagDirectorInputRequired ? '#991b1b' : '#111827',
+                                    margin: 0,
+                                    letterSpacing: '-0.3px'
+                                  }}>
+                                    {task.title}
+                                  </p>
+                                </div>
                               </td>
-                              {/* Description / Remarks */}
-                              <td style={{ padding: '20px' }}>
+                              {/* Description */}
+                              <td style={{ padding: '20px', verticalAlign: 'top' }}>
                                 <p style={{
                                   fontSize: '13px',
-                                  color: '#6b7280',
+                                  color: '#374151',
                                   margin: 0,
                                   lineHeight: '1.5',
-                                  maxWidth: '300px',
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden'
+                                  maxWidth: '400px',
+                                  whiteSpace: 'pre-wrap'
                                 }}>
                                   {task.description || 'No description'}
                                 </p>
                               </td>
-                              {/* Work Done (%) */}
-                              <td style={{ padding: '20px' }}>
-                                {editingWorkDone === (task.id || task._id) ? (
-                                  <select
-                                    value={workDoneValue}
-                                    onChange={(e) => {
-                                      const newValue = Number(e.target.value);
-                                      setWorkDoneValue(newValue);
-                                      if (newValue !== (task.workDone || 0)) {
-                                        handleWorkDoneChange(task, newValue);
-                                      } else {
-                                        handleWorkDoneCancel();
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Escape') {
-                                        handleWorkDoneCancel();
-                                      }
-                                    }}
-                                    autoFocus
-                                    style={{
-                                      padding: '6px 12px',
-                                      border: '2px solid #3b82f6',
-                                      borderRadius: '8px',
-                                      fontSize: '13px',
-                                      fontWeight: '600',
-                                      backgroundColor: '#ffffff',
-                                      color: '#4f46e5',
-                                      outline: 'none',
-                                      cursor: 'pointer',
-                                      minWidth: '100px'
-                                    }}
-                                  >
-                                    {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(percent => (
-                                      <option key={percent} value={percent}>
-                                        {percent}%
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <span
-                                    onClick={() => handleWorkDoneEdit(task)}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      padding: '6px 12px',
-                                      borderRadius: '8px',
-                                      fontSize: '13px',
-                                      fontWeight: '600',
-                                      backgroundColor: '#e0e7ff',
-                                      color: '#4f46e5',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#c7d2fe';
-                                      e.currentTarget.style.transform = 'scale(1.05)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#e0e7ff';
-                                      e.currentTarget.style.transform = 'scale(1)';
-                                    }}
-                                    title="Click to edit Work Done (%)"
-                                  >
-                                    {task.workDone || 0}%
-                                  </span>
-                                )}
-                              </td>
-                              {/* Flag (Director Input Required) */}
-                              <td style={{ padding: '20px' }}>
-                                {task.flagDirectorInputRequired ? (
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    backgroundColor: '#fee2e2',
-                                    color: '#dc2626'
-                                  }}>
-                                    Yes
-                                  </span>
-                                ) : (
-                                  <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    backgroundColor: '#f3f4f6',
-                                    color: '#6b7280'
-                                  }}>
-                                    No
-                                  </span>
-                                )}
-                              </td>
-                              {/* Date */}
-                              <td style={{ padding: '20px' }}>
-                                <div style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: '6px'
-                                }}>
-                                  {/* Created Date */}
+                              {/* Comments (Detailed) */}
+                              <td style={{ padding: '0 10px', verticalAlign: 'top' }}>
+                                {task.comments && task.comments.length > 0 ? (
                                   <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '80px 50px 1fr 120px',
+                                    gap: '0',
                                     fontSize: '12px',
-                                    color: '#6b7280',
-                                    fontWeight: '500'
+                                    border: '1px solid #e5e7eb',
+                                    height: '100%',
+                                    minHeight: '60px'
                                   }}>
-                                    <span style={{ fontWeight: '600', color: '#374151' }}>Created: </span>
-                                    {task.startDate
-                                      ? new Date(task.startDate).toLocaleDateString()
-                                      : 'N/A'}
+                                    {task.comments.slice(-1).map((comment, idx) => {
+                                      const date = new Date(comment.timestamp);
+                                      const formattedDate = `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })}-${date.toLocaleString('default', { weekday: 'short' })}`;
+
+                                      return (
+                                        <React.Fragment key={comment.id || idx}>
+                                          <div style={{ padding: '8px', borderRight: '1px solid #e5e7eb', backgroundColor: '#f8fafc', color: '#64748b', fontWeight: '600' }}>
+                                            {formattedDate}
+                                          </div>
+                                          <div style={{ padding: '8px', borderRight: '1px solid #e5e7eb', backgroundColor: '#f8fafc', color: '#111827', fontWeight: '700', textAlign: 'center' }}>
+                                            {task.workDone || 0}%
+                                          </div>
+                                          <div style={{ padding: '8px', borderRight: '1px solid #e5e7eb', backgroundColor: '#f8fafc' }}>
+                                            <p style={{ margin: 0, color: '#334155', fontWeight: '500' }}>{comment.content}</p>
+                                          </div>
+                                          <div style={{ padding: '8px', backgroundColor: '#f8fafc', color: '#64748b', fontWeight: '600' }}>
+                                            {comment.userName}
+                                          </div>
+                                        </React.Fragment>
+                                      );
+                                    })}
                                   </div>
-                                  {/* Reminder Date */}
-                                  {task.reminderDate && (
-                                    <div style={{
-                                      fontSize: '12px',
-                                      color: '#dc2626',
-                                      fontWeight: '500',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '4px'
-                                    }}>
-                                      <span style={{ fontWeight: '600' }}>Reminder: </span>
-                                      {new Date(task.reminderDate).toLocaleDateString()}
-                                    </div>
-                                  )}
-                                </div>
+                                ) : (
+                                  <div style={{ height: '60px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}></div>
+                                )}
                               </td>
-                              {/* Created by */}
-                              <td style={{ padding: '20px' }}>
-                                <div style={{
-                                  fontSize: '13px',
-                                  fontWeight: '500',
-                                  color: '#374151'
-                                }}>
-                                  {task.assignedByName || 'N/A'}
-                                </div>
-                              </td>
-                              {/* Actions */}
+                              {/* Submit */}
                               <td style={{
                                 padding: '20px',
+                                textAlign: 'center',
+                                verticalAlign: 'middle',
                                 borderTopRightRadius: index === 0 ? '12px' : '0',
                                 borderBottomRightRadius: index === filteredTasks.length - 1 ? '12px' : '0'
                               }}>
-                                <div style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '8px',
-                                  flexWrap: 'wrap'
-                                }}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedTask(task);
-                                      setIsTaskModalOpen(true);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '8px 14px',
-                                      backgroundColor: '#dbeafe',
-                                      border: 'none',
-                                      borderRadius: '8px',
-                                      color: '#1e40af',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease',
-                                      boxShadow: '0 1px 2px rgba(59, 130, 246, 0.2)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#bfdbfe';
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.3)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = '#dbeafe';
-                                      e.currentTarget.style.transform = 'translateY(0)';
-                                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(59, 130, 246, 0.2)';
-                                    }}
-                                  >
-                                    <Eye size={14} />
-                                    View
-                                  </button>
-                                  {/* Red Flag Button - Available for all tasks */}
-                                  <button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const taskId = task.id || task._id;
-                                      if (!taskId) return;
-
-                                      const updatedTask = {
-                                        ...task,
-                                        flagDirectorInputRequired: !task.flagDirectorInputRequired
-                                      };
-                                      await handleTaskUpdate(updatedTask);
-                                    }}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      padding: '8px 14px',
-                                      backgroundColor: task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6',
-                                      border: 'none',
-                                      borderRadius: '8px',
-                                      color: task.flagDirectorInputRequired ? '#dc2626' : '#6b7280',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease',
-                                      boxShadow: task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)'
-                                    }}
-                                    onMouseOver={(e) => {
-                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fecaca' : '#e5e7eb';
-                                      e.currentTarget.style.transform = 'translateY(-1px)';
-                                      e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 4px 6px rgba(220, 38, 38, 0.3)' : '0 4px 6px rgba(0, 0, 0, 0.2)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                      e.currentTarget.style.backgroundColor = task.flagDirectorInputRequired ? '#fee2e2' : '#f3f4f6';
-                                      e.currentTarget.style.transform = 'translateY(0)';
-                                      e.currentTarget.style.boxShadow = task.flagDirectorInputRequired ? '0 1px 2px rgba(220, 38, 38, 0.2)' : '0 1px 2px rgba(0, 0, 0, 0.1)';
-                                    }}
-                                    title={task.flagDirectorInputRequired ? "Director Input Required - Click to remove flag" : "Click to flag for Director Input"}
-                                  >
-                                    🚩 Red Flag
-                                  </button>
-                                  {/* Show Edit, Delete buttons only for employee-created tasks */}
-                                  {task.isEmployeeCreated && (
-                                    <>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedTask(task);
-                                          setIsTaskModalOpen(true);
-                                        }}
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
-                                          padding: '8px 14px',
-                                          backgroundColor: '#dcfce7',
-                                          border: 'none',
-                                          borderRadius: '8px',
-                                          color: '#15803d',
-                                          fontSize: '12px',
-                                          fontWeight: '600',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.2s ease',
-                                          boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
-                                        }}
-                                        onMouseOver={(e) => {
-                                          e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                          e.currentTarget.style.transform = 'translateY(-1px)';
-                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
-                                        }}
-                                        onMouseOut={(e) => {
-                                          e.currentTarget.style.backgroundColor = '#dcfce7';
-                                          e.currentTarget.style.transform = 'translateY(0)';
-                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
-                                        }}
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const taskId = task.id || task._id;
-                                          if (taskId) {
-                                            handleTaskDelete(String(taskId));
-                                          }
-                                        }}
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '6px',
-                                          padding: '8px 14px',
-                                          backgroundColor: '#fee2e2',
-                                          border: 'none',
-                                          borderRadius: '8px',
-                                          color: '#dc2626',
-                                          fontSize: '12px',
-                                          fontWeight: '600',
-                                          cursor: 'pointer',
-                                          transition: 'all 0.2s ease',
-                                          boxShadow: '0 1px 2px rgba(220, 38, 38, 0.2)'
-                                        }}
-                                        onMouseOver={(e) => {
-                                          e.currentTarget.style.backgroundColor = '#fecaca';
-                                          e.currentTarget.style.transform = 'translateY(-1px)';
-                                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(220, 38, 38, 0.3)';
-                                        }}
-                                        onMouseOut={(e) => {
-                                          e.currentTarget.style.backgroundColor = '#fee2e2';
-                                          e.currentTarget.style.transform = 'translateY(0)';
-                                          e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 38, 38, 0.2)';
-                                        }}
-                                      >
-                                        Delete
-                                      </button>
-                                    </>
-                                  )}
-                                  {/* Show Complete button for non-employee-created tasks */}
-                                  {!task.isEmployeeCreated && task.status !== 'Completed' && task.completionRequestStatus !== 'Pending' && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleTaskCompleted(task);
-                                      }}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '8px 14px',
-                                        backgroundColor: '#dcfce7',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#15803d',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: '0 1px 2px rgba(21, 128, 61, 0.2)'
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#bbf7d0';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(21, 128, 61, 0.3)';
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#dcfce7';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(21, 128, 61, 0.2)';
-                                      }}
-                                    >
-                                      Complete
-                                    </button>
-                                  )}
-                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTask(task);
+                                    setIsTaskModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: '8px 24px',
+                                    backgroundColor: '#4472c4',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '14px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                  }}
+                                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#365ba1'}
+                                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#4472c4'}
+                                >
+                                  Submit
+                                </button>
                               </td>
                             </tr>
                           );
@@ -4560,11 +4192,11 @@ const EmployeeDashboard: React.FC = () => {
             zIndex: 10000,
             padding: '20px'
           }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleWorkDoneCancel();
-            }
-          }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleWorkDoneCancel();
+              }
+            }}
           >
             <div style={{
               backgroundColor: '#ffffff',
@@ -4574,7 +4206,7 @@ const EmployeeDashboard: React.FC = () => {
               width: '100%',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
             }}
-            onClick={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               <div style={{
                 display: 'flex',

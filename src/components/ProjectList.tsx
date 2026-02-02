@@ -149,9 +149,9 @@ const ProjectList: React.FC<ProjectListProps> = ({
               marginTop: '4px',
               margin: 0
             }}>
-              {user?.role === 'Director' ? 'Full access - Create, Edit, Delete' : 
-               user?.role === 'Project Head' ? 'View only - No editing permissions' : 
-               'View only - Employee access'}
+              {user?.role === 'Director' ? 'Full access - Create, Edit, Delete' :
+                user?.role === 'Project Head' ? 'View only - No editing permissions' :
+                  'View only - Employee access'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -256,30 +256,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
-                Location
-              </th>
-              <th style={{
-                padding: '12px 24px',
-                textAlign: 'left',
-                fontSize: '12px',
-                fontWeight: '500',
-                color: '#6b7280',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                borderBottom: '1px solid #e5e7eb'
-              }}>
-                Status
-              </th>
-              <th style={{
-                padding: '12px 24px',
-                textAlign: 'left',
-                fontSize: '12px',
-                fontWeight: '500',
-                color: '#6b7280',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                borderBottom: '1px solid #e5e7eb'
-              }}>
                 Project Description (in short)
               </th>
               <th style={{
@@ -292,7 +268,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                 letterSpacing: '0.05em',
                 borderBottom: '1px solid #e5e7eb'
               }}>
-                Contact Details
+                Location
               </th>
               <th style={{
                 padding: '12px 24px',
@@ -311,7 +287,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
           <tbody style={{ backgroundColor: '#ffffff' }}>
             {projects.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{
+                <td colSpan={5} style={{
                   padding: '48px 24px',
                   textAlign: 'center',
                   color: '#6b7280'
@@ -362,12 +338,12 @@ const ProjectList: React.FC<ProjectListProps> = ({
                   transition: 'background-color 0.2s ease',
                   backgroundColor: project.flagDirectorInputRequired ? '#dc2626' : '#ffffff'
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
-                }}>
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#b91c1c' : '#f9fafb';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = project.flagDirectorInputRequired ? '#dc2626' : '#ffffff';
+                  }}>
                   {/* Project Name */}
                   <td style={{
                     padding: '16px 24px',
@@ -393,47 +369,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       {project.projectNumber || '-'}
                     </div>
                   </td>
-                  {/* Location */}
-                  <td style={{
-                    padding: '16px 24px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    <div style={{
-                      fontSize: '14px',
-                      color: '#111827'
-                    }}>
-                      {project.location || '-'}
-                    </div>
-                  </td>
-                  {/* Status */}
-                  <td style={{
-                    padding: '16px 24px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    <span style={{
-                      padding: '4px 8px',
-                      display: 'inline-flex',
-                      fontSize: '12px',
-                      lineHeight: '1.25',
-                      fontWeight: '600',
-                      borderRadius: '9999px',
-                      backgroundColor: project.status === 'Current' ? '#dcfce7' :
-                                      project.status === 'Upcoming' ? '#dbeafe' :
-                                      project.status === 'Completed' ? '#dbeafe' :
-                                      project.status === 'Sleeping (On Hold)' ? '#fef3c7' : '#f3f4f6',
-                      color: project.status === 'Current' ? '#166534' :
-                             project.status === 'Upcoming' ? '#1e40af' :
-                             project.status === 'Completed' ? '#1e40af' :
-                             project.status === 'Sleeping (On Hold)' ? '#92400e' : '#374151'
-                    }}>
-                      {project.status || '-'}
-                    </span>
-                  </td>
                   {/* Project Description (in short) */}
                   <td style={{
                     padding: '16px 24px',
                     whiteSpace: 'normal',
-                    maxWidth: '300px'
+                    maxWidth: '400px'
                   }}>
                     <div style={{
                       fontSize: '14px',
@@ -448,23 +388,16 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       {project.description || '-'}
                     </div>
                   </td>
-                  {/* Contact Details */}
+                  {/* Location */}
                   <td style={{
                     padding: '16px 24px',
-                    whiteSpace: 'normal',
-                    maxWidth: '250px'
+                    whiteSpace: 'nowrap'
                   }}>
                     <div style={{
                       fontSize: '14px',
-                      color: '#6b7280',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      lineHeight: '1.4'
+                      color: '#111827'
                     }}>
-                      {project.contactDetails || '-'}
+                      {project.location || '-'}
                     </div>
                   </td>
                   <td style={{
@@ -478,7 +411,7 @@ const ProjectList: React.FC<ProjectListProps> = ({
                         onClick={async () => {
                           const projectId = project.id || project._id;
                           if (!projectId) return;
-                          
+
                           const updatedProject = {
                             ...project,
                             flagDirectorInputRequired: !project.flagDirectorInputRequired
@@ -509,8 +442,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
                       >
                         Red Flag
                       </button>
-                       <button
-                         onClick={() => handleViewProject(project)}
+                      <button
+                        onClick={() => handleViewProject(project)}
                         style={{
                           color: '#2563eb',
                           backgroundColor: 'transparent',
@@ -528,14 +461,14 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           e.currentTarget.style.color = '#2563eb';
                           e.currentTarget.style.backgroundColor = 'transparent';
                         }}
-                         title="View Project"
-                       >
+                        title="View Project"
+                      >
                         <Eye size={16} />
-                       </button>
-                                               {/* Show Edit button for Directors or for employee-created projects */}
-                        {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
-                          <button
-                            onClick={() => handleEditProject(project)}
+                      </button>
+                      {/* Show Edit button for Directors or for employee-created projects */}
+                      {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
+                        <button
+                          onClick={() => handleEditProject(project)}
                           style={{
                             color: '#16a34a',
                             backgroundColor: 'transparent',
@@ -553,43 +486,43 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             e.currentTarget.style.color = '#16a34a';
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }}
-                            title="Edit Project"
-                          >
+                          title="Edit Project"
+                        >
                           <Edit size={16} />
-                          </button>
-                        )}
-                        {/* Show Complete button for Directors only */}
-                        {user?.role === 'Director' && project.id && onProjectComplete && project.status !== 'Completed' && (
-                          <button
-                            onClick={() => onProjectComplete(project)}
-                            style={{
-                              color: '#15803d',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              borderRadius: '4px',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.color = '#166534';
-                              e.currentTarget.style.backgroundColor = '#dcfce7';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.color = '#15803d';
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                            title="Mark as Completed"
-                          >
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </button>
-                        )}
-                        {/* Show Delete button for Directors or for employee-created projects */}
-                        {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
-                          <button
-                            onClick={() => handleDeleteProject(project.id!)}
+                        </button>
+                      )}
+                      {/* Show Complete button for Directors only */}
+                      {user?.role === 'Director' && project.id && onProjectComplete && project.status !== 'Completed' && (
+                        <button
+                          onClick={() => onProjectComplete(project)}
+                          style={{
+                            color: '#15803d',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.color = '#166534';
+                            e.currentTarget.style.backgroundColor = '#dcfce7';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.color = '#15803d';
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                          title="Mark as Completed"
+                        >
+                          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      )}
+                      {/* Show Delete button for Directors or for employee-created projects */}
+                      {((user?.role === 'Director' && project.id) || (user?.role === 'Employee' && project.isEmployeeCreated && project.id)) && (
+                        <button
+                          onClick={() => handleDeleteProject(project.id!)}
                           style={{
                             color: '#dc2626',
                             backgroundColor: 'transparent',
@@ -607,13 +540,13 @@ const ProjectList: React.FC<ProjectListProps> = ({
                             e.currentTarget.style.color = '#dc2626';
                             e.currentTarget.style.backgroundColor = 'transparent';
                           }}
-                            title="Delete Project"
-                          >
+                          title="Delete Project"
+                        >
                           <Trash2 size={16} />
-                          </button>
-                        )}
-                       {/* Show View Only for projects not created by employee and user is not Director */}
-                       {user?.role === 'Employee' && !project.isEmployeeCreated && (
+                        </button>
+                      )}
+                      {/* Show View Only for projects not created by employee and user is not Director */}
+                      {user?.role === 'Employee' && !project.isEmployeeCreated && (
                         <span style={{
                           fontSize: '12px',
                           color: '#9ca3af',
@@ -621,10 +554,10 @@ const ProjectList: React.FC<ProjectListProps> = ({
                           backgroundColor: '#f3f4f6',
                           borderRadius: '4px'
                         }}>
-                           View Only
-                         </span>
-                       )}
-                     </div>
+                          View Only
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
